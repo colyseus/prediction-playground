@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>" />
+    <title>Colyseus Prediction Playground</title>
+    <style>
+      :root {
+        --bg: #0a0f1a;
+        --bg-panel: #0e1626;
+        --bg-inset: #121c30;
+        --border: #24304a;
+        --text: #d8e2f0;
+        --text-dim: #8aa0c0;
+        --text-faint: #5e7196;
+        --accent: #ffd36b;
+        --good: #7be08a;
+        --warn: #ffb454;
+        --bad: #ff6688;
+        --blue: #6db3ff;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 13px; }
+      body { display: flex; flex-direction: column; }
+
+      /* ---- Main row: stage + right panel. The viewport's top corners belong
+             to the SDK debug UI (Predict cards top-left, room panel top-right);
+             the playground's own chrome floats CENTERED between them. ---- */
+      #layout { flex: 1; display: flex; min-height: 0; }
+
+      /* Stage: full-bleed canvas. */
+      #stage { flex: 1; position: relative; min-width: 0; background: var(--bg); }
+      #canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      #stage-msg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: var(--text-dim); font-size: 15px; text-align: center; white-space: pre-line; }
+
+      /* ---- Floating top bar: title · lab select · about · net readouts.
+             Centered so it never mixes with the Predict cards (top-left) or
+             the room debug panel (top-right). ---- */
+      /* Fixed + centered on the VIEWPORT (not the stage): the stage excludes
+         the right panel, so stage-centering would drift left under the
+         Predict cards. */
+      #topbar { position: fixed; top: 10px; left: 50vw; transform: translateX(-50%); z-index: 12; display: flex; align-items: center; gap: 12px; padding: 7px 12px; background: rgba(14, 22, 38, 0.94); border: 1px solid var(--border); border-radius: 10px; backdrop-filter: blur(6px); box-shadow: 0 6px 20px rgba(0,0,0,0.35); white-space: nowrap; }
+      #brand { font-weight: 700; letter-spacing: 0.04em; font-size: 13px; }
+      #brand .zap { color: var(--accent); }
+      #lab-select { background: var(--bg-inset); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; max-width: 260px; }
+      #lab-select:hover { border-color: #3a4d78; }
+      #lab-select optgroup { color: var(--text-faint); font-style: normal; }
+      #lab-select option { color: var(--text); background: var(--bg-inset); }
+      #about-btn { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 7px; padding: 5px 10px; color: var(--text-dim); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+      #about-btn:hover { color: var(--text); border-color: #3a4d78; }
+      #nethud { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; font-size: 11.5px; color: var(--text-dim); padding-left: 4px; border-left: 1px solid var(--border); }
+      #nethud .stat { display: flex; align-items: baseline; gap: 4px; }
+      #nethud .stat .lbl { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+      #nethud .stat .val { color: var(--text); min-width: 40px; }
+
+      /* Docs panel: drops down CENTERED below the top bar (the About button
+         and the panel header both toggle it). */
+      #docs { position: fixed; top: 56px; left: 50vw; transform: translateX(-50%); width: min(600px, calc(100vw - 24px)); max-height: 62vh; display: flex; flex-direction: column; background: rgba(14, 22, 38, 0.96); border: 1px solid var(--border); border-radius: 10px; backdrop-filter: blur(6px); box-shadow: 0 6px 20px rgba(0,0,0,0.35); z-index: 11; }
+      #docs.collapsed { display: none; }
+      #docs-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; user-select: none; }
+      #docs-head .caret { color: var(--text-faint); }
+      #docs-head .t { font-weight: 600; font-size: 12px; letter-spacing: 0.04em; }
+      #docs-head .close { margin-left: auto; color: var(--text-faint); font-size: 14px; }
+      #docs-body { overflow-y: auto; padding: 0 14px 12px; font-size: 12.5px; line-height: 1.55; color: var(--text-dim); }
+      #docs-body h1, #docs-body h2, #docs-body h3 { color: var(--text); margin: 10px 0 4px; line-height: 1.3; }
+      #docs-body h1 { font-size: 15px; } #docs-body h2 { font-size: 13.5px; } #docs-body h3 { font-size: 12.5px; }
+      #docs-body p { margin: 6px 0; }
+      #docs-body ul { margin: 6px 0; padding-left: 18px; }
+      #docs-body li { margin: 3px 0; }
+      #docs-body code { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 4px; padding: 0.5px 4px; font-size: 11.5px; color: var(--blue); }
+      #docs-body pre { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; }
+      #docs-body pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 11px; line-height: 1.5; }
+      #docs-body strong { color: var(--text); }
+      /* Syntax highlighting (framework/highlight.ts token classes). */
+      #docs-body .tok-com { color: var(--text-faint); font-style: italic; }
+      #docs-body .tok-str { color: var(--good); }
+      #docs-body .tok-num { color: var(--warn); }
+      #docs-body .tok-kw { color: #c792ea; }
+      #docs-body .tok-type { color: var(--blue); }
+      #docs-body .tok-fn { color: var(--accent); }
+      #docs-body details summary { cursor: pointer; color: var(--text-faint); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin: 8px 0 4px; }
+
+      /* Right panel: controls + telemetry. The top of this column is RESERVED
+         for the SDK room debug panel (default dock: viewport top-right). */
+      #panel { flex: 0 0 296px; overflow-y: auto; background: var(--bg-panel); border-left: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 14px; }
+      #panel-reserve { flex: 0 0 auto; height: 208px; display: flex; align-items: center; justify-content: center; border: 1px dashed rgba(94, 113, 150, 0.25); border-radius: 10px; color: rgba(94, 113, 150, 0.5); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; }
+      #panel .section-title { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); margin: 4px 0 2px; }
+      #controls, #hud { display: flex; flex-direction: column; gap: 8px; }
+      .ctl { display: flex; flex-direction: column; gap: 4px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+      .ctl .head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+      .ctl .lbl { font-size: 11.5px; color: var(--text-dim); font-weight: 600; }
+      .ctl .val { font-size: 11.5px; color: var(--accent); font-variant-numeric: tabular-nums; }
+      .ctl input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+      .ctl .radio-row, .ctl .btn-row { display: flex; flex-wrap: wrap; gap: 5px; }
+      .ctl .opt { flex: 1 1 auto; text-align: center; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; color: var(--text-dim); font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+      .ctl .opt:hover { color: var(--text); }
+      .ctl .opt.on { background: #23304e; border-color: #3a4d78; color: var(--text); font-weight: 600; }
+      .ctl button.push { background: #23304e; border: 1px solid #3a4d78; border-radius: 6px; padding: 5px 10px; color: var(--text); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+      .ctl button.push:hover { filter: brightness(1.15); }
+      .ctl .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .ctl .switch { position: relative; width: 34px; height: 18px; border-radius: 9px; background: var(--bg-panel); border: 1px solid var(--border); cursor: pointer; flex: 0 0 auto; }
+      .ctl .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--text-faint); transition: all 0.12s ease; }
+      .ctl .switch.on { background: #2a4a2e; border-color: #3f7a48; }
+      .ctl .switch.on::after { left: 18px; background: var(--good); }
+      .ctl .note { font-size: 10.5px; color: var(--text-faint); line-height: 1.4; }
+
+      /* Telemetry rows */
+      .hudrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 8px; }
+      .hudrow .lbl { font-size: 11px; color: var(--text-dim); }
+      .hudrow .val { font-size: 12px; color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+      .hudrow .val.good { color: var(--good); } .hudrow .val.warn { color: var(--warn); } .hudrow .val.bad { color: var(--bad); }
+      .hudspark { display: flex; flex-direction: column; gap: 3px; padding: 6px 10px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 8px; }
+      .hudspark .head { display: flex; justify-content: space-between; align-items: baseline; }
+      .hudspark .lbl { font-size: 11px; color: var(--text-dim); }
+      .hudspark .val { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; }
+      .hudspark canvas { width: 100%; height: 26px; display: block; }
+      .hudchips { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 8px; }
+      .hudchips .head { display: flex; justify-content: space-between; }
+      .hudchips .lbl { font-size: 11px; color: var(--text-dim); }
+      .hudchips .val { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; }
+      .hudchips .chips { display: flex; flex-wrap: wrap; gap: 3px; min-height: 8px; }
+      .hudchips .chip { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); opacity: 0.85; }
+    </style>
+  </head>
+  <body>
+    <div id="layout">
+      <main id="stage">
+        <canvas id="canvas"></canvas>
+        <div id="stage-msg"></div>
+        <div id="topbar">
+          <div id="brand"><span class="zap">⚡</span> Prediction Playground</div>
+          <select id="lab-select" title="Pick a lab"></select>
+          <button id="about-btn" title="What this lab teaches (and the code it runs)">ℹ About</button>
+          <div id="nethud"></div>
+        </div>
+        <div id="docs" class="collapsed">
+          <div id="docs-head"><span class="caret">▾</span><span class="t">About this lab</span><span class="close">✕</span></div>
+          <div id="docs-body"></div>
+        </div>
+      </main>
+      <aside id="panel">
+        <div id="panel-reserve">room debug panel</div>
+        <div>
+          <div class="section-title">Controls</div>
+          <div id="controls"></div>
+        </div>
+        <div>
+          <div class="section-title">Telemetry</div>
+          <div id="hud"></div>
+        </div>
+      </aside>
+    </div>
+    <script type="module" src="/src/client/main.ts"></script>
+  </body>
+</html>
