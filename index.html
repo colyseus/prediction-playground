@@ -41,7 +41,8 @@
          the right panel, so stage-centering would drift left under the
          Predict cards. */
       #topbar { position: fixed; top: 10px; left: 50vw; transform: translateX(-50%); z-index: 12; display: flex; align-items: center; gap: 12px; padding: 7px 12px; background: rgba(14, 22, 38, 0.94); border: 1px solid var(--border); border-radius: 10px; backdrop-filter: blur(6px); box-shadow: 0 6px 20px rgba(0,0,0,0.35); white-space: nowrap; }
-      #brand { font-weight: 700; letter-spacing: 0.04em; font-size: 13px; }
+      #brand { font-weight: 700; letter-spacing: 0.04em; font-size: 13px; color: var(--text); text-decoration: none; }
+      #brand:hover { color: var(--accent); }
       #brand .zap { color: var(--accent); }
       #lab-select { background: var(--bg-inset); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; max-width: 260px; }
       #lab-select:hover { border-color: #3a4d78; }
@@ -129,7 +130,7 @@
         <canvas id="canvas"></canvas>
         <div id="stage-msg"></div>
         <div id="topbar">
-          <div id="brand"><span class="zap">⚡</span> Prediction Playground</div>
+          <a id="brand" href="https://github.com/colyseus/prediction-playground" target="_blank" rel="noopener" title="View on GitHub"><span class="zap">⚡</span> Prediction Playground</a>
           <select id="lab-select" title="Pick a lab"></select>
           <button id="about-btn" title="What this lab teaches (and the code it runs)">ℹ About</button>
           <div id="nethud"></div>
