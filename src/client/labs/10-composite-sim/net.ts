@@ -52,7 +52,7 @@ export function makeSim(
     smoothing,
 
     // The server's step order, reproduced: paddles → puck → contacts.
-    step: (ctx, cmd, w) => {
+    step: (ctx, w, cmd) => {
       stepEntity(w.paddle, cmd, ctx.dt);
       stepPuck(w.puck, ctx.dt);
       for (const [sid, p] of room.state.players) {
