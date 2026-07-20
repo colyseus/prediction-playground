@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build --app",
     "check": "tsc --noEmit",
-    "probes": "node scripts/run-probes.mjs"
+    "probes": "node scripts/run-probes.mjs",
+    "media": "node scripts/capture-media.mjs"
   },
   "dependencies": {
     "@colyseus/core": "link:../../colyseus-0.18/packages/core",

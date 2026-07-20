@@ -43,6 +43,10 @@ export interface LabDescriptor {
   docs: string;
   /** net.ts?raw — the lab's ACTUAL executed netcode, shown in the docs panel. */
   source?: string;
+  /** false = skip the docs panel's first-visit auto-expand (hero lab). */
+  autoExpandDocs?: boolean;
+  /** The lab draws its own background — the shell skips the shared drawArena. */
+  ownArena?: boolean;
   mount(ctx: LabContext): Promise<LabInstance>;
 }
 

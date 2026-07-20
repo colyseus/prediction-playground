@@ -22,7 +22,7 @@ export class DocsPanel {
     this.root.classList.toggle("collapsed");
   }
 
-  set(labId: string, title: string, docsMd: string, source?: string): void {
+  set(labId: string, title: string, docsMd: string, source?: string, autoExpand = true): void {
     this.title.textContent = title;
     let html = renderMarkdown(docsMd);
     if (source) {
@@ -32,10 +32,11 @@ export class DocsPanel {
     this.body.scrollTop = 0;
 
     // Auto-expand on the first-ever visit of each lab; stay collapsed after.
+    // The seen-key is always written — labNav reuses it as the visited marker.
     const key = `pp-docs-seen:${labId}`;
     if (!localStorage.getItem(key)) {
       localStorage.setItem(key, "1");
-      this.root.classList.remove("collapsed");
+      if (autoExpand) this.root.classList.remove("collapsed");
     }
   }
 }

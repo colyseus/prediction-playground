@@ -1,4 +1,5 @@
 import type { LabEntry } from "./lab.ts";
+import { lab as split } from "../labs/00-split/index.ts";
 import { lab as feelTheLag } from "../labs/01-feel-the-lag/index.ts";
 import { lab as clocks } from "../labs/02-clocks/index.ts";
 import { lab as reconcile } from "../labs/03-reconcile/index.ts";
@@ -13,6 +14,7 @@ import { lab as deterministicRng } from "../labs/11-deterministic-rng/index.ts";
 
 /** Ordered curriculum. Entries without a mount are planned-but-unbuilt (dimmed). */
 export const LABS: LabEntry[] = [
+  split,
   feelTheLag,
   clocks,
   reconcile,

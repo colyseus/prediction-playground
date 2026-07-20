@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>" />
     <title>Colyseus Prediction Playground</title>
+    <meta name="description" content="Eleven interactive netcode labs — client prediction, reconciliation, interpolation, lag compensation — built on Colyseus 0.18. Feel every technique at 200 ms." />
+    <meta property="og:title" content="Colyseus Prediction Playground" />
+    <meta property="og:description" content="Eleven interactive netcode labs — client prediction, reconciliation, interpolation, lag compensation — built on Colyseus 0.18." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://raw.githubusercontent.com/colyseus/prediction-playground/main/media/og.png" />
+    <!-- TODO: set og:url once the playground has a public URL -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Colyseus Prediction Playground" />
+    <meta name="twitter:description" content="Eleven interactive netcode labs — client prediction, reconciliation, interpolation, lag compensation — built on Colyseus 0.18." />
+    <meta name="twitter:image" content="https://raw.githubusercontent.com/colyseus/prediction-playground/main/media/og.png" />
     <style>
       :root {
         --bg: #0a0f1a;
@@ -31,8 +41,10 @@
 
       /* Stage: full-bleed canvas. */
       #stage { flex: 1; position: relative; min-width: 0; background: var(--bg); }
-      #canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-      #stage-msg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; color: var(--text-dim); font-size: 15px; text-align: center; white-space: pre-line; }
+      #canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+      #stage-msg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; gap: 8px; color: var(--text-dim); font-size: 15px; text-align: center; white-space: pre-line; }
+      #stage-msg .zap { color: var(--accent); animation: zap-pulse 1.2s ease-in-out infinite; }
+      @keyframes zap-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 
       /* ---- Floating top bar: title · lab select · about · net readouts.
              Centered so it never mixes with the Predict cards (top-left) or
@@ -82,6 +94,37 @@
       #docs-body .tok-fn { color: var(--accent); }
       #docs-body details summary { cursor: pointer; color: var(--text-faint); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; margin: 8px 0 4px; }
 
+      /* ---- Lab strip: bottom-center progress dots + prev/next + grid opener.
+             The bottom corners are free (only the TOP corners are reserved
+             for the SDK debug UI). ---- */
+      #labstrip { position: fixed; bottom: 10px; left: 50vw; transform: translateX(-50%); z-index: 12; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(14, 22, 38, 0.94); border: 1px solid var(--border); border-radius: 10px; backdrop-filter: blur(6px); box-shadow: 0 6px 20px rgba(0,0,0,0.35); white-space: nowrap; }
+      #labstrip .nav { background: none; border: none; color: var(--text-dim); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; }
+      #labstrip .nav:hover { color: var(--text); }
+      #labstrip .dots { display: flex; gap: 5px; }
+      #labstrip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bg-inset); border: 1px solid var(--border); cursor: pointer; padding: 0; }
+      #labstrip .dot.visited { background: #3a4d78; }
+      #labstrip .dot.current { background: var(--accent); border-color: var(--accent); }
+      #labstrip .dot.pending { opacity: 0.35; cursor: default; }
+      #labstrip .grid-open { background: none; border: none; border-left: 1px solid var(--border); color: var(--text-dim); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; padding: 0 2px 0 10px; font-variant-numeric: tabular-nums; }
+      #labstrip .grid-open:hover { color: var(--text); }
+
+      /* ---- Lab grid overlay (user-initiated; never auto-shown) ---- */
+      #labgrid { position: fixed; inset: 0; z-index: 30; display: none; }
+      #labgrid.open { display: block; }
+      #labgrid .backdrop { position: absolute; inset: 0; background: rgba(5, 8, 15, 0.65); }
+      #labgrid .sheet { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(680px, calc(100vw - 24px)); max-height: 82vh; overflow-y: auto; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); padding: 14px 16px; }
+      #labgrid h2 { margin: 6px 2px 8px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint); }
+      #labgrid .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+      #labgrid .labcard { display: flex; align-items: baseline; gap: 10px; text-align: left; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; color: var(--text); font: inherit; cursor: pointer; }
+      #labgrid .labcard:hover { border-color: #3a4d78; background: #16233c; }
+      #labgrid .labcard.current { border-color: var(--accent); }
+      #labgrid .labcard.pending { opacity: 0.4; cursor: default; }
+      #labgrid .labcard .num { color: var(--accent); font-weight: 700; font-size: 11px; font-variant-numeric: tabular-nums; }
+      #labgrid .labcard .t { font-weight: 600; font-size: 12.5px; }
+      #labgrid .labcard .b { color: var(--text-dim); font-size: 11px; line-height: 1.35; margin-top: 2px; }
+      #labgrid .labcard .check { margin-left: auto; color: var(--good); font-size: 11px; }
+      @media (max-width: 620px) { #labgrid .cards { grid-template-columns: 1fr; } }
+
       /* Right panel: controls + telemetry. The top of this column is RESERVED
          for the SDK room debug panel (default dock: viewport top-right). */
       #panel { flex: 0 0 296px; overflow-y: auto; background: var(--bg-panel); border-left: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 14px; }
@@ -106,6 +149,19 @@
       .ctl .switch.on::after { left: 18px; background: var(--good); }
       .ctl .note { font-size: 10.5px; color: var(--text-faint); line-height: 1.4; }
 
+      /* ---- Mobile: hide the side panel, tighten the chrome. The SDK debug
+             panels keep their own docking behavior (known limitation). ---- */
+      @media (max-width: 760px) {
+        #panel { display: none; }
+        #nethud { display: none; }
+        #brand .name { display: none; }
+        #topbar { gap: 8px; padding: 6px 10px; max-width: calc(100vw - 16px); }
+        #lab-select { max-width: 170px; }
+        #docs { top: 52px; max-height: 72vh; }
+        #labstrip { bottom: 8px; gap: 6px; padding: 5px 8px; max-width: calc(100vw - 12px); }
+        #labstrip .dots { gap: 4px; }
+      }
+
       /* Telemetry rows */
       .hudrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 8px; }
       .hudrow .lbl { font-size: 11px; color: var(--text-dim); }
@@ -128,9 +184,10 @@
     <div id="layout">
       <main id="stage">
         <canvas id="canvas"></canvas>
-        <div id="stage-msg"></div>
+        <!-- Visible before the module loads — never a blank first paint. -->
+        <div id="stage-msg" style="display: flex"><span class="zap">⚡</span><span id="stage-msg-text">joining your room…</span></div>
         <div id="topbar">
-          <a id="brand" href="https://github.com/colyseus/prediction-playground" target="_blank" rel="noopener" title="View on GitHub"><span class="zap">⚡</span> Prediction Playground</a>
+          <a id="brand" href="https://github.com/colyseus/prediction-playground" target="_blank" rel="noopener" title="View on GitHub"><span class="zap">⚡</span><span class="name"> Prediction Playground</span></a>
           <select id="lab-select" title="Pick a lab"></select>
           <button id="about-btn" title="What this lab teaches (and the code it runs)">ℹ About</button>
           <div id="nethud"></div>
@@ -139,6 +196,8 @@
           <div id="docs-head"><span class="caret">▾</span><span class="t">About this lab</span><span class="close">✕</span></div>
           <div id="docs-body"></div>
         </div>
+        <div id="labstrip"></div>
+        <div id="labgrid"></div>
       </main>
       <aside id="panel">
         <div id="panel-reserve">room debug panel</div>

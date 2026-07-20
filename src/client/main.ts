@@ -6,14 +6,17 @@ import { Client } from "@colyseus/sdk";
 import { LABS } from "./framework/registry.ts";
 import { isPending, type LabDescriptor, type LabInstance, type LabContext } from "./framework/lab.ts";
 import { WorldView, drawArena } from "./framework/draw.ts";
+import { PLAYER_HALF } from "../shared/constants.ts";
 import { ControlsPanel } from "./framework/controls.ts";
 import { TelemetryHUD } from "./framework/hud.ts";
 import { NetHud } from "./framework/netHud.ts";
 import { DocsPanel } from "./framework/docsPanel.ts";
+import { LabNav } from "./framework/labNav.ts";
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const g = canvas.getContext("2d")!;
 const stageMsgEl = document.getElementById("stage-msg")!;
+const stageMsgTextEl = document.getElementById("stage-msg-text")!;
 const labSelectEl = document.getElementById("lab-select") as HTMLSelectElement;
 
 const client = new Client(
@@ -24,16 +27,18 @@ const controls = new ControlsPanel(document.getElementById("controls")!);
 const hud = new TelemetryHUD(document.getElementById("hud")!);
 const netHud = new NetHud(document.getElementById("nethud")!);
 const docsPanel = new DocsPanel();
+const labNav = new LabNav(LABS);
 
 const ctx: LabContext = { client, canvas, g, view, controls, hud };
 
 let active: LabInstance | null = null;
 let activeId: string | null = null;
+let activeOwnArena = false;
 let mountToken = 0;
 
 function stageMsg(text: string | null): void {
   stageMsgEl.style.display = text ? "flex" : "none";
-  stageMsgEl.textContent = text ?? "";
+  stageMsgTextEl.textContent = text ?? "";
 }
 
 // ---- Lab navigation ----------------------------------------------------------
@@ -81,11 +86,13 @@ async function activate(desc: LabDescriptor): Promise<void> {
     prev.room.leave().catch(() => {});
   }
   activeId = desc.id;
+  activeOwnArena = desc.ownArena === true;
   highlight(desc.id);
   controls.clear();
   hud.clear();
-  docsPanel.set(desc.id, `${String(desc.num).padStart(2, "0")} · ${desc.title}`, desc.docs, desc.source);
-  stageMsg("Connecting…");
+  docsPanel.set(desc.id, `${String(desc.num).padStart(2, "0")} · ${desc.title}`, desc.docs, desc.source, desc.autoExpandDocs !== false);
+  labNav.setActive(desc.id);
+  stageMsg(`joining "${String(desc.num).padStart(2, "0")} · ${desc.title}"…`);
 
   try {
     const inst = await desc.mount(ctx);
@@ -168,8 +175,15 @@ function frame(now: number): void {
   dbg.__shellActive = !!active;
 
   if (active) {
-    drawArena(g, view);
+    if (!activeOwnArena) drawArena(g, view);
     try { active.frame(now, dtMs); } catch (e) { console.error(e); }
+  } else {
+    // Pre-join idle scene: structure behind the "joining…" message.
+    drawArena(g, view);
+    const pulse = 0.25 + 0.18 * Math.sin(now / 350);
+    const s = view.s(PLAYER_HALF);
+    g.fillStyle = `rgba(255, 211, 107, ${pulse.toFixed(3)})`;
+    g.fillRect(view.sx(50) - s, view.sy(30) - s, s * 2, s * 2);
   }
   netHud.frame(now);
 }
