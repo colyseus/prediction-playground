@@ -74,7 +74,7 @@ export function makeReconciler(
       stepBumpGate(p);                       // reconciled tick gate (both sides)
       stepEntity(p, inp, ctx.dt);
       // The server rewinds THIS input to ctx.reckonTime — test there.
-      const when = ctx.reckonTime > 0 ? ctx.reckonTime : room.clock.serverNow();
+      const when = ctx.reckonTime;
       const hit = flags.useMemo
         ? ctx.memo("bump", () => testBots(p, when))
         : testBots(p, when);
