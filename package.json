@@ -11,13 +11,13 @@
     "media": "node scripts/capture-media.mjs"
   },
   "dependencies": {
-    "@colyseus/core": "link:../../colyseus-0.18/packages/core",
-    "@colyseus/sdk": "link:../../colyseus-0.18/packages/sdk",
-    "@colyseus/shared-types": "link:../../colyseus-0.18/packages/shared-types",
+    "@colyseus/core": "^0.18.1",
+    "@colyseus/sdk": "^0.18.1",
+    "@colyseus/shared-types": "^0.18.1",
     "@colyseus/monitor": "next",
     "@colyseus/playground": "next",
-    "@colyseus/schema": "link:../../colyseus-0.18/node_modules/@colyseus/schema",
-    "colyseus": "link:../../colyseus-0.18/bundles/colyseus"
+    "@colyseus/schema": "^5.0.8",
+    "colyseus": "^0.18.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.13",
