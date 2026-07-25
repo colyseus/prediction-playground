@@ -1,0 +1,10 @@
+# Headless predict-layer probe (neko sys target).
+# Requires a sibling colyseus-haxe checkout + its haxelib deps.
+-main PredictProbe
+-dce full
+-cp .
+-cp ../../../../colyseus-haxe/src
+-lib colyseus-websocket
+-lib tink_url
+-lib tink_http
+-neko probe.n
