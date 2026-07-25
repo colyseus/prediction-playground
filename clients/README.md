@@ -1,5 +1,8 @@
 # Cross-SDK validation clients
 
+> Next step: full **interactive** ports of the playground per SDK — plan in
+> [APPS_PLAN.md](./APPS_PLAN.md).
+
 Headless probes that run **every Colyseus SDK's predict layer against this
 playground's live server** — the cross-language twin of `scripts/probe-*.mjs`.
 Each client executes the same four scenarios and prints `OK`/`FAIL` per check
