@@ -2,8 +2,10 @@
 
 > Full **interactive** ports of the playground per SDK are landing alongside
 > these probes — plan in [APPS_PLAN.md](./APPS_PLAN.md).
-> First one up: [`native-app/`](./native-app) (C + raylib), milestone M1 —
-> shell, latency injector, labs 01 / 02 / 03.
+> First one up: [`native-app/`](./native-app) (C + raylib) — **complete**:
+> shell, latency injector, and all twelve labs (M1 + M2 + M3), with an
+> autopilot that replays the plan's exit criteria and exits non-zero on
+> failure. Unity / Defold / Haxe next.
 
 Headless probes that run **every Colyseus SDK's predict layer against this
 playground's live server** — the cross-language twin of `scripts/probe-*.mjs`.

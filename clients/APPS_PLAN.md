@@ -83,12 +83,15 @@ straight f64 transliterations; keep op order and constants byte-identical
 | `movement.ts` stepEntity | 00,01,03,06,07,08,09,10 | ✅ probe | ✅ probe | ✅ probe | ✅ probe |
 | `goal.ts` stepScoreGate | 08 | ✅ probe | ✅ probe | ✅ probe | ✅ probe |
 | `projectile.ts` stepProjectile | 09 | ✅ probe | ✅ probe | ✅ probe | ✅ probe |
-| `movers.ts` stepBot (patrol/circle/wander/teleport) | 04,05 (client reckon) | ⬜ | ⬜ | ⬜ | ⬜ |
-| `hockey.ts` stepPuck + collidePaddlePuck | 10 | ⬜ | ⬜ | ⬜ | ⬜ |
-| `bump.ts` stepBumpGate + collideBot | 07 | ⬜ | ⬜ | ⬜ | ⬜ |
-| `random.ts` splitmix32/mulberry32/shotSeed | 11 | ⬜ | ⬜ | ⬜ | ⬜ |
-| `spread.ts` spreadAngles | 11 | ⬜ | ⬜ | ⬜ | ⬜ |
-| `hitscan.ts` rayCircle | 06,07,11 | ⬜ | ⬜ | ⬜ | ⬜ |
+| `movers.ts` stepBot (patrol/circle/wander/teleport) | 04,05 (client reckon) | ✅ app | ⬜ | ⬜ | ⬜ |
+| `hockey.ts` stepPuck + collidePaddlePuck | 10 | ✅ app | ⬜ | ⬜ | ⬜ |
+| `bump.ts` stepBumpGate + collideBot | 07 | ✅ app | ⬜ | ⬜ | ⬜ |
+| `random.ts` splitmix32/mulberry32/shotSeed | 11 | ✅ app | ⬜ | ⬜ | ⬜ |
+| `spread.ts` spreadAngles | 11 | ✅ app | ⬜ | ⬜ | ⬜ |
+| `hitscan.ts` rayCircle | 06,07,11 | ✅ app | ⬜ | ⬜ | ⬜ |
+
+The native column landed as `clients/native-app/sim.h`, every entry with a
+canary pinned to values produced by the TypeScript original (`--selfcheck`).
 
 `random.ts` is **uint32 integer math** — use `uint32_t` (C), `uint` (C#),
 LuaJIT `bit` ops (Lua), `haxe.Int32`/`>>> ` on hl/js (Haxe). Validate against
@@ -136,11 +139,22 @@ debug panel does the same).
 | 06 lag-comp | allowRewind fire-gate, lerp-delayed bots, hit/miss markers (server broadcasts) | ✅ ready; needs hitscan port for the client-side aim ray |
 | 07 wysiwyg | `valueAt(ctx.reckonTime)` + `ctx.memo` frozen verdicts | ✅ ready; **C memo stores doubles only** — encode the verdict as a number |
 | 11 deterministic-rng | random+spread ports; overlay client fan vs server fan | ✅ engine-free; watch integer width (§2) |
-| 10 composite-sim | **SimReconciler (`predict.sim`) — NOT PORTED to any SDK** | ⬜ blocked on §5 |
+| 10 composite-sim | SimReconciler (`predict.sim`) | ✅ native (ported, §5); ⬜ Unity/Defold/Haxe |
 
 ## 5. SimReconciler port (prerequisite for lab 10)
 
-The one missing predict feature. Contract:
+**native: DONE** (`native-sdk` `predict: SimReconciler …`). C has no
+inheritance, so rather than duplicate the ~200-line rollback algorithm the
+composite face lives in `reconciler.c` behind a `sim` pointer on the same
+struct: the engine (catchUp, reconcile, error rebase, snap, drift, memos, epoch
+follow) is shared verbatim and only the four subclass hooks branch —
+`adopt_truth` / `run_step` / `truth_matches_at` / `cur_value`. A part with a
+`source` is auto-bound to a mirror and contributes `"<part>.<field>"` pose keys;
+a part without one is opaque and only ever restored by the app's `adopt`.
+`tests/test_predict.zig` `sim_reconciler_bound` mirrors scenario C. Unity /
+Defold / Haxe still to do — the same decomposition should transfer.
+
+Contract:
 `colyseus-0.18/PORTING/sdk-ports-predict-layer.md` §5 (auto-binding, adopt
 order, refreshPose/pose memoization, value() overlay) — plus scenario C in
 `PORTING/generate-predict-fixtures.cts` (`sim_reconciler_bound`: paddle+puck,
@@ -254,6 +268,17 @@ throughout (`predict_probe` etc. are the regression gate — run before/after).
    graphics.
 
 ## 9. Known future-work seams (explicitly out of scope)
+
+- **`renderDelay` is not auto-bound outside JS.** `predict.reconciler()` binds
+  the input handle's `renderDelay` to the Predict's lerp delay so lag comp
+  rewinds to the instant the client displayed; the C port has no such binding,
+  so labs 06/11 pass `render_delay = REMOTE_INTERP_MS` explicitly. Measured at
+  200 ms aiming dead-on at the lerp view: 3/6 hits and 99 ms of rewind error
+  without it, 6/6 and ~65 ms with. Expect the same gap in the other ports.
+- The C spawn store has no entry ITERATOR and no `value()` overlay, so lab 09
+  keeps its own id list (fed by `spawns_spawn` + the collection's `onAdd`).
+- `colyseus_step_memo` stores doubles only — lab 07 freezes its bump verdict as
+  two memos (`bump.vx`, `bump.vy`) rather than one angle.
 
 - Upstreaming the Haxe main-thread decode pump into the SDK proper.
 - native SO_NOSIGPIPE inside the transport (workaround pinned in apps).
