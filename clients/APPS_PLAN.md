@@ -112,9 +112,16 @@ button (kill transport uncleanly → exercises auto-reconnect + `onReconnect`):
   (fn-pointer swap — the probe's debug interposer shows the seam). Queue
   `{deliver_at, bytes}`; drain due entries from the app loop. Timestamp with
   `colyseus_room_clock_now`.
-- **Unity**: decorate the transport at `Room.Connection` (check the seam:
-  `Client` builds Connection; a `DelayedConnection : Connection` override or a
-  send/receive queue inside a custom transport factory). Drain from `Update()`.
+- **Unity** (seam checked, 6000.3.6f1 / SDK 0.17.16): `Room.Connection` is a
+  public field of the concrete `Connection` class. `Send(byte[])` is **virtual**,
+  so outbound delay is a `DelayedConnection : Connection` override. Inbound is
+  the harder half: `Connect()` is NOT virtual and wires
+  `_transport.OnMessage += data => OnMessage?.Invoke(data)` over a **private**
+  `_transport`, so a subclass cannot slip a queue between the socket and the
+  Room's subscriber. Either make `Connect()` virtual / expose the transport in
+  the SDK, or have the app own the delay on the receive side another way. Decide
+  this before writing the shell — it is the one piece with no obvious in-app
+  workaround.
 - **Defold**: wrap `room.connection` — replace `connection:send` and re-emit
   delayed `"message"` events via `timer.delay`. Pure Lua, engine timers.
 - **Haxe**: wrap `Connection.send` + `onMessage` with `haxe.Timer.delay`
