@@ -33,9 +33,15 @@
 #include "colyseus/predict/predict.h"
 #include "colyseus/predict/reconciler.h"
 
+#include "colyseus/predict/events.h"
+#include "colyseus/predict/spawns.h"
+
 #include "schema/move_state.h"
 #include "schema/move_input.h"
 #include "schema/bots_state.h"
+#include "schema/goal_state.h"
+#include "schema/projectile_state.h"
+#include "schema/range_input.h"
 
 #include "sim.h"
 #include "view.h"
@@ -43,12 +49,20 @@
 #include "net_delay.h"
 #include "app.h"
 
-/* Labs are #included, not linked — see the single-TU note above. */
+/* Labs are #included, not linked — see the single-TU note above. Order matters
+ * only where one lab builds on another: 00 is 03's netcode behind a split. */
 #include "labs/lab01_feel_the_lag.c"
 #include "labs/lab02_clocks.c"
 #include "labs/lab03_reconcile.c"
+#include "labs/lab00_split.c"
+#include "labs/lab04_interp_modes.c"
+#include "labs/lab05_dead_reckoning.c"
+#include "labs/lab08_optimistic_events.c"
+#include "labs/lab09_predicted_spawns.c"
 
-static const lab_def_t* const LABS[] = { &LAB_01, &LAB_02, &LAB_03 };
+static const lab_def_t* const LABS[] = {
+    &LAB_00, &LAB_01, &LAB_02, &LAB_03, &LAB_04, &LAB_05, &LAB_08, &LAB_09,
+};
 #define LAB_COUNT ((int)(sizeof(LABS) / sizeof(LABS[0])))
 
 /* ------------------------------------------------------ latency presets */
@@ -225,7 +239,7 @@ static void draw_bottom_bar(float w, float h) {
         : S.status == ST_READY ? COL_GOOD : COL_TEXT_DIM);
     #undef STAT
 
-    const char* keys = "1-3 lab   [ ] prev/next   L latency   D drop   P private   ESC quit";
+    const char* keys = "0-9 lab   [ ] prev/next   L latency   D drop   P private   ESC quit";
     DrawText(keys, (int)(w - MeasureText(keys, 10) - 16), (int)y + 18, 10, COL_TEXT_FAINT);
 }
 
@@ -246,38 +260,67 @@ static void draw_stage_message(const char* msg, Color c) {
  */
 typedef struct {
     double at;              /* ms since the demo started */
-    int lab;                /* -1 = keep */
+    int lab;                /* index into LABS; -1 = keep */
     int preset;             /* -1 = keep */
     int auto_x, auto_y;     /* autopilot axes */
     int synth_key;          /* 0 = none */
+    int synth_repeat;       /* extra presses on following frames (0 = one) */
     const char* shot;       /* screenshot path, or NULL */
     const char* checkpoint; /* assertion name, or NULL */
 } demo_step_t;
 
+/* LABS index, by lab id — the script reads better than raw ordinals. */
+enum { IX_00, IX_01, IX_02, IX_03, IX_04, IX_05, IX_08, IX_09 };
+
 static const demo_step_t DEMO[] = {
+    /* ---- M1 ------------------------------------------------------------ */
     /* Lab 01 — the input->motion meter needs the player AT REST to arm, so
      * every measurement is preceded by a beat of no input. */
-    { 500,    0,  0,  0, 0, 0, NULL, NULL },
-    { 2000,  -1, -1,  1, 0, 0, NULL, NULL },
-    { 3400,  -1, -1,  1, 0, 0, "media/native-app/01-latency-off.png", "lab01-latency-off" },
-    { 3600,  -1, -1,  0, 0, 0, NULL, NULL },
-    { 4800,  -1,  2,  0, 0, 0, NULL, NULL },
-    { 5800,  -1, -1, -1, 0, 0, NULL, NULL },
-    { 7400,  -1, -1, -1, 0, 0, "media/native-app/01-latency-200.png", "lab01-latency-200" },
+    { 500,   IX_01, 0,  0, 0, 0, 0, NULL, NULL },
+    { 2000,  -1, -1,  1, 0, 0, 0, NULL, NULL },
+    { 3400,  -1, -1,  1, 0, 0, 0, "media/native-app/01-latency-off.png", "lab01-latency-off" },
+    { 3600,  -1, -1,  0, 0, 0, 0, NULL, NULL },
+    { 4800,  -1,  2,  0, 0, 0, 0, NULL, NULL },
+    { 5800,  -1, -1, -1, 0, 0, 0, NULL, NULL },
+    { 7400,  -1, -1, -1, 0, 0, 0, "media/native-app/01-latency-200.png", "lab01-latency-200" },
     /* Lab 02 — clock readouts under the same 200 ms injection. */
-    { 7800,   1, -1,  1, 0, 0, NULL, NULL },
-    { 11800, -1, -1,  1, 0, 0, "media/native-app/02-clocks.png", "lab02-clock" },
+    { 7800,  IX_02, -1,  1, 0, 0, 0, NULL, NULL },
+    { 11800, -1, -1,  1, 0, 0, 0, "media/native-app/02-clocks.png", "lab02-clock" },
     /* Lab 03 — predicted, then mispredicted, then dropped. */
-    { 12300,  2, -1, -1, 0, 0, NULL, NULL },
-    { 16800, -1, -1, -1, 0, 0, "media/native-app/03-reconcile.png", "lab03-predicted" },
-    { 17000, -1, -1,  0, 0, KEY_I, NULL, NULL },
-    { 18200, -1, -1,  0, 0, 0, "media/native-app/03-impulse.png", "lab03-impulse" },
+    { 12300, IX_03, -1, -1, 0, 0, 0, NULL, NULL },
+    { 16800, -1, -1, -1, 0, 0, 0, "media/native-app/03-reconcile.png", "lab03-predicted" },
+    { 17000, -1, -1,  0, 0, KEY_I, 0, NULL, NULL },
+    { 18200, -1, -1,  0, 0, 0, 0, "media/native-app/03-impulse.png", "lab03-impulse" },
     /* The drift EMA folds in at 0.1/reconcile: a 4-unit spike needs ~60 patches
      * (~3 s) to bleed back under the noise floor. Give it 6. */
-    { 23600, -1, -1,  1, 0, 0, NULL, "lab03-recovered" },
-    { 24100, -1, -1,  0, 0, KEY_D, NULL, NULL },   /* the shell's "drop transport" key */
-    { 31600, -1, -1,  1, 0, 0, "media/native-app/03-reconnected.png", "lab03-reconnected" },
-    { 32600, -1, -1,  0, 0, 0, NULL, NULL },
+    { 23600, -1, -1,  1, 0, 0, 0, NULL, "lab03-recovered" },
+    { 24100, -1, -1,  0, 0, KEY_D, 0, NULL, NULL },  /* the shell's "drop transport" key */
+    { 31600, -1, -1,  1, 0, 0, 0, "media/native-app/03-reconnected.png", "lab03-reconnected" },
+
+    /* ---- M2 ------------------------------------------------------------ */
+    /* Lab 00 — the split. It sets its own latency preset and drives itself. */
+    { 32600, IX_00, -1, 0, 0, 0, 0, NULL, NULL },
+    { 39000, -1, -1, 0, 0, 0, 0, "media/native-app/00-split.png", "lab00-split" },
+    /* Lab 04 — four interpolation modes over one bot. */
+    { 39500, IX_04, -1, 1, 0, 0, 0, NULL, NULL },
+    { 40000, -1, -1, 1, 0, KEY_B, 0, NULL, NULL },   /* patrol -> circle: constant turning */
+    { 47000, -1, -1, 1, 0, 0, 0, "media/native-app/04-interp.png", "lab04-modes" },
+    /* Lab 05 — reckon vs lerp: exact on patrol, honestly wrong on wander. */
+    { 47500, IX_05, -1, 0, 0, 0, 0, NULL, NULL },
+    { 48200, -1, -1, 0, 0, KEY_B, 0, NULL, NULL },   /* teleport -> patrol */
+    { 54000, -1, -1, 0, 0, 0, 0, "media/native-app/05-reckon.png", "lab05-patrol" },
+    { 54300, -1, -1, 0, 0, KEY_B, 0, NULL, NULL },   /* patrol -> wander */
+    { 61000, -1, -1, 0, 0, 0, 0, NULL, "lab05-wander" },
+    /* Lab 08 — optimistic goals, then a room-wide 100 % deny rate. */
+    { 61500, IX_08, -1, 1, 0, 0, 0, NULL, NULL },
+    { 69000, -1, -1, 1, 0, 0, 0, "media/native-app/08-goal.png", "lab08-confirmed" },
+    { 69200, -1, -1, 1, 0, KEY_EQUAL, 3, NULL, NULL },  /* deny 0 -> 100 (4 presses) */
+    { 78000, -1, -1, 1, 0, 0, 0, "media/native-app/08-denied.png", "lab08-denied" },
+    /* Lab 09 — predicted spawn, authoritative handoff. */
+    { 78500, IX_09, -1, 0, 0, 0, 0, NULL, NULL },
+    { 80000, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 83000, -1, -1, 0, 0, 0, 0, "media/native-app/09-spawns.png", "lab09-spawn" },
+    { 84000, -1, -1, 0, 0, 0, 0, NULL, NULL },
 };
 #define DEMO_COUNT ((int)(sizeof(DEMO) / sizeof(DEMO[0])))
 
@@ -339,6 +382,60 @@ static void demo_checkpoint(const char* name) {
         demo_check(name, reconnect_count > 0 && !l03.rebind && matched,
             "%d reconnect(s), reconciler rebound, drift ema %.4f, %d reconciles",
             reconnect_count, d->ema, colyseus_reconciler_reconcile_seq(l03.recon));
+
+    /* ---- M2 ---- */
+    } else if (strcmp(name, "lab00-split") == 0) {
+        /* The lanes must be separated by roughly RTT x speed; at 200 ms + jitter
+         * with a mover that reverses constantly, several world units. */
+        double gap = sqrt(
+            (l03.predicted->x - l03.me->x) * (l03.predicted->x - l03.me->x)
+            + (l03.predicted->y - l03.me->y) * (l03.predicted->y - l03.me->y));
+        demo_check(name, gap > 2.0 && colyseus_reconciler_pending_count(l03.recon) > 0,
+            "echo lane trails the predicted lane by %.1f u at rtt %.0f ms (%d in flight)",
+            gap, rtt, colyseus_reconciler_pending_count(l03.recon));
+    } else if (strcmp(name, "lab04-modes") == 0) {
+        double raw_cv = l04_smooth_cv(&l04.modes[0].smooth);
+        double lerp_cv = l04_smooth_cv(&l04.modes[1].smooth);
+        double damped_cv = l04_smooth_cv(&l04.modes[2].smooth);
+        double ext_cv = l04_smooth_cv(&l04.modes[3].smooth);
+        demo_check(name, !isnan(raw_cv) && !isnan(lerp_cv) && lerp_cv < raw_cv,
+            "speed CV raw %.0f%% > lerp %.0f%% (damped %.0f%%, extrapolate %.0f%%) — "
+            "the raw square steps at the patch rate, lerp glides",
+            raw_cv * 100, lerp_cv * 100, damped_cv * 100, ext_cv * 100);
+    } else if (strcmp(name, "lab05-patrol") == 0) {
+        double rx = colyseus_predict_value(l05.reckon, (colyseus_schema_t*)l05.bot, "x");
+        double lx = colyseus_predict_value(l05.lerp, (colyseus_schema_t*)l05.bot, "x");
+        /* Reckon runs at the present, lerp 100 ms in the past: on a straight
+         * patrol leg the gap is real motion, not error. */
+        demo_check(name, strcmp(l05.bot->kind, "patrol") == 0 && fabs(rx - lx) > 0.5,
+            "kind=%s reckon x %.2f vs lerp x %.2f (gap %.2f u over a %.0f ms horizon)",
+            l05.bot->kind, rx, lx, fabs(rx - lx),
+            fmax(0, colyseus_room_clock_server_now(l05.clock)
+                - colyseus_room_clock_last_server_time(l05.clock)));
+    } else if (strcmp(name, "lab05-wander") == 0) {
+        double rx = colyseus_predict_value(l05.reckon, (colyseus_schema_t*)l05.bot, "x");
+        /* Reckon must actually be projecting past the snapshot — that is the
+         * mechanism whose error the wander pattern then exposes. */
+        demo_check(name, strcmp(l05.bot->kind, "wander") == 0 && fabs(rx - l05.bot->x) > 0.1,
+            "kind=%s, reckon x %.2f is %.2f u past the newest snapshot — headings are a "
+            "server secret, so it extrapolates straight through every turn and gets rebased",
+            l05.bot->kind, rx, fabs(rx - l05.bot->x));
+    } else if (strcmp(name, "lab08-confirmed") == 0) {
+        int confirmed = 0;
+        for (int i = 0; i < l08.record_count; i++) { if (l08.records[i].outcome == 1) { confirmed++; } }
+        demo_check(name, l08.record_count > 0 && confirmed > 0,
+            "%d predicted, %d confirmed at deny rate %d %% (score %d)",
+            l08.record_count, confirmed, l08.deny_rate, l08.me->score);
+    } else if (strcmp(name, "lab08-denied") == 0) {
+        int rejected = 0;
+        for (int i = 0; i < l08.record_count; i++) { if (l08.records[i].outcome == -1) { rejected++; } }
+        demo_check(name, l08.deny_rate == 100 && rejected > 0,
+            "%d rejected at deny rate %d %% — the banner went up, then retracted",
+            rejected, l08.deny_rate);
+    } else if (strcmp(name, "lab09-spawn") == 0) {
+        demo_check(name, l09.fired > 0 && !isnan(l09.last_lead_ms) && l09.last_lead_ms > 0,
+            "%d fired, authoritative entity correlated in place, measured input lead "
+            "%.0f ms", l09.fired, l09.last_lead_ms);
     } else {
         demo_check(name, false, "unknown checkpoint");
     }
@@ -352,6 +449,18 @@ static void register_vtables(void) {
     colyseus_schema_register_vtable(&move_input_vtable);
     colyseus_schema_register_vtable(&bot_vtable);
     colyseus_schema_register_vtable(&bots_state_vtable);
+    colyseus_schema_register_vtable(&goal_player_vtable);
+    colyseus_schema_register_vtable(&goal_state_vtable);
+    colyseus_schema_register_vtable(&projectile_vtable);
+    colyseus_schema_register_vtable(&projectile_state_vtable);
+    colyseus_schema_register_vtable(&range_input_vtable);
+}
+
+/* Declared in app.h — labs 00 and friends set the stage before they mount. */
+static void app_set_latency_preset(int index) {
+    if (index < 0 || index >= PRESET_COUNT) { return; }
+    S.preset = index;
+    nd_set_latency(PRESETS[index].delay, PRESETS[index].jitter);
 }
 
 int main(int argc, char** argv) {
@@ -402,12 +511,13 @@ int main(int argc, char** argv) {
         g_autopilot = true;
         demo_started = nd_now();
         if (!DirectoryExists("media/native-app")) { MakeDirectory("media/native-app"); }
-        printf("\n=== M1 acceptance run (APPS_PLAN §7) ===\n");
+        printf("\n=== acceptance run: M1 + M2 (APPS_PLAN §7) ===\n");
     }
 
     start_join();
 
     const char* pending_shot = NULL;
+    int repeat_key = 0, repeat_left = 0;
     double last = nd_now();
     while (!WindowShouldClose()) {
         /* 1. Deliver due packets — every schema decode happens right here, on
@@ -432,16 +542,25 @@ int main(int argc, char** argv) {
                     nd_set_latency(PRESETS[S.preset].delay, PRESETS[S.preset].jitter);
                 }
                 if (st->lab >= 0 && st->lab != S.lab_index) { switch_lab(st->lab); }
-                if (st->synth_key) { g_synth_key = st->synth_key; }
+                if (st->synth_key) {
+                    g_synth_key = st->synth_key;
+                    repeat_key = st->synth_key;
+                    repeat_left = st->synth_repeat;
+                }
                 if (st->checkpoint) { demo_checkpoint(st->checkpoint); }
                 pending_shot = st->shot;
             }
+            /* A key that steps a value needs one press per frame, not per step. */
+            if (repeat_left > 0 && g_synth_key == 0) { g_synth_key = repeat_key; repeat_left--; }
             if (demo_cursor >= DEMO_COUNT) { break; }
         }
 
-        /* 3. Shell keys. */
-        for (int i = 0; i < LAB_COUNT && i < 9; i++) {
-            if (app_key(KEY_ONE + i)) { switch_lab(i); }
+        /* 3. Shell keys — digits address a lab by its NUMBER, not its slot. */
+        for (int i = 0; i < LAB_COUNT; i++) {
+            int num = LABS[i]->num;
+            if (num >= 0 && num <= 9 && app_key(num == 0 ? KEY_ZERO : KEY_ONE + num - 1)) {
+                switch_lab(i);
+            }
         }
         if (app_key(KEY_LEFT_BRACKET)) { switch_lab((S.lab_index + LAB_COUNT - 1) % LAB_COUNT); }
         if (app_key(KEY_RIGHT_BRACKET)) { switch_lab((S.lab_index + 1) % LAB_COUNT); }
@@ -502,7 +621,7 @@ int main(int argc, char** argv) {
             (int)(h - 44 - 46), COL_PANEL);
         DrawLineV((Vector2){ w - panel_w - panel_pad * 2, 44 },
                   (Vector2){ w - panel_w - panel_pad * 2, h - 46 }, COL_BORDER);
-        draw_arena(&S.app.view);
+        if (!LABS[S.lab_index]->own_arena) { draw_arena(&S.app.view); }
 
         if (S.status == ST_READY) {
             LABS[S.lab_index]->frame(&S.app, now, S.app.dt);
@@ -526,7 +645,7 @@ int main(int argc, char** argv) {
             printf("FAIL script aborted at step %d/%d\n", demo_cursor, DEMO_COUNT);
             demo_failed++;
         }
-        printf("\n%s\n", demo_failed == 0 ? "M1 ACCEPTANCE OK" : "M1 ACCEPTANCE FAILED");
+        printf("\n%s\n", demo_failed == 0 ? "ACCEPTANCE OK" : "ACCEPTANCE FAILED");
     }
     if (S.status == ST_READY) { LABS[S.lab_index]->detach(&S.app); }
     if (S.app.room) { retire_room(S.app.room); }

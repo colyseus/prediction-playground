@@ -54,6 +54,9 @@ typedef struct {
     const char* room_name;
     const colyseus_schema_vtable_t* state_vtable;
 
+    /* The lab paints its own background — the shell skips the shared arena. */
+    bool own_arena;
+
     bool (*attach)(app_t* app, colyseus_room_t* room);
     void (*frame)(app_t* app, double now, double dt);
     void (*detach)(app_t* app);
@@ -64,6 +67,10 @@ typedef struct {
      */
     void (*on_reconnect)(app_t* app);
 } lab_def_t;
+
+/* Implemented by the shell (main.c): a lab may ask for a latency preset on
+ * mount — lab 00 makes no point at all on a 1 ms localhost link. */
+static void app_set_latency_preset(int index);
 
 /* ---------------------------------------------------------- keyboard */
 

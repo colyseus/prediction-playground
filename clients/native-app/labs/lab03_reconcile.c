@@ -130,6 +130,24 @@ static bool lab03_attach(app_t* app, colyseus_room_t* room) {
     return l03_make_reconciler(l);
 }
 
+/*
+ * Drive the whole prediction stack one frame, then send one input per due
+ * fixed step. The reconciler observes each send and predicts it immediately.
+ * Shared with lab 00, which runs this exact netcode behind a split screen.
+ */
+static int l03_drive(recon_lane_t* l, double now, int move_x, int move_y) {
+    colyseus_reconciler_tick(l->recon, now);
+    colyseus_predict_tick(l->predict, now);
+
+    int steps = pacer_steps(&l->send_pacer, now);
+    for (int i = 0; i < steps; i++) {
+        l->cmd->moveX = (int8_t)move_x;
+        l->cmd->moveY = (int8_t)move_y;
+        colyseus_input_handle_send(l->input);
+    }
+    return steps;
+}
+
 static void l03_draw_remote(const char* sid, void* value, void* userdata) {
     app_t* app = (app_t*)userdata;
     if (strcmp(sid, l03.sid) == 0) { return; }
@@ -176,18 +194,7 @@ static void lab03_frame(app_t* app, double now, double dt) {
         l03_make_reconciler(l);
     }
 
-    /* 1. Drive the whole prediction stack; returns the due fixed steps. */
-    colyseus_reconciler_tick(l->recon, now);
-    colyseus_predict_tick(l->predict, now);
-
-    /* 2. One input per step — mutate the handle, send; the reconciler observes
-     *    each send and predicts it immediately. */
-    int steps = pacer_steps(&l->send_pacer, now);
-    for (int i = 0; i < steps; i++) {
-        l->cmd->moveX = (int8_t)kb_move_x();
-        l->cmd->moveY = (int8_t)kb_move_y();
-        colyseus_input_handle_send(l->input);
-    }
+    l03_drive(l, now, kb_move_x(), kb_move_y());
 
     /* 3. Reconcile telemetry (a fresh reconcile bumps reconcile_seq). */
     int seq = colyseus_reconciler_reconcile_seq(l->recon);
