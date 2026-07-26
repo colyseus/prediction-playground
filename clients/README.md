@@ -1,7 +1,9 @@
 # Cross-SDK validation clients
 
-> Next step: full **interactive** ports of the playground per SDK — plan in
-> [APPS_PLAN.md](./APPS_PLAN.md).
+> Full **interactive** ports of the playground per SDK are landing alongside
+> these probes — plan in [APPS_PLAN.md](./APPS_PLAN.md).
+> First one up: [`native-app/`](./native-app) (C + raylib), milestone M1 —
+> shell, latency injector, labs 01 / 02 / 03.
 
 Headless probes that run **every Colyseus SDK's predict layer against this
 playground's live server** — the cross-language twin of `scripts/probe-*.mjs`.
