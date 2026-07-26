@@ -182,4 +182,226 @@ public class AcceptanceTest
         yield return Teardown(lab);
     }
 
+    [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Lab00_predicted_lane_leads_the_server_echo()
+    {
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        var lab = new Lab00();
+        yield return Mount(lab, app);   // Mount sets its own latency preset
+
+        // Drive one long leg and watch the two lanes separate: the echo lane is
+        // the same entity, ~RTT behind. Peak, not instantaneous — the gap
+        // collapses at every direction change.
+        double peakGap = 0;
+        for (int i = 0; i < 40; i++)
+        {
+            yield return Drive(lab, app, 120, autoX: 1);
+            var me = lab.Lane.Me;
+            double dx = lab.Lane.X - me.x, dy = lab.Lane.Y - me.y;
+            peakGap = System.Math.Max(peakGap, System.Math.Sqrt(dx * dx + dy * dy));
+        }
+        Assert.Greater(peakGap, 2.0,
+            $"lanes never separated (peak {peakGap:F2} u) — the echo lane is not lagging");
+        Debug.Log($"OK lab00: peak lane separation {peakGap:F2} u");
+
+        yield return Teardown(lab);
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Lab06_lag_comp_hits_what_you_saw()
+    {
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        var lab = new Lab06();
+        yield return Mount(lab, app);
+        DelayedConnection.SetLatency(200, 0);
+        yield return Drive(lab, app, 1500);
+
+        // Lag comp ON: the autopilot aims at the lerp view — exactly what the
+        // server rewinds to — so nearly every shot must land.
+        lab.SetLagComp(true);
+        yield return Drive(lab, app, 800);
+        yield return FireVolley(lab, app, lab.Fire, 6);
+        Assert.Greater(lab.ShotsOn, 0, "no shots were reported with lag comp on");
+        Assert.Greater(lab.HitsOn * 10, lab.ShotsOn * 6,
+            $"only {lab.HitsOn}/{lab.ShotsOn} hit with lag comp ON — the rewind is not " +
+            $"landing where we drew (rewind error {lab.RewindErrorU():F2} u)");
+
+        // The rewound read must coincide with what we saw. This is the assertion
+        // that catches an unbound renderDelay: it lands one render-delay early
+        // and nothing else in the lab says so.
+        Assert.Less(lab.RewindErrorU(), 3.0,
+            $"server rewound to {lab.RewindErrorU():F2} u away from our view — check renderDelay");
+        Debug.Log($"OK lab06 comp ON: {lab.HitsOn}/{lab.ShotsOn} hits, " +
+                  $"rewind error {lab.RewindErrorU():F2} u, view lag {lab.ViewLag():F1} u");
+
+        yield return Teardown(lab);
+    }
+
+    /// <summary>Fire n shots, spaced so each gets its own input tick and answer.</summary>
+    private static IEnumerator FireVolley(ILab lab, App app, System.Action fire, int n)
+    {
+        for (int i = 0; i < n; i++)
+        {
+            fire();
+            yield return Drive(lab, app, 700);
+        }
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Lab04_interpolation_modes_differ_as_advertised()
+    {
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        DelayedConnection.SetLatency(120, 40);
+        var lab = new Lab04();
+        yield return Mount(lab, app);
+
+        // Pin the pattern rather than inherit whatever the room defaulted to —
+        // a stationary bot scores NaN and the comparison below means nothing.
+        lab.SetPattern("patrol");
+        yield return Drive(lab, app, 7000);
+        var cv = lab.SmoothnessByMode();
+        foreach (var pair in cv) Assert.False(double.IsNaN(pair.Value), $"{pair.Key} never scored");
+        // raw is the decoded snapshot verbatim, so it stutters at the patch rate;
+        // lerp walks between two real samples and must be measurably steadier.
+        Assert.Greater(cv["raw"], cv["lerp"],
+            $"raw CV {cv["raw"]:F3} was not worse than lerp {cv["lerp"]:F3} — " +
+            "the modes are not actually rendering differently");
+        Debug.Log($"OK lab04: raw {cv["raw"]:F3}, lerp {cv["lerp"]:F3}, " +
+                  $"damped {cv["damped"]:F3}, extrapolate {cv["extrapolate"]:F3}");
+
+        yield return Teardown(lab);
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Lab05_reckon_leads_the_lerp_view()
+    {
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        DelayedConnection.SetLatency(200, 0);
+        var lab = new Lab05();
+        yield return Mount(lab, app);
+
+        // On the fully-predictable patrol, reckon renders the PRESENT and lerp
+        // renders RemoteInterpMs in the past — so they must not coincide.
+        lab.SetPattern("patrol");
+        yield return Drive(lab, app, 5000);
+        Assert.Greater(lab.PeakReckonLerpGap, 1.0,
+            $"reckon and lerp never separated (peak {lab.PeakReckonLerpGap:F2} u) — " +
+            "the forward simulation is not running");
+        Debug.Log($"OK lab05: peak reckon↔lerp gap {lab.PeakReckonLerpGap:F2} u");
+
+        yield return Teardown(lab);
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Lab07_frozen_verdict_matches_the_server()
+    {
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        var lab = new Lab07();
+        yield return Mount(lab, app);
+        DelayedConnection.SetLatency(200, 0);
+
+        // The autopilot seeks the bot's lane and lets the patrol sweep hit it.
+        yield return Drive(lab, app, 14000, autoX: 1);
+
+        Assert.Greater(lab.BumpsPredicted, 0,
+            "never bumped the bot — the autopilot did not reach its lane");
+        // The server's own counter is the only verdict that settles it: with
+        // ValueAt + Memo the client's count must track it, not merely be close.
+        int delta = System.Math.Abs(lab.BumpsPredicted - lab.BumpsAuthoritative);
+        Assert.LessOrEqual(delta, 1,
+            $"predicted {lab.BumpsPredicted} bumps, server counted {lab.BumpsAuthoritative} " +
+            $"— the client's verdict disagrees with the server's");
+        Debug.Log($"OK lab07: predicted {lab.BumpsPredicted}, authoritative " +
+                  $"{lab.BumpsAuthoritative}, mispredict rate {lab.MispredictRate():F0} %");
+
+        yield return Teardown(lab);
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Lab08_events_fire_instantly_then_settle()
+    {
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        var lab = new Lab08();
+        yield return Mount(lab, app);
+        DelayedConnection.SetLatency(200, 0);
+
+        // Deny nothing: every optimistic banner must be confirmed.
+        lab.SetDenyRate(0);
+        yield return Drive(lab, app, 600);
+        yield return Drive(lab, app, 6000, autoX: 1);
+        Assert.Greater(lab.PredictedCount, 0, "never entered the goal zone");
+        Assert.Greater(lab.ConfirmedCount, 0, "no optimistic goal was ever confirmed");
+        Assert.AreEqual(0, lab.RejectedCount,
+            $"{lab.RejectedCount} goals rejected at a 0 % deny rate");
+        int cleanRun = lab.PredictedCount;
+
+        // Deny everything: the banner still fires instantly, then retracts.
+        lab.SetDenyRate(100);
+        yield return Drive(lab, app, 600);
+        yield return Drive(lab, app, 9000, autoX: 1);
+        Assert.Greater(lab.PredictedCount, cleanRun,
+            "the optimistic banner stopped firing once the server started denying");
+        Assert.Greater(lab.RejectedCount, 0,
+            "server denied every goal but nothing was ever rejected — grace-tick auto-reject is not firing");
+        Debug.Log($"OK lab08: {lab.ConfirmedCount} confirmed, {lab.RejectedCount} rejected " +
+                  $"of {lab.PredictedCount} predicted");
+
+        yield return Teardown(lab);
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Lab09_optimistic_spawn_hands_off_to_the_server()
+    {
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        var lab = new Lab09();
+        yield return Mount(lab, app);
+        DelayedConnection.SetLatency(200, 0);
+        yield return Drive(lab, app, 800);
+
+        lab.AimAt(50, 55);
+        lab.Fire();
+        // Immediately after firing there must be a local to look at — that IS
+        // the feature. Half an RTT later it must still not be confirmed.
+        yield return Drive(lab, app, 120);
+        Assert.Greater(lab.PendingSpawns, 0,
+            "fired but nothing was spawned locally — the shot would not appear for a full RTT");
+
+        // ...and by ~2 RTT the server's entity has arrived and correlated.
+        yield return Drive(lab, app, 1400);
+        Assert.Greater(lab.ConfirmedSpawns, 0, "the server's projectile never correlated");
+        Assert.Greater(lab.LastLeadMs, 0,
+            "no input lead was measured — SpawnTime is not wired, so the handoff would jump");
+        Debug.Log($"OK lab09: fired {lab.Fired}, lead {lab.LastLeadMs:F0} ms, " +
+                  $"{lab.ConfirmedSpawns} confirmed");
+
+        yield return Teardown(lab);
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Lab11_client_and_server_roll_identical_pellets()
+    {
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        var lab = new Lab11();
+        yield return Mount(lab, app);
+        DelayedConnection.SetLatency(200, 0);
+        yield return Drive(lab, app, 1200);
+
+        // Seeded from (seq, salt): both sides must derive the SAME fan, bit for
+        // bit. Nothing about the pellets is on the wire.
+        yield return FireVolley(lab, app, lab.Fire, 3);
+        Assert.Greater(lab.AnsweredFans, 0, "the server never reported a fan");
+        Assert.Less(lab.MaxDivergence, 1e-6,
+            $"client and server fans differ by {lab.MaxDivergence:E2} rad — the derivation diverged");
+        Debug.Log($"OK lab11 seeded: divergence {lab.MaxDivergence:E2} rad over {lab.AnsweredFans} fans");
+
+        // Swap in an unshared RNG and the same comparison must FAIL — otherwise
+        // the test above proves nothing.
+        lab.Cheat = true;
+        yield return FireVolley(lab, app, lab.Fire, 3);
+        Assert.Greater(lab.MaxDivergence, 1e-6,
+            "a local unshared RNG still matched the server — the comparison is not measuring anything");
+        Debug.Log($"OK lab11 cheating: divergence {lab.MaxDivergence:E2} rad");
+
+        yield return Teardown(lab);
+    }
 }

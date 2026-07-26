@@ -4,8 +4,11 @@ The playground rebuilt against `colyseus-unity-sdk`, driven by the same server a
 the web build. One scene, one MonoBehaviour: `Update()` advances the netcode,
 `OnGUI()` draws the arena and the panel.
 
-Status: **M1 complete** — shell + labs 01, 02, 03, with a PlayMode acceptance
-test that replays APPS_PLAN §7's M1 exit criteria against a live server.
+Status: **M1–M3 complete** — eleven labs (00–09, 11) with a PlayMode acceptance
+suite that replays APPS_PLAN §7's exit criteria against a live server.
+
+Lab 10 (composite sim) is not here: the C# SDK has no `SimReconciler`, so the
+lab has no API to bind to. That port is the one piece of remaining work.
 
 ## Running it
 
@@ -50,16 +53,28 @@ both need real time to pass.
 Last run, against a live server:
 
 ```
-Passed  Sim_reproduces_the_reference_numbers            0.00s
-Passed  Lab01_input_to_motion_tracks_the_round_trip     7.06s
-Passed  Lab02_clock_readouts_respond_to_injected_latency 5.02s
-Passed  Lab03_predicts_instantly_and_absorbs_a_mispredict 11.53s
+12 tests, 12 passed, 0 failed
 
-OK lab01: 93 ms at 0 injected, 521 ms at 200 ms
-OK lab02: rtt 469 ms, patch 50 ms, jitter 0.6 ms
-OK lab03 predicted: 9 in flight, drift ema 9.28E-009
-OK lab03 impulse: peak 4.823, settled to 0.0000
+OK lab00: peak lane separation 18.41 u
+OK lab01: 87 ms at 0 injected, 521 ms at 200 ms
+OK lab02: rtt 489 ms, patch 50 ms, jitter 1.2 ms
+OK lab03 predicted: 9 in flight, drift ema 1.01E-008
+OK lab03 impulse: peak 4.750, settled to 0.0000
+OK lab04: raw 10.909, lerp 0.016, damped 0.187, extrapolate 0.219
+OK lab05: peak reckon-lerp gap 12.62 u
+OK lab06 comp ON: 6/6 hits, rewind error 0.97 u, view lag 8.7 u
+OK lab07: predicted 1, authoritative 2, mispredict rate 0 %
+OK lab08: 2 confirmed, 4 rejected of 6 predicted
+OK lab09: fired 1, lead 247 ms, 3 confirmed
+OK lab11 seeded: divergence 4.12E-008 rad over 3 fans
+OK lab11 cheating: divergence 2.06E-001 rad
 ```
+
+Two of those are worth reading twice. Lab 06 hits 6/6 with the server rewinding
+to within 1 u of what we drew while the view itself lags 8.7 u — that gap is the
+whole feature. And lab 11's seeded fan agrees with the server to 4e-8 rad but
+diverges to 2e-1 the moment an unshared RNG is swapped in, which is what makes
+the first number evidence rather than a tautology.
 
 A drift EMA of 9.3e-9 is float32 wire precision: `Sim.StepEntity` reproduces the
 server's math to the last representable bit, and the residual is only the schema

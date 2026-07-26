@@ -60,7 +60,7 @@ namespace Playground
 
             DelayedConnection.Install();
             _app.Client = new Client(Endpoint);
-            _labs = new ILab[] { new Lab00(), new Lab01(), new Lab02(), new Lab03(), new Lab04(), new Lab05(), new Lab08(), new Lab09() };
+            _labs = new ILab[] { new Lab00(), new Lab01(), new Lab02(), new Lab03(), new Lab04(), new Lab05(), new Lab06(), new Lab07(), new Lab08(), new Lab09(), new Lab11() };
             _ = SwitchTo(0);
         }
 
@@ -163,7 +163,7 @@ namespace Playground
             stat = new GUIStyle(GUI.skin.label)
             { fontSize = 10, alignment = TextAnchor.MiddleRight, normal = { textColor = Palette.TextFaint } };
             GUI.Label(new Rect(w - 460, y + 14, 444, 18),
-                "0-3 lab   L latency   D drop   P private", stat);
+                "0-9 lab   L latency   D drop   P private", stat);
         }
     }
 }

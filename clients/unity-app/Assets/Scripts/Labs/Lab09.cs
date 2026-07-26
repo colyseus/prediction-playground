@@ -51,6 +51,8 @@ namespace Playground
         private bool _optimistic = true;
         private double _lastLeadMs = double.NaN;
         private int _fired;
+        private int _pending, _confirmed, _foreign;
+        private readonly HashSet<int> _live = new HashSet<int>();
 
         public override async Task<bool> Mount(App app)
         {
@@ -122,6 +124,42 @@ namespace Playground
                 if (_optimistic) FireOptimistic();
                 _pendingFire = false;
             }
+
+            Sweep(now);
+        }
+
+        /// <summary>
+        /// Fold the store's entries into presentation state: which are pending,
+        /// which just crossed the handoff, and what lead the crossing measured.
+        /// This lives in Frame, not Render — a headless run has the same numbers.
+        /// </summary>
+        private void Sweep(double now)
+        {
+            _pending = _confirmed = _foreign = 0;
+            _live.Clear();
+            foreach (var e in _spawns.Entries())
+            {
+                _live.Add(e.Id);
+                _slots.TryGetValue(e.Id, out var slot);
+
+                if (!e.Confirmed)
+                {
+                    if (e.Local == null) continue;
+                    _pending++;
+                    _slots[e.Id] = (true, slot.flashT);
+                    continue;
+                }
+
+                _confirmed++;
+                if (e.Server != null && e.Server.owner != _sid) _foreign++;
+                if (slot.wasPending)
+                {
+                    slot = (false, now);
+                    if (e.LeadMs > 0) _lastLeadMs = e.LeadMs;
+                }
+                _slots[e.Id] = slot;
+            }
+            PruneSlots(_live);
         }
 
         /// <summary>
@@ -167,45 +205,28 @@ namespace Playground
             Draw.CircleOutline(v, _aimX, _aimY, 0.8, Palette.A(Palette.Text, 0.6f));
 
             // One render path across the handoff, keyed on the stable entry id.
-            int pending = 0, confirmed = 0, foreign = 0;
-            var live = new HashSet<int>();
             foreach (var e in _spawns.Entries())
             {
-                live.Add(e.Id);
-                _slots.TryGetValue(e.Id, out var slot);
-
                 if (!e.Confirmed)
                 {
                     if (e.Local == null) continue;
-                    pending++;
-                    _slots[e.Id] = (true, slot.flashT);
                     Draw.Circle(v, e.Local.E.x, e.Local.E.y, Sim.ProjectileRadius,
                         Palette.A(Palette.Warn, 0.9f));
                     continue;
                 }
-
                 if (e.Server == null) continue;
-                confirmed++;
-                bool mine = e.Server.owner == _sid;
-                if (!mine) foreign++;
-                if (slot.wasPending)
-                {
-                    slot = (false, now);
-                    if (e.LeadMs > 0) _lastLeadMs = e.LeadMs;
-                }
-                _slots[e.Id] = slot;
+                _slots.TryGetValue(e.Id, out var slot);
                 bool flashing = now - slot.flashT < 350;
                 Draw.Circle(v, e.Server.x, e.Server.y, Sim.ProjectileRadius * (flashing ? 1.8 : 1.0),
-                    mine ? Palette.A(Palette.Text, 0.95f) : Palette.A(Palette.Bad, 0.9f));
+                    e.Server.owner == _sid ? Palette.A(Palette.Text, 0.95f) : Palette.A(Palette.Bad, 0.9f));
             }
-            PruneSlots(live);
 
             var h = app.Hud;
             h.Section("TELEMETRY");
-            h.Row("pending (mine, unconfirmed)", pending.ToString(),
-                pending > 0 ? Palette.Warn : Palette.Text);
-            h.Row("confirmed entities", confirmed.ToString(), Palette.Text);
-            h.Row("of those, foreign", foreign.ToString(), Palette.Text);
+            h.Row("pending (mine, unconfirmed)", _pending.ToString(),
+                _pending > 0 ? Palette.Warn : Palette.Text);
+            h.Row("confirmed entities", _confirmed.ToString(), Palette.Text);
+            h.Row("of those, foreign", _foreign.ToString(), Palette.Text);
             h.Row("last measured input lead",
                 double.IsNaN(_lastLeadMs) ? "--" : $"{_lastLeadMs:F0} ms",
                 double.IsNaN(_lastLeadMs) ? Palette.TextFaint : Palette.Good);
@@ -236,14 +257,8 @@ namespace Playground
         public bool Optimistic { get => _optimistic; set => _optimistic = value; }
         public int Fired => _fired;
         public double LastLeadMs => _lastLeadMs;
-        public int PendingSpawns
-        {
-            get { int n = 0; foreach (var e in _spawns.Entries()) if (!e.Confirmed) n++; return n; }
-        }
-        public int ConfirmedSpawns
-        {
-            get { int n = 0; foreach (var e in _spawns.Entries()) if (e.Confirmed) n++; return n; }
-        }
+        public int PendingSpawns => _pending;
+        public int ConfirmedSpawns => _confirmed;
 
         public override void Unmount() => _predict?.Dispose();
 

@@ -221,6 +221,23 @@ namespace Playground
             }
         }
 
+        /// <summary>Drive the bot pattern from the harness, as the B key would.</summary>
+        public void SetPattern(string kind)
+        {
+            int i = System.Array.IndexOf(Patterns, kind);
+            if (i < 0) return;
+            _pattern = i;
+            Room.Send("pattern", new Dictionary<string, string> { ["kind"] = kind });
+        }
+
+        /// <summary>Per-mode speed CV, for the acceptance harness.</summary>
+        public Dictionary<string, double> SmoothnessByMode()
+        {
+            var r = new Dictionary<string, double>();
+            foreach (var m in _modes) r[m.Name] = m.Smooth.Cv();
+            return r;
+        }
+
         public override void Unmount()
         {
             foreach (var m in _modes) m.Predict?.Dispose();

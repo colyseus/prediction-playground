@@ -47,6 +47,7 @@ namespace Playground
         private double _lastRawX = double.NaN, _lastRawY = double.NaN;
         private double _lastReckonX = double.NaN;
         private int _warps;
+        private double _peakGap;
         private double _warpFlashT = double.NegativeInfinity;
 
         public override async Task<bool> Mount(App app)
@@ -161,6 +162,10 @@ namespace Playground
                 _warpFlashT = now;
             }
             _lastReckonX = rx;
+
+            double gx = rx - _lerp.Value(_bot, "x"), gy = _reckon.Value(_bot, "y") - _lerp.Value(_bot, "y");
+            double gap = System.Math.Sqrt(gx * gx + gy * gy);
+            if (gap > _peakGap) _peakGap = gap;
         }
 
         public override void Render(App app)
@@ -213,6 +218,20 @@ namespace Playground
                    "extrapolates straight through every one and gets corrected — teleport = a " +
                    "scheduled discontinuity. Raise the snap threshold above the warp distance " +
                    "and watch the teleport smear across the arena.");
+        }
+
+        /// <summary>Largest reckon↔lerp separation seen, for the acceptance harness.</summary>
+        public double PeakReckonLerpGap => _peakGap;
+
+        /// <summary>Drive the bot pattern from the harness, as the B key would.</summary>
+        public void SetPattern(string kind)
+        {
+            int i = System.Array.IndexOf(Patterns, kind);
+            if (i < 0) return;
+            _pattern = i;
+            SendPattern();
+            _warps = 0;
+            _peakGap = 0;
         }
 
         public override void Unmount()
