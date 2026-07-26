@@ -116,7 +116,7 @@ static bool lab04_attach(app_t* app, colyseus_room_t* room) {
     l04.clock = colyseus_room_get_clock(room);
     l04.last_raw_x = NAN;
     l04.last_raw_y = NAN;
-    l04.callbacks = colyseus_callbacks_create(room->serializer->decoder);
+    l04.callbacks = colyseus_room_callbacks(room);   /* room-owned, shared by the overlays */
 
     l04.input = colyseus_room_input(room, &move_input_vtable, NULL);
     if (!l04.input) { return false; }
@@ -293,7 +293,6 @@ static void lab04_detach(app_t* app) {
     for (int i = 1; i < 4; i++) {
         if (l04.modes[i].predict) { colyseus_predict_free(l04.modes[i].predict); }
     }
-    if (l04.callbacks) { colyseus_callbacks_free(l04.callbacks); }
     memset(&l04, 0, sizeof(l04));
 }
 

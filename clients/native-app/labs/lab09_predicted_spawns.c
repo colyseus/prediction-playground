@@ -31,7 +31,6 @@ static struct {
     projectile_state_t* state;
     const char* sid;
 
-    colyseus_callbacks_t* callbacks;
     colyseus_predict_t* predict;
     colyseus_spawns_t* spawns;
     colyseus_input_handle_t* input;
@@ -40,7 +39,6 @@ static struct {
     player_t* me;
     colyseus_reconciler_t* recon;
     player_t* predicted;
-    pacer_t send_pacer;
     bool rebind;
 
     l09_slot_t slots[L09_MAX_ENTRIES];
@@ -79,34 +77,6 @@ static void l09_local_step(void* local, double dt, void* userdata) {
     step_projectile((entity_state_t*)local, dt);
 }
 
-static void l09_spawns_on_add(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_spawns_handle_add(l09.spawns, (colyseus_schema_t*)value);
-    const colyseus_spawn_entry_t* e =
-        colyseus_spawns_entry_for(l09.spawns, (colyseus_schema_t*)value);
-    if (e) { l09_track(e->id); }
-}
-
-static void l09_spawns_on_remove(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_spawns_handle_remove(l09.spawns, (colyseus_schema_t*)value);
-}
-
-static void l09_on_player_add(void* value, void* key, void* userdata) {
-    (void)userdata;
-    const char* sid = (const char*)key;
-    if (sid && strcmp(sid, l09.sid) == 0) { return; }
-    colyseus_predict_field_options_t damped = { 0 };
-    damped.mode = COLYSEUS_PREDICT_DAMPED;
-    colyseus_predict_track(l09.predict, (colyseus_schema_t*)value, "x", &damped);
-    colyseus_predict_track(l09.predict, (colyseus_schema_t*)value, "y", &damped);
-}
-
-static void l09_on_player_remove(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_predict_detach(l09.predict, (colyseus_schema_t*)value);
-}
-
 static void l09_step(const colyseus_step_ctx_t* ctx, colyseus_schema_t* state,
     const colyseus_schema_t* command, void* userdata) {
     (void)userdata;
@@ -123,11 +93,10 @@ static bool l09_make_reconciler(void) {
     opts.smoothing = 15;
     opts.fields = FIELDS;
     opts.field_count = 4;
-    l09.recon = colyseus_reconciler_create((colyseus_schema_t*)l09.me, &player_vtable,
-        l09.input, colyseus_room_get_clock(l09.room), l09_step, &opts);
+    l09.recon = colyseus_predict_reconciler(l09.predict, (colyseus_schema_t*)l09.me,
+        &player_vtable, l09.input, l09_step, &opts);
     if (!l09.recon) { return false; }
     l09.predicted = (player_t*)colyseus_reconciler_state(l09.recon);
-    pacer_init(&l09.send_pacer, colyseus_reconciler_step_ms(l09.recon));
     return true;
 }
 
@@ -148,10 +117,9 @@ static bool lab09_attach(app_t* app, colyseus_room_t* room) {
     l09.aim_y = 20;
     l09.last_lead_ms = NAN;
 
-    l09.callbacks = colyseus_callbacks_create(room->serializer->decoder);
-    l09.predict = colyseus_predict_create(l09.callbacks, colyseus_room_get_clock(room));
-    colyseus_callbacks_on_add(l09.callbacks, state, "players", l09_on_player_add, NULL, true);
-    colyseus_callbacks_on_remove(l09.callbacks, state, "players", l09_on_player_remove, NULL);
+    l09.predict = colyseus_predict_for_room(room);
+    colyseus_predict_attach_all(l09.predict, (colyseus_schema_t*)state, "players",
+        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
 
     colyseus_spawns_options_t sp = { 0 };
     sp.owned = l09_owned;
@@ -160,8 +128,7 @@ static bool lab09_attach(app_t* app, colyseus_room_t* room) {
     sp.step = l09_local_step;
     sp.local_free = free;
     l09.spawns = colyseus_spawns_create(&sp, colyseus_room_get_clock(room));
-    colyseus_callbacks_on_add(l09.callbacks, state, "projectiles", l09_spawns_on_add, NULL, true);
-    colyseus_callbacks_on_remove(l09.callbacks, state, "projectiles", l09_spawns_on_remove, NULL);
+    colyseus_predict_bind_spawns(l09.predict, l09.spawns, (colyseus_schema_t*)state, "projectiles");
 
     l09.input = colyseus_room_input(room, &range_input_vtable, NULL);
     if (!l09.input) { return false; }
@@ -207,12 +174,8 @@ static void lab09_frame(app_t* app, double now, double dt) {
     if (app_key(KEY_SPACE)) { l09.pending_fire = true; }
     if (app_key(KEY_O)) { l09.optimistic = !l09.optimistic; }
 
-    colyseus_reconciler_tick(l09.recon, now);
-    colyseus_predict_tick(l09.predict, now);
-    colyseus_spawns_tick(l09.spawns, now);
-    colyseus_spawns_prune(l09.spawns);
 
-    int steps = pacer_steps(&l09.send_pacer, now);
+    int steps = colyseus_predict_tick(l09.predict, now);
     for (int i = 0; i < steps; i++) {
         l09.cmd->moveX = (int8_t)kb_move_x();
         l09.cmd->moveY = (int8_t)kb_move_y();
@@ -313,7 +276,6 @@ static void lab09_detach(app_t* app) {
     if (l09.recon) { colyseus_reconciler_free(l09.recon); }
     if (l09.spawns) { colyseus_spawns_free(l09.spawns); }
     if (l09.predict) { colyseus_predict_free(l09.predict); }
-    if (l09.callbacks) { colyseus_callbacks_free(l09.callbacks); }
     memset(&l09, 0, sizeof(l09));
 }
 

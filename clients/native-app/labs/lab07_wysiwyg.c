@@ -14,11 +14,10 @@
  *     bot reckoned from a NEWER snapshot and could flip the call). memo runs
  *     the test once on the live step and replays the outcome verbatim.
  *
- * Porting note (APPS_PLAN §4): the C memo stores DOUBLES only, so the verdict
- * is encoded as two memos — the knockback vx and vy under separate keys. Both
- * computes run once on the same live step over the same state, so the pair is
- * exact; folding them into one angle would round through atan2/cos and
- * reintroduce the drift this lab exists to eliminate.
+ * The verdict is a VECTOR (the knockback vx/vy), so it rides one
+ * colyseus_step_memo_vec: the collision test runs exactly once on the live step
+ * and both components replay together. Encoding it as an angle would round
+ * through atan2/cos and reintroduce the drift this lab exists to eliminate.
  *
  * Port of src/client/labs/07-wysiwyg/.
  */
@@ -28,7 +27,6 @@ static struct {
     bump_state_t* state;
     const char* sid;
 
-    colyseus_callbacks_t* callbacks;
     colyseus_predict_t* predict;
     colyseus_input_handle_t* input;
     move_input_t* cmd;
@@ -36,7 +34,6 @@ static struct {
     bump_player_t* me;
     colyseus_reconciler_t* recon;
     bump_player_t* predicted;
-    pacer_t send_pacer;
     bool rebind;
 
     bot_t* bot;
@@ -55,7 +52,6 @@ typedef struct {
     double px, py;
     int bump_ticks;
     double when;
-    bool axis_y;      /* which component this memo returns */
 } l07_probe_t;
 
 typedef struct { const l07_probe_t* probe; bool hit; double vx, vy; } l07_scan_t;
@@ -78,13 +74,15 @@ static void l07_scan_bot(const char* key, void* value, void* userdata) {
         bx, by, &s->vx, &s->vy);
 }
 
-/* NAN = no bump this step. */
-static double l07_test_bots(void* userdata) {
+/* Writes the knockback into out[0..1]; returns 0 for "no bump this step". */
+static int l07_test_bots(double* out, void* userdata) {
     const l07_probe_t* probe = (const l07_probe_t*)userdata;
     l07_scan_t scan = { probe, false, 0, 0 };
     colyseus_map_schema_foreach(l07.state->bots, l07_scan_bot, &scan);
-    if (!scan.hit) { return NAN; }
-    return probe->axis_y ? scan.vy : scan.vx;
+    if (!scan.hit) { return 0; }
+    out[0] = scan.vx;
+    out[1] = scan.vy;
+    return 2;
 }
 
 static void l07_step(const colyseus_step_ctx_t* ctx, colyseus_schema_t* state,
@@ -101,21 +99,15 @@ static void l07_step(const colyseus_step_ctx_t* ctx, colyseus_schema_t* state,
     step_entity(&e, (double)inp->moveX, (double)inp->moveY, ctx->dt);
     p->x = e.x; p->y = e.y; p->vx = e.vx; p->vy = e.vy;
 
-    l07_probe_t probe = { p->x, p->y, p->bumpTicks, ctx->reckon_time, false };
-    double vx, vy;
-    if (l07.use_memo) {
-        vx = colyseus_step_memo(ctx, "bump.vx", l07_test_bots, &probe);
-        probe.axis_y = true;
-        vy = colyseus_step_memo(ctx, "bump.vy", l07_test_bots, &probe);
-    } else {
-        vx = l07_test_bots(&probe);
-        probe.axis_y = true;
-        vy = l07_test_bots(&probe);
-    }
+    l07_probe_t probe = { p->x, p->y, p->bumpTicks, ctx->reckon_time };
+    double knock[COLYSEUS_MEMO_VEC_MAX];
+    int hit = l07.use_memo
+        ? colyseus_step_memo_vec(ctx, "bump", l07_test_bots, &probe, knock)
+        : l07_test_bots(knock, &probe);
 
-    if (!isnan(vx) && !isnan(vy)) {
-        p->vx = vx;
-        p->vy = vy;
+    if (hit == 2) {
+        p->vx = knock[0];
+        p->vy = knock[1];
         p->bumpTicks = BUMP_COOLDOWN_TICKS;   /* immunity rides adopt+replay */
         if (!ctx->is_replay) {                /* FX/counters: live step only */
             l07.bumps_predicted++;
@@ -139,40 +131,17 @@ static void l07_reckon_step(colyseus_schema_t* state, double dt, double elapsed_
     b->lastTeleport = s.last_teleport;
 }
 
-static void l07_on_bot_add(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    static const char* const FIELDS[] = { "x", "y" };
-    colyseus_predict_track_reckon(l07.predict, (colyseus_schema_t*)value, &bot_vtable,
-        FIELDS, 2, l07_reckon_step, 25, 0, 0, NULL);
-}
-
-static void l07_on_player_add(void* value, void* key, void* userdata) {
-    (void)userdata;
-    const char* sid = (const char*)key;
-    if (sid && strcmp(sid, l07.sid) == 0) { return; }
-    colyseus_predict_field_options_t damped = { 0 };
-    damped.mode = COLYSEUS_PREDICT_DAMPED;
-    colyseus_predict_track(l07.predict, (colyseus_schema_t*)value, "x", &damped);
-    colyseus_predict_track(l07.predict, (colyseus_schema_t*)value, "y", &damped);
-}
-
-static void l07_on_player_remove(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_predict_detach(l07.predict, (colyseus_schema_t*)value);
-}
-
 static bool l07_make_reconciler(void) {
     static const char* const FIELDS[] = { "x", "y", "vx", "vy", "bumpTicks" };
     colyseus_reconciler_options_t opts = { 0 };
     opts.smoothing = 15;
     opts.fields = FIELDS;
     opts.field_count = 5;
-    l07.recon = colyseus_reconciler_create((colyseus_schema_t*)l07.me, &bump_player_vtable,
-        l07.input, colyseus_room_get_clock(l07.room), l07_step, &opts);
+    l07.recon = colyseus_predict_reconciler(l07.predict, (colyseus_schema_t*)l07.me,
+        &bump_player_vtable, l07.input, l07_step, &opts);
     if (!l07.recon) { return false; }
     l07.predicted = (bump_player_t*)colyseus_reconciler_state(l07.recon);
     l07.last_reconcile_seq = 0;
-    pacer_init(&l07.send_pacer, colyseus_reconciler_step_ms(l07.recon));
     return true;
 }
 
@@ -195,11 +164,13 @@ static bool lab07_attach(app_t* app, colyseus_room_t* room) {
     l07.last_bump_at = -1e9;
     l07.bump_flash_t = -1e9;
 
-    l07.callbacks = colyseus_callbacks_create(room->serializer->decoder);
-    l07.predict = colyseus_predict_create(l07.callbacks, colyseus_room_get_clock(room));
-    colyseus_callbacks_on_add(l07.callbacks, state, "bots", l07_on_bot_add, NULL, true);
-    colyseus_callbacks_on_add(l07.callbacks, state, "players", l07_on_player_add, NULL, true);
-    colyseus_callbacks_on_remove(l07.callbacks, state, "players", l07_on_player_remove, NULL);
+    l07.predict = colyseus_predict_for_room(room);
+    /* Bots are DEAD-RECKONED through the shared step — the timeline the
+     * collision test below reads at ctx->reckon_time. */
+    colyseus_predict_attach_all_reckon(l07.predict, (colyseus_schema_t*)state, "bots",
+        &bot_vtable, SMOOTHED_XY, 2, l07_reckon_step, 25, 0, 0, NULL);
+    colyseus_predict_attach_all(l07.predict, (colyseus_schema_t*)state, "players",
+        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
 
     l07.input = colyseus_room_input(room, &move_input_vtable, NULL);
     if (!l07.input) { return false; }
@@ -235,8 +206,6 @@ static void lab07_frame(app_t* app, double now, double dt) {
     if (app_key(KEY_V)) { l07.use_value_at = !l07.use_value_at; }
     if (app_key(KEY_M)) { l07.use_memo = !l07.use_memo; }
 
-    colyseus_reconciler_tick(l07.recon, now);
-    colyseus_predict_tick(l07.predict, now);
 
     /* The acceptance script can't hand-steer into a moving bot; when it drives,
      * seek the bot's lane and let the patrol sweep do the rest. */
@@ -248,7 +217,7 @@ static void lab07_frame(app_t* app, double now, double dt) {
         move_y = dy > 1.0 ? 1 : dy < -1.0 ? -1 : 0;
     }
 
-    int steps = pacer_steps(&l07.send_pacer, now);
+    int steps = colyseus_predict_tick(l07.predict, now);
     for (int i = 0; i < steps; i++) {
         l07.cmd->moveX = (int8_t)move_x;
         l07.cmd->moveY = (int8_t)move_y;
@@ -317,7 +286,6 @@ static void lab07_detach(app_t* app) {
     (void)app;
     if (l07.recon) { colyseus_reconciler_free(l07.recon); }
     if (l07.predict) { colyseus_predict_free(l07.predict); }
-    if (l07.callbacks) { colyseus_callbacks_free(l07.callbacks); }
     memset(&l07, 0, sizeof(l07));
 }
 

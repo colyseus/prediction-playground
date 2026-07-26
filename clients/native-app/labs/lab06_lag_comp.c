@@ -31,7 +31,6 @@ static struct {
     range_state_t* state;
     const char* sid;
 
-    colyseus_callbacks_t* callbacks;
     colyseus_predict_t* predict;
     colyseus_input_handle_t* input;
     range_input_t* cmd;
@@ -39,7 +38,6 @@ static struct {
     range_player_t* me;
     colyseus_reconciler_t* recon;
     range_player_t* predicted;
-    pacer_t send_pacer;
     bool rebind;
 
     bot_t* bot;
@@ -73,37 +71,11 @@ static bool l06_make_reconciler(void) {
     opts.smoothing = 15;
     opts.fields = FIELDS;
     opts.field_count = 4;
-    l06.recon = colyseus_reconciler_create((colyseus_schema_t*)l06.me, &range_player_vtable,
-        l06.input, colyseus_room_get_clock(l06.room), l06_step, &opts);
+    l06.recon = colyseus_predict_reconciler(l06.predict, (colyseus_schema_t*)l06.me,
+        &range_player_vtable, l06.input, l06_step, &opts);
     if (!l06.recon) { return false; }
     l06.predicted = (range_player_t*)colyseus_reconciler_state(l06.recon);
-    pacer_init(&l06.send_pacer, colyseus_reconciler_step_ms(l06.recon));
     return true;
-}
-
-/* Bots ride the lerp timeline — the one the server rewinds to. */
-static void l06_on_bot_add(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_predict_field_options_t lerp = { 0 };
-    lerp.mode = COLYSEUS_PREDICT_LERP;
-    lerp.delay = REMOTE_INTERP_MS;
-    colyseus_predict_track(l06.predict, (colyseus_schema_t*)value, "x", &lerp);
-    colyseus_predict_track(l06.predict, (colyseus_schema_t*)value, "y", &lerp);
-}
-
-static void l06_on_player_add(void* value, void* key, void* userdata) {
-    (void)userdata;
-    const char* sid = (const char*)key;
-    if (sid && strcmp(sid, l06.sid) == 0) { return; }
-    colyseus_predict_field_options_t damped = { 0 };
-    damped.mode = COLYSEUS_PREDICT_DAMPED;
-    colyseus_predict_track(l06.predict, (colyseus_schema_t*)value, "x", &damped);
-    colyseus_predict_track(l06.predict, (colyseus_schema_t*)value, "y", &damped);
-}
-
-static void l06_on_entity_remove(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_predict_detach(l06.predict, (colyseus_schema_t*)value);
 }
 
 /* The server's shot report completes the newest unanswered record. */
@@ -155,23 +127,21 @@ static bool lab06_attach(app_t* app, colyseus_room_t* room) {
     l06.aim_x = 50;
     l06.aim_y = 20;
 
-    l06.callbacks = colyseus_callbacks_create(room->serializer->decoder);
-    l06.predict = colyseus_predict_create(l06.callbacks, colyseus_room_get_clock(room));
-    colyseus_callbacks_on_add(l06.callbacks, state, "bots", l06_on_bot_add, NULL, true);
-    colyseus_callbacks_on_add(l06.callbacks, state, "players", l06_on_player_add, NULL, true);
-    colyseus_callbacks_on_remove(l06.callbacks, state, "players", l06_on_entity_remove, NULL);
+    l06.predict = colyseus_predict_for_room(room);
+    /* Bots ride the lerp timeline — the one the server rewinds to. */
+    colyseus_predict_attach_all(l06.predict, (colyseus_schema_t*)state, "bots",
+        SMOOTHED_XY, 2, NULL,
+        &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_LERP,
+                                             .delay = REMOTE_INTERP_MS });
+    colyseus_predict_attach_all(l06.predict, (colyseus_schema_t*)state, "players",
+        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
     colyseus_room_on_message(room, "shot", l06_on_shot, NULL);
 
     colyseus_input_options_t in_opts = { 0 };
     in_opts.allow_rewind = l06_allow_rewind;
-    /*
-     * The stamp is serverNow - (render_delay + rtt/2), and the bots are DRAWN
-     * REMOTE_INTERP_MS in the past — so render_delay must equal that lerp delay
-     * or the server rewinds to an instant this client never displayed. In the
-     * JS SDK `predict.reconciler()` binds this automatically from the Predict's
-     * lerp delay; the C port has no such binding, so pass it explicitly.
-     */
-    in_opts.render_delay = REMOTE_INTERP_MS;
+    /* render_delay is bound for us: colyseus_predict_reconciler() pushes this
+     * Predict's lerp delay onto the handle, so the server rewinds to exactly
+     * the instant we drew. Passing it here would only override that. */
     l06.input = colyseus_room_input(room, &range_input_vtable, &in_opts);
     if (!l06.input) { return false; }
     l06.cmd = (range_input_t*)colyseus_input_handle_data(l06.input);
@@ -222,10 +192,8 @@ static void lab06_frame(app_t* app, double now, double dt) {
         colyseus_message_free(m);
     }
 
-    colyseus_reconciler_tick(l06.recon, now);
-    colyseus_predict_tick(l06.predict, now);
 
-    int steps = pacer_steps(&l06.send_pacer, now);
+    int steps = colyseus_predict_tick(l06.predict, now);
     for (int i = 0; i < steps; i++) {
         l06.cmd->moveX = (int8_t)kb_move_x();
         l06.cmd->moveY = (int8_t)kb_move_y();
@@ -325,7 +293,6 @@ static void lab06_detach(app_t* app) {
     (void)app;
     if (l06.recon) { colyseus_reconciler_free(l06.recon); }
     if (l06.predict) { colyseus_predict_free(l06.predict); }
-    if (l06.callbacks) { colyseus_callbacks_free(l06.callbacks); }
     memset(&l06, 0, sizeof(l06));
 }
 

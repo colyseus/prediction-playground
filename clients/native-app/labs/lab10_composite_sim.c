@@ -23,7 +23,6 @@ static struct {
     hockey_state_t* state;
     const char* sid;
 
-    colyseus_callbacks_t* callbacks;
     colyseus_predict_t* predict;
     colyseus_input_handle_t* input;
     move_input_t* cmd;
@@ -31,7 +30,6 @@ static struct {
     player_t* me;
     colyseus_reconciler_t* sim;      /* the composite face */
     colyseus_sim_world_t* world;
-    pacer_t send_pacer;
     bool rebind;
 
     double smoothing;
@@ -95,27 +93,10 @@ static bool l10_make_sim(void) {
     opts.parts = parts;
     opts.part_count = 2;
     opts.smoothing = l10.smoothing;
-    l10.sim = colyseus_sim_reconciler_create(l10.input, colyseus_room_get_clock(l10.room),
-        l10_step, &opts);
+    l10.sim = colyseus_predict_sim_reconciler(l10.predict, l10.input, l10_step, &opts);
     if (!l10.sim) { return false; }
     l10.world = colyseus_sim_reconciler_world(l10.sim);
-    pacer_init(&l10.send_pacer, colyseus_reconciler_step_ms(l10.sim));
     return true;
-}
-
-static void l10_on_player_add(void* value, void* key, void* userdata) {
-    (void)userdata;
-    const char* sid = (const char*)key;
-    if (sid && strcmp(sid, l10.sid) == 0) { return; }
-    colyseus_predict_field_options_t damped = { 0 };
-    damped.mode = COLYSEUS_PREDICT_DAMPED;
-    colyseus_predict_track(l10.predict, (colyseus_schema_t*)value, "x", &damped);
-    colyseus_predict_track(l10.predict, (colyseus_schema_t*)value, "y", &damped);
-}
-
-static void l10_on_player_remove(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_predict_detach(l10.predict, (colyseus_schema_t*)value);
 }
 
 static bool lab10_attach(app_t* app, colyseus_room_t* room) {
@@ -136,10 +117,9 @@ static bool lab10_attach(app_t* app, colyseus_room_t* room) {
     trail_init(&l10.puck_trail, 120);
     spark_init(&l10.drift_spark);
 
-    l10.callbacks = colyseus_callbacks_create(room->serializer->decoder);
-    l10.predict = colyseus_predict_create(l10.callbacks, colyseus_room_get_clock(room));
-    colyseus_callbacks_on_add(l10.callbacks, state, "players", l10_on_player_add, NULL, true);
-    colyseus_callbacks_on_remove(l10.callbacks, state, "players", l10_on_player_remove, NULL);
+    l10.predict = colyseus_predict_for_room(room);
+    colyseus_predict_attach_all(l10.predict, (colyseus_schema_t*)state, "players",
+        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
 
     l10.input = colyseus_room_input(room, &move_input_vtable, NULL);
     if (!l10.input) { return false; }
@@ -186,8 +166,6 @@ static void lab10_frame(app_t* app, double now, double dt) {
         colyseus_message_free(m);
     }
 
-    colyseus_reconciler_tick(l10.sim, now);
-    colyseus_predict_tick(l10.predict, now);
 
     /*
      * The acceptance script strikes and retreats: parking on the puck pins it
@@ -204,7 +182,7 @@ static void lab10_frame(app_t* app, double now, double dt) {
         move_y = dy > 0.5 ? sign : dy < -0.5 ? -sign : 0;
     }
 
-    int steps = pacer_steps(&l10.send_pacer, now);
+    int steps = colyseus_predict_tick(l10.predict, now);
     for (int i = 0; i < steps; i++) {
         l10.cmd->moveX = (int8_t)move_x;
         l10.cmd->moveY = (int8_t)move_y;
@@ -291,7 +269,6 @@ static void lab10_detach(app_t* app) {
     (void)app;
     if (l10.sim) { colyseus_reconciler_free(l10.sim); }
     if (l10.predict) { colyseus_predict_free(l10.predict); }
-    if (l10.callbacks) { colyseus_callbacks_free(l10.callbacks); }
     memset(&l10, 0, sizeof(l10));
 }
 

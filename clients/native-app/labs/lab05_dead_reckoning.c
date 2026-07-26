@@ -94,7 +94,7 @@ static bool lab05_attach(app_t* app, colyseus_room_t* room) {
     l05.last_raw_y = NAN;
     l05.last_reckon_x = NAN;
     l05.warp_flash_t = -1e9;
-    l05.callbacks = colyseus_callbacks_create(room->serializer->decoder);
+    l05.callbacks = colyseus_room_callbacks(room);   /* room-owned, shared by the overlays */
 
     /* The delayed baseline to compare against. */
     l05.lerp = colyseus_predict_create(l05.callbacks, l05.clock);
@@ -234,7 +234,6 @@ static void lab05_detach(app_t* app) {
     (void)app;
     if (l05.reckon) { colyseus_predict_free(l05.reckon); }
     if (l05.lerp) { colyseus_predict_free(l05.lerp); }
-    if (l05.callbacks) { colyseus_callbacks_free(l05.callbacks); }
     memset(&l05, 0, sizeof(l05));
 }
 

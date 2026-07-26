@@ -32,7 +32,6 @@ static struct {
     range_state_t* state;
     const char* sid;
 
-    colyseus_callbacks_t* callbacks;
     colyseus_predict_t* predict;
     colyseus_input_handle_t* input;
     range_input_t* cmd;
@@ -40,7 +39,6 @@ static struct {
     range_player_t* me;
     colyseus_reconciler_t* recon;
     range_player_t* predicted;
-    pacer_t send_pacer;
     bool rebind;
 
     bot_t* bot;
@@ -88,36 +86,11 @@ static bool l11_make_reconciler(void) {
     opts.smoothing = 15;
     opts.fields = FIELDS;
     opts.field_count = 4;
-    l11.recon = colyseus_reconciler_create((colyseus_schema_t*)l11.me, &range_player_vtable,
-        l11.input, colyseus_room_get_clock(l11.room), l11_step, &opts);
+    l11.recon = colyseus_predict_reconciler(l11.predict, (colyseus_schema_t*)l11.me,
+        &range_player_vtable, l11.input, l11_step, &opts);
     if (!l11.recon) { return false; }
     l11.predicted = (range_player_t*)colyseus_reconciler_state(l11.recon);
-    pacer_init(&l11.send_pacer, colyseus_reconciler_step_ms(l11.recon));
     return true;
-}
-
-static void l11_on_bot_add(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_predict_field_options_t lerp = { 0 };
-    lerp.mode = COLYSEUS_PREDICT_LERP;
-    lerp.delay = REMOTE_INTERP_MS;
-    colyseus_predict_track(l11.predict, (colyseus_schema_t*)value, "x", &lerp);
-    colyseus_predict_track(l11.predict, (colyseus_schema_t*)value, "y", &lerp);
-}
-
-static void l11_on_player_add(void* value, void* key, void* userdata) {
-    (void)userdata;
-    const char* sid = (const char*)key;
-    if (sid && strcmp(sid, l11.sid) == 0) { return; }
-    colyseus_predict_field_options_t damped = { 0 };
-    damped.mode = COLYSEUS_PREDICT_DAMPED;
-    colyseus_predict_track(l11.predict, (colyseus_schema_t*)value, "x", &damped);
-    colyseus_predict_track(l11.predict, (colyseus_schema_t*)value, "y", &damped);
-}
-
-static void l11_on_player_remove(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_predict_detach(l11.predict, (colyseus_schema_t*)value);
 }
 
 /* The server's fan for the same (seq, salt) — for overlay only. */
@@ -177,16 +150,18 @@ static bool lab11_attach(app_t* app, colyseus_room_t* room) {
     l11.aim_y = 20;
     l11.cheat_state = 0x1234567u;
 
-    l11.callbacks = colyseus_callbacks_create(room->serializer->decoder);
-    l11.predict = colyseus_predict_create(l11.callbacks, colyseus_room_get_clock(room));
-    colyseus_callbacks_on_add(l11.callbacks, state, "bots", l11_on_bot_add, NULL, true);
-    colyseus_callbacks_on_add(l11.callbacks, state, "players", l11_on_player_add, NULL, true);
-    colyseus_callbacks_on_remove(l11.callbacks, state, "players", l11_on_player_remove, NULL);
+    l11.predict = colyseus_predict_for_room(room);
+    /* Bots ride the lerp timeline — the one the server rewinds to. */
+    colyseus_predict_attach_all(l11.predict, (colyseus_schema_t*)state, "bots",
+        SMOOTHED_XY, 2, NULL,
+        &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_LERP,
+                                             .delay = REMOTE_INTERP_MS });
+    colyseus_predict_attach_all(l11.predict, (colyseus_schema_t*)state, "players",
+        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
     colyseus_room_on_message(room, "spread", l11_on_spread, NULL);
 
     colyseus_input_options_t in_opts = { 0 };
     in_opts.allow_rewind = l11_allow_rewind;
-    in_opts.render_delay = REMOTE_INTERP_MS;   /* see the note in lab 06 */
     l11.input = colyseus_room_input(room, &range_input_vtable, &in_opts);
     if (!l11.input) { return false; }
     l11.cmd = (range_input_t*)colyseus_input_handle_data(l11.input);
@@ -231,10 +206,8 @@ static void lab11_frame(app_t* app, double now, double dt) {
     if (app_key(KEY_SPACE)) { l11.pending_fire = true; }
     if (app_key(KEY_X)) { l11.cheat = !l11.cheat; }
 
-    colyseus_reconciler_tick(l11.recon, now);
-    colyseus_predict_tick(l11.predict, now);
 
-    int steps = pacer_steps(&l11.send_pacer, now);
+    int steps = colyseus_predict_tick(l11.predict, now);
     for (int i = 0; i < steps; i++) {
         l11.cmd->moveX = (int8_t)kb_move_x();
         l11.cmd->moveY = (int8_t)kb_move_y();
@@ -335,7 +308,6 @@ static void lab11_detach(app_t* app) {
     (void)app;
     if (l11.recon) { colyseus_reconciler_free(l11.recon); }
     if (l11.predict) { colyseus_predict_free(l11.predict); }
-    if (l11.callbacks) { colyseus_callbacks_free(l11.callbacks); }
     memset(&l11, 0, sizeof(l11));
 }
 

@@ -83,32 +83,35 @@ run-playground -- 5173` works too.
   TypeScript original — including the RNG vectors, which is the module that
   would silently break on a 31-bit-int target.
 
+- **The SDK grew an app-facing surface while this was written.** Twelve labs
+  against the raw predict API surfaced enough repeated boilerplate to be worth
+  fixing in `native-sdk` rather than papering over here — `predict_tick()`
+  returning the due input steps, `predict_for_room` / `attach_all` /
+  `bind_spawns`, reconcilers born from a Predict (which is what binds the
+  lag-comp render delay), and a vector `step_memo`. The app dropped ~200 lines
+  and every `room->serializer->decoder` reach-through. Labs 04 and 05 still
+  pace sends by hand, on purpose: they run several Predict overlays over one
+  room to compare modes, which is exactly what the web build does too.
+
 - **Lab 10 binds both parts.** The JS version hands `predict.sim` opaque plain
   objects plus a custom `pose`; the C port passes the decoded `Player` and `Puck`
   instances as BOUND parts, so the store mirrors them and derives the
   `paddle.x` / `puck.x` pose keys itself — the auto-binding path the SDK fixture
   pins. Custom `pose`/`interpolate` overlays are not ported.
 
-- **`render_delay` is not auto-bound in C.** In the JS SDK, `predict.reconciler()`
-  binds the input handle's `renderDelay` to the Predict's lerp delay, so lag comp
-  rewinds to exactly the instant the client displayed. The C port has no such
-  binding: labs 06 and 11 pass `in_opts.render_delay = REMOTE_INTERP_MS`
-  explicitly. Measured with and without, at 200 ms and aiming dead-on at the
-  lerp view: **3/6 hits and 99 ms of rewind error without it, 6/6 and 65 ms
-  with**. 99 ms is precisely the missing lerp delay.
+- **`render_delay` used not to be auto-bound in C** — the finding that drove the
+  SDK change above. The stamp is `serverNow - (render_delay + rtt/2)`, so if it
+  doesn't match the delay remote entities are DRAWN at, the server rewinds to an
+  instant the client never displayed. Measured at 200 ms aiming dead-on at the
+  lerp view: **3/6 hits and 99 ms of rewind error without the binding, 6/6 and
+  ~65 ms with** — 99 ms being precisely the missing lerp delay.
+  `colyseus_predict_reconciler()` now binds it from the Predict's lerp delay.
 
-- **Lab 07 encodes its verdict as two memos.** `colyseus_step_memo` stores
-  DOUBLES only, so the knockback is frozen as `bump.vx` and `bump.vy` under
-  separate keys rather than one struct. Both computes run on the same live step
-  over the same state, so the pair is exact; folding them into a single angle
+- **Lab 07's verdict is a vector memo.** The knockback rides one
+  `colyseus_step_memo_vec("bump", ...)`, so the collision test runs exactly once
+  on the live step and both components replay together. Encoding it as an angle
   would round through `atan2`/`cos` and reintroduce the drift the lab exists to
-  eliminate.
-
-- **Lab 09 keeps its own entry list.** The C spawn store has no entry iterator
-  and no `value()` overlay (the JS `projectiles.entries()` / `.value(e, "x")`),
-  so the lab tracks ids from `spawns_spawn()` and the collection's `onAdd`, then
-  reads the local struct while pending and the server instance once confirmed.
-  Same render path, one lookup deeper.
+  eliminate — which is why the vector form exists.
 
 - **Single translation unit.** schema-codegen emits `static` vtables per header,
   so one TU is what keeps every lab pointing at the *same* vtable object. `main.c`

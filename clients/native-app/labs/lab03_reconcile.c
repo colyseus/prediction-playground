@@ -19,7 +19,6 @@ typedef struct {
     move_state_t* state;
     const char* sid;
 
-    colyseus_callbacks_t* callbacks;
     colyseus_predict_t* predict;
     colyseus_input_handle_t* input;
     move_input_t* cmd;
@@ -44,10 +43,6 @@ typedef struct {
     spark_t drift_spark;
     double spark_gate;
 
-    /* colyseus_reconciler_tick() doesn't report due steps the way the JS
-     * predict.tick() does, so sends are paced locally on the adopted step. */
-    pacer_t send_pacer;
-
     bool rebind;                /* re-resolve `me` + rebuild after a reconnect */
 } recon_lane_t;
 
@@ -70,30 +65,14 @@ static bool l03_make_reconciler(recon_lane_t* l) {
     opts.smoothing = l->smoothing;
     opts.fields = FIELDS;
     opts.field_count = 4;
-    l->recon = colyseus_reconciler_create((colyseus_schema_t*)l->me, &player_vtable,
-        l->input, colyseus_room_get_clock(l->room), l03_step, &opts);
+    /* Born from the Predict: driven by its tick(), donates the fixed step to
+     * its pacing accumulator, and binds the lag-comp render delay. */
+    l->recon = colyseus_predict_reconciler(l->predict, (colyseus_schema_t*)l->me,
+        &player_vtable, l->input, l03_step, &opts);
     if (!l->recon) { return false; }
     l->predicted = (player_t*)colyseus_reconciler_state(l->recon);
     l->last_reconcile_seq = 0;
-    pacer_init(&l->send_pacer, colyseus_reconciler_step_ms(l->recon));
     return true;
-}
-
-/* Remote squares: damped toward the latest snapshot (their inputs are not ours
- * to predict — Lab 04 explores these modes). */
-static void l03_on_player_add(void* value, void* key, void* userdata) {
-    recon_lane_t* l = (recon_lane_t*)userdata;
-    const char* sid = (const char*)key;
-    if (sid && strcmp(sid, l->sid) == 0) { return; }
-    colyseus_predict_field_options_t damped = { 0 };
-    damped.mode = COLYSEUS_PREDICT_DAMPED;
-    colyseus_predict_track(l->predict, (colyseus_schema_t*)value, "x", &damped);
-    colyseus_predict_track(l->predict, (colyseus_schema_t*)value, "y", &damped);
-}
-
-static void l03_on_player_remove(void* value, void* key, void* userdata) {
-    (void)key;
-    colyseus_predict_detach(((recon_lane_t*)userdata)->predict, (colyseus_schema_t*)value);
 }
 
 static bool lab03_attach(app_t* app, colyseus_room_t* room) {
@@ -117,10 +96,11 @@ static bool lab03_attach(app_t* app, colyseus_room_t* room) {
     trail_init(&l->server_trail, 150);
     spark_init(&l->drift_spark);
 
-    l->callbacks = colyseus_callbacks_create(room->serializer->decoder);
-    l->predict = colyseus_predict_create(l->callbacks, colyseus_room_get_clock(room));
-    colyseus_callbacks_on_add(l->callbacks, state, "players", l03_on_player_add, l, true);
-    colyseus_callbacks_on_remove(l->callbacks, state, "players", l03_on_player_remove, l);
+    /* Remote squares: damped toward the latest snapshot (their inputs are not
+     * ours to predict — lab 04 explores these modes). */
+    l->predict = colyseus_predict_for_room(room);
+    colyseus_predict_attach_all(l->predict, (colyseus_schema_t*)state, "players",
+        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
 
     l->input = colyseus_room_input(room, &move_input_vtable, NULL);
     if (!l->input) { return false; }
@@ -136,10 +116,8 @@ static bool lab03_attach(app_t* app, colyseus_room_t* room) {
  * Shared with lab 00, which runs this exact netcode behind a split screen.
  */
 static int l03_drive(recon_lane_t* l, double now, int move_x, int move_y) {
-    colyseus_reconciler_tick(l->recon, now);
-    colyseus_predict_tick(l->predict, now);
-
-    int steps = pacer_steps(&l->send_pacer, now);
+    /* One call advances the whole stack and reports the input steps due. */
+    int steps = colyseus_predict_tick(l->predict, now);
     for (int i = 0; i < steps; i++) {
         l->cmd->moveX = (int8_t)move_x;
         l->cmd->moveY = (int8_t)move_y;
@@ -294,7 +272,6 @@ static void lab03_detach(app_t* app) {
     recon_lane_t* l = &l03;
     if (l->recon) { colyseus_reconciler_free(l->recon); }
     if (l->predict) { colyseus_predict_free(l->predict); }
-    if (l->callbacks) { colyseus_callbacks_free(l->callbacks); }
     memset(l, 0, sizeof(*l));
 }
 

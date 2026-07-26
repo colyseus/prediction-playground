@@ -1,7 +1,7 @@
 /*
  * The playground's shared simulation, ported to C.
  *
- * Bit-exact f64 transliteration of src/shared/*.ts: same op order, same
+ * Bit-exact f64 transliteration of the src/shared TypeScript: same op order, same
  * constants. Determinism across the wire is the whole contract — the server
  * runs the TypeScript original, this file runs on the client, and steady-state
  * reconcile corrections must be exactly zero.

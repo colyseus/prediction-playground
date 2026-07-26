@@ -72,6 +72,9 @@ typedef struct {
  * mount — lab 00 makes no point at all on a 1 ms localhost link. */
 static void app_set_latency_preset(int index);
 
+/* The field pair every lab smooths on entities it does not control. */
+static const char* const SMOOTHED_XY[] = { "x", "y" };
+
 /* ---------------------------------------------------------- keyboard */
 
 /*

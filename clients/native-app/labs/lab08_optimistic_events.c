@@ -29,7 +29,6 @@ static struct {
     goal_state_t* state;
     const char* sid;
 
-    colyseus_callbacks_t* callbacks;
     colyseus_predict_t* predict;
     colyseus_event_channel_t* goals;
     colyseus_input_handle_t* input;
@@ -38,7 +37,6 @@ static struct {
     goal_player_t* me;
     colyseus_reconciler_t* recon;
     goal_player_t* predicted;
-    pacer_t send_pacer;
     bool rebind;
 
     l08_record_t records[L08_MAX_RECORDS];
@@ -126,27 +124,11 @@ static bool l08_make_reconciler(void) {
     opts.smoothing = 15;
     opts.fields = FIELDS;
     opts.field_count = 5;
-    l08.recon = colyseus_reconciler_create((colyseus_schema_t*)l08.me, &goal_player_vtable,
-        l08.input, colyseus_room_get_clock(l08.room), l08_step, &opts);
+    l08.recon = colyseus_predict_reconciler(l08.predict, (colyseus_schema_t*)l08.me,
+        &goal_player_vtable, l08.input, l08_step, &opts);
     if (!l08.recon) { return false; }
     l08.predicted = (goal_player_t*)colyseus_reconciler_state(l08.recon);
-    pacer_init(&l08.send_pacer, colyseus_reconciler_step_ms(l08.recon));
     return true;
-}
-
-static void l08_on_player_add(void* value, void* key, void* userdata) {
-    (void)userdata;
-    const char* sid = (const char*)key;
-    if (sid && strcmp(sid, l08.sid) == 0) { return; }
-    colyseus_predict_field_options_t damped = { 0 };
-    damped.mode = COLYSEUS_PREDICT_DAMPED;
-    colyseus_predict_track(l08.predict, (colyseus_schema_t*)value, "x", &damped);
-    colyseus_predict_track(l08.predict, (colyseus_schema_t*)value, "y", &damped);
-}
-
-static void l08_on_player_remove(void* value, void* key, void* userdata) {
-    (void)key; (void)userdata;
-    colyseus_predict_detach(l08.predict, (colyseus_schema_t*)value);
 }
 
 static bool lab08_attach(app_t* app, colyseus_room_t* room) {
@@ -163,16 +145,16 @@ static bool lab08_attach(app_t* app, colyseus_room_t* room) {
     l08.me = me;
     l08.deny_rate = state->denyRate;
 
-    l08.callbacks = colyseus_callbacks_create(room->serializer->decoder);
-    l08.predict = colyseus_predict_create(l08.callbacks, colyseus_room_get_clock(room));
-    colyseus_callbacks_on_add(l08.callbacks, state, "players", l08_on_player_add, NULL, true);
-    colyseus_callbacks_on_remove(l08.callbacks, state, "players", l08_on_player_remove, NULL);
+    l08.predict = colyseus_predict_for_room(room);
+    colyseus_predict_attach_all(l08.predict, (colyseus_schema_t*)state, "players",
+        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
 
     colyseus_event_channel_options_t ch = { 0 };
     ch.on_predict = l08_on_predict;
     ch.on_confirm = l08_on_confirm;
     ch.on_reject = l08_on_reject;
     l08.goals = colyseus_event_channel_create(&ch, colyseus_room_get_clock(room));
+    colyseus_predict_drive_events(l08.predict, l08.goals);
     colyseus_room_on_message(room, "goal", l08_on_goal_message, NULL);
 
     l08.input = colyseus_room_input(room, &move_input_vtable, NULL);
@@ -217,11 +199,8 @@ static void lab08_frame(app_t* app, double now, double dt) {
         colyseus_message_free(m);
     }
 
-    colyseus_reconciler_tick(l08.recon, now);
-    colyseus_predict_tick(l08.predict, now);
-    colyseus_event_channel_prune(l08.goals);
 
-    int steps = pacer_steps(&l08.send_pacer, now);
+    int steps = colyseus_predict_tick(l08.predict, now);
     for (int i = 0; i < steps; i++) {
         l08.cmd->moveX = (int8_t)kb_move_x();
         l08.cmd->moveY = (int8_t)kb_move_y();
@@ -301,7 +280,6 @@ static void lab08_detach(app_t* app) {
     if (l08.recon) { colyseus_reconciler_free(l08.recon); }
     if (l08.goals) { colyseus_event_channel_free(l08.goals); }
     if (l08.predict) { colyseus_predict_free(l08.predict); }
-    if (l08.callbacks) { colyseus_callbacks_free(l08.callbacks); }
     memset(&l08, 0, sizeof(l08));
 }
 
