@@ -17,6 +17,12 @@ namespace Playground
         string Title { get; }
         string Blurb { get; }
 
+        /// <summary>
+        /// The lab paints its own background, so the shell skips the shared arena.
+        /// Only the split-screen hero needs this.
+        /// </summary>
+        bool OwnArena { get; }
+
         /// <summary>Join and wire up. The shell awaits this on lab switch.</summary>
         Task<bool> Mount(App app);
 
@@ -50,6 +56,34 @@ namespace Playground
         Room<T> RoomOf<T>() where T : ColyseusSchema;
     }
 
+    /// <summary>
+    /// The boilerplate every lab would otherwise repeat: the four identity
+    /// strings stay abstract (they ARE the lab), and everything mechanical —
+    /// type-erasing the room, the clock, the no-op hooks — is settled once.
+    /// Set <see cref="Room"/> in Mount; the rest follows from it.
+    /// </summary>
+    public abstract class LabBase<TState> : ILab where TState : ColyseusSchema
+    {
+        public abstract string Id { get; }
+        public abstract int Num { get; }
+        public abstract string Title { get; }
+        public abstract string Blurb { get; }
+        public virtual bool OwnArena => false;
+
+        /// <summary>The joined room. Subclasses assign this in Mount.</summary>
+        protected Room<TState> Room;
+
+        IRoom ILab.Room => Room;
+        public RoomClock Clock => Room?.Clock;
+        public Room<T> RoomOf<T>() where T : ColyseusSchema => Room as Room<T>;
+
+        public abstract Task<bool> Mount(App app);
+        public abstract void Frame(App app, double now, double dtMs);
+        public abstract void Render(App app);
+        public virtual void Unmount() { }
+        public virtual void OnReconnect() { }
+    }
+
     /// <summary>Everything the shell hands a lab.</summary>
     public class App
     {
@@ -58,6 +92,12 @@ namespace Playground
         public Hud Hud = new Hud();
         public Rect Stage;
         public bool PrivateRoom;
+
+        /// <summary>
+        /// Ask the shell for a latency preset on mount. Labs 00/01/03 make no
+        /// point at all on a 1 ms localhost link, so they set one themselves.
+        /// </summary>
+        public void SetLatencyPreset(int index) => DelayedConnection.UsePreset(index);
     }
 
     /// <summary>

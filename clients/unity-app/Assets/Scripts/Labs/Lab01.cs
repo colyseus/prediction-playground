@@ -13,14 +13,13 @@ namespace Playground
     /// press waits a full round trip, so the L latency presets are what make
     /// this lab say anything. Port of labs/01-feel-the-lag/.
     /// </summary>
-    public class Lab01 : ILab
+    public class Lab01 : LabBase<Lab.MoveState>
     {
-        public string Id => "01-feel-the-lag";
-        public int Num => 1;
-        public string Title => "Feel the Lag";
-        public string Blurb => "No prediction: every key press waits a full round trip.";
+        public override string Id => "01-feel-the-lag";
+        public override int Num => 1;
+        public override string Title => "Feel the Lag";
+        public override string Blurb => "No prediction: every key press waits a full round trip.";
 
-        private Room<Lab.MoveState> _room;
         private Lab.MoveInput _cmd;
         private InputHandle _input;
         private Pacer _pacer;
@@ -35,23 +34,23 @@ namespace Playground
         private Phase _phase;
         private double _armT, _armX, _armY, _measured;
 
-        public IRoom Room => _room;
-        public RoomClock Clock => _room?.Clock;
-        public Room<T> RoomOf<T>() where T : ColyseusSchema => _room as Room<T>;
+        /// <summary>Last input→motion reading, in ms. 0 until the meter fires.</summary>
+        public double Measured => _measured;
 
-        public async Task<bool> Mount(App app)
+
+        public override async Task<bool> Mount(App app)
         {
-            _room = await Shell.JoinLab<Lab.MoveState>(app, "lab-move",
+            Room = await Shell.JoinLab<Lab.MoveState>(app, "lab-move",
                 r => r.State.players != null && r.State.players.ContainsKey(r.SessionId));
-            _sid = _room.SessionId;
-            if (_room.State.players == null) return false;
+            _sid = Room.SessionId;
+            if (Room.State.players == null) return false;
             _cmd = new Lab.MoveInput();
-            _input = _room.Input(_cmd);
+            _input = Room.Input(_cmd);
             _pacer = new Pacer(1000.0 / Sim.TickHz);
-            return _room.State.players.ContainsKey(_sid);
+            return Room.State.players.ContainsKey(_sid);
         }
 
-        public void Frame(App app, double now, double dtMs)
+        public override void Frame(App app, double now, double dtMs)
         {
             if (Kb.Key(KeyCode.R)) _damped = !_damped;
             if (Kb.Key(KeyCode.Minus) && _damping > 4) _damping -= 2;
@@ -68,7 +67,7 @@ namespace Playground
             }
 
             double dt = System.Math.Min(0.1, dtMs / 1000.0);
-            _room.State.players.ForEach((key, p) =>
+            Room.State.players.ForEach((key, p) =>
             {
                 if (!_smooth.TryGetValue(key, out var s)) s = new Vector2(p.x, p.y);
                 float k = (float)(1 - System.Math.Exp(-_damping * dt));
@@ -77,7 +76,7 @@ namespace Playground
 
             // input->photon meter: arm on a key press while at rest, measure when
             // the RENDERED position first moves.
-            if (_room.State.players.TryGetValue(_sid, out var me))
+            if (Room.State.players.TryGetValue(_sid, out var me))
             {
                 double speed = System.Math.Abs(me.vx) + System.Math.Abs(me.vy);
                 if (_phase != Phase.Armed && Kb.AnyMove() && speed < 0.01)
@@ -97,10 +96,10 @@ namespace Playground
             }
         }
 
-        public void Render(App app)
+        public override void Render(App app)
         {
             var v = app.View;
-            _room.State.players.ForEach((key, p) =>
+            Room.State.players.ForEach((key, p) =>
             {
                 bool isMe = key == _sid;
                 double rx = p.x, ry = p.y;
@@ -130,8 +129,8 @@ namespace Playground
                    "predicted = Lab 03. Raise the latency preset with L and feel the difference.");
         }
 
-        public void Unmount() { _smooth.Clear(); }
+        public override void Unmount() { _smooth.Clear(); }
 
-        public void OnReconnect() { _pacer.Reset(); _phase = Phase.Idle; }
+        public override void OnReconnect() { _pacer.Reset(); _phase = Phase.Idle; }
     }
 }

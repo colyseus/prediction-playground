@@ -11,11 +11,11 @@ using UnityEngine.Scripting;
 #endif
 
 namespace PredictProbe.LabSchema {
-	public partial class Player : Schema {
+	public partial class BumpPlayer : Schema {
 #if UNITY_5_3_OR_NEWER
 [Preserve]
 #endif
-public Player() { }
+public BumpPlayer() { }
 		[Type(0, "number")]
 		public float x = default(float);
 
@@ -30,5 +30,11 @@ public Player() { }
 
 		[Type(4, "uint8")]
 		public byte hue = default(byte);
+
+		[Type(5, "uint8")]
+		public byte bumpTicks = default(byte);
+
+		[Type(6, "uint16")]
+		public ushort bumps = default(ushort);
 	}
 }

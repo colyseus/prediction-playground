@@ -60,11 +60,43 @@ namespace Playground
             JitterMs = Math.Max(0, jitterMs);
         }
 
+        /// <summary>A named delay/jitter pair — what the `L` key cycles through.</summary>
+        public readonly struct Preset
+        {
+            public readonly double Delay, Jitter;
+            public readonly string Label;
+            public Preset(double delay, double jitter, string label)
+            {
+                Delay = delay; Jitter = jitter; Label = label;
+            }
+        }
+
+        public static readonly Preset[] Presets =
+        {
+            new Preset(0, 0, "off"),
+            new Preset(80, 10, "80 ms + 10 jitter"),
+            new Preset(200, 0, "200 ms"),
+            new Preset(200, 80, "200 ms + 80 jitter"),
+            new Preset(400, 60, "400 ms + 60 jitter"),
+        };
+
+        public static int PresetIndex { get; private set; }
+        public static string PresetLabel => Presets[PresetIndex].Label;
+
+        public static void UsePreset(int index)
+        {
+            PresetIndex = ((index % Presets.Length) + Presets.Length) % Presets.Length;
+            SetLatency(Presets[PresetIndex].Delay, Presets[PresetIndex].Jitter);
+        }
+
+        public static void NextPreset() => UsePreset(PresetIndex + 1);
+
         /// <summary>Forget every socket and zero the latency — between test cases.</summary>
         public static void Reset()
         {
             lock (Live) Live.Clear();
             DelayMs = JitterMs = 0;
+            PresetIndex = 0;
         }
 
         /// <summary>Kill every live socket, so the SDK sees a drop and not a leave.</summary>

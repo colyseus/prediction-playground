@@ -43,24 +43,12 @@ namespace Playground
     /// </summary>
     public class LabManager : MonoBehaviour
     {
-        private struct Preset { public double Delay, Jitter; public string Label; }
-
-        private static readonly Preset[] Presets =
-        {
-            new Preset { Delay = 0,   Jitter = 0,  Label = "off" },
-            new Preset { Delay = 80,  Jitter = 10, Label = "80 ms + 10 jitter" },
-            new Preset { Delay = 200, Jitter = 0,  Label = "200 ms" },
-            new Preset { Delay = 200, Jitter = 80, Label = "200 ms + 80 jitter" },
-            new Preset { Delay = 400, Jitter = 60, Label = "400 ms + 60 jitter" },
-        };
-
         private readonly App _app = new App();
         private ILab[] _labs;
         private int _labIndex;
         private ILab _active;
         private bool _switching;
         private string _error;
-        private int _preset;
         private double _lastNow;
 
         public string Endpoint = "ws://localhost:5173";
@@ -72,7 +60,7 @@ namespace Playground
 
             DelayedConnection.Install();
             _app.Client = new Client(Endpoint);
-            _labs = new ILab[] { new Lab01(), new Lab02(), new Lab03() };
+            _labs = new ILab[] { new Lab00(), new Lab01(), new Lab02(), new Lab03(), new Lab04(), new Lab05(), new Lab08(), new Lab09() };
             _ = SwitchTo(0);
         }
 
@@ -110,11 +98,7 @@ namespace Playground
 
             for (int i = 0; i < _labs.Length && i < 9; i++)
                 if (Kb.Key(KeyCode.Alpha1 + _labs[i].Num - 1)) _ = SwitchTo(i);
-            if (Kb.Key(KeyCode.L))
-            {
-                _preset = (_preset + 1) % Presets.Length;
-                DelayedConnection.SetLatency(Presets[_preset].Delay, Presets[_preset].Jitter);
-            }
+            if (Kb.Key(KeyCode.L)) DelayedConnection.NextPreset();
             if (Kb.Key(KeyCode.D)) DelayedConnection.DropAll();
             if (Kb.Key(KeyCode.P)) { _app.PrivateRoom = !_app.PrivateRoom; _ = SwitchTo(_labIndex); }
 
@@ -131,7 +115,7 @@ namespace Playground
             _app.Stage = new Rect(0, 44, w - panelW - pad * 2, h - 44 - 46);
             _app.View.Fit(_app.Stage);
             _app.Hud.Begin(w - panelW - pad, 60, panelW);
-            Draw.Arena(_app.View);
+            if (_active == null || !_active.OwnArena) Draw.Arena(_app.View);
 
             if (_active != null) _active.Render(_app);
             else
@@ -171,15 +155,15 @@ namespace Playground
             var stat = new GUIStyle(GUI.skin.label) { fontSize = 11, normal = { textColor = Palette.Text } };
             string line = clock != null
                 ? $"RTT {clock.SmoothedRtt():F0} ms    JITTER {clock.Jitter():F0} ms    " +
-                  $"INJECTED {Presets[_preset].Label}    IN FLIGHT {DelayedConnection.InFlight()} pkt    " +
+                  $"INJECTED {DelayedConnection.PresetLabel}    IN FLIGHT {DelayedConnection.InFlight()} pkt    " +
                   $"ROOM {(_app.PrivateRoom ? "private" : "shared")}"
-                : $"INJECTED {Presets[_preset].Label}    connecting...";
+                : $"INJECTED {DelayedConnection.PresetLabel}    connecting...";
             GUI.Label(new Rect(16, y + 14, w - 32, 18), line, stat);
 
             stat = new GUIStyle(GUI.skin.label)
             { fontSize = 10, alignment = TextAnchor.MiddleRight, normal = { textColor = Palette.TextFaint } };
             GUI.Label(new Rect(w - 460, y + 14, 444, 18),
-                "1-3 lab   L latency   D drop   P private", stat);
+                "0-3 lab   L latency   D drop   P private", stat);
         }
     }
 }

@@ -65,8 +65,43 @@ namespace Playground
         public float SX(double x) => Ox + (float)x * Scale;
         public float SY(double y) => Oy + (float)y * Scale;
         public float S(double len) => (float)len * Scale;
-        public double WX(float px) => (px - Ox) / Scale;
-        public double WY(float py) => (py - Oy) / Scale;
+
+        /// <summary>Screen → world, for pointer aiming.</summary>
+        public double WX(float sx) => (sx - Ox) / Scale;
+        public double WY(float sy) => (sy - Oy) / Scale;
+    }
+
+    /// <summary>
+    /// A bounded ring of world-space points, drawn as a fading polyline. Motion
+    /// history is what makes a lag/prediction difference legible in a still frame,
+    /// so several labs keep one per lane.
+    /// </summary>
+    public class Trail
+    {
+        private readonly Vector2[] _pts;
+        private int _head, _count;
+
+        public Trail(int capacity) { _pts = new Vector2[capacity]; }
+
+        public void Push(double x, double y)
+        {
+            _pts[_head] = new Vector2((float)x, (float)y);
+            _head = (_head + 1) % _pts.Length;
+            if (_count < _pts.Length) _count++;
+        }
+
+        public void Clear() { _head = 0; _count = 0; }
+
+        public void Render(WorldView v, Color c, float width = 1.5f, float maxAlpha = 0.4f)
+        {
+            for (int i = 1; i < _count; i++)
+            {
+                var a = _pts[(_head - _count + i - 1 + _pts.Length * 2) % _pts.Length];
+                var b = _pts[(_head - _count + i + _pts.Length * 2) % _pts.Length];
+                Draw.Line(new Vector2(v.SX(a.x), v.SY(a.y)), new Vector2(v.SX(b.x), v.SY(b.y)),
+                    Palette.A(c, maxAlpha * i / _count), width);
+            }
+        }
     }
 
     /// <summary>Immediate-mode shapes over GUI.DrawTexture — no scene objects.</summary>
@@ -157,6 +192,41 @@ namespace Playground
                 Line(new Vector2(cx + Mathf.Cos(a0) * pr, cy + Mathf.Sin(a0) * pr),
                      new Vector2(cx + Mathf.Cos(a1) * pr, cy + Mathf.Sin(a1) * pr), c, 1.5f);
             }
+        }
+
+        /// <summary>Filled disc — bots, pucks, projectiles, pellets.</summary>
+        public static void Circle(WorldView v, double x, double y, double r, Color c)
+        {
+            const int seg = 24;
+            float cx = v.SX(x), cy = v.SY(y), pr = v.S(r);
+            float h = 2f * pr / seg;
+            // Horizontal spans of the disc: cheap, and exact enough at these radii.
+            for (int i = 0; i < seg; i++)
+            {
+                float t = (i + 0.5f) / seg * 2f - 1f;          // slice centre in [-1,1]
+                float half = pr * Mathf.Sqrt(Mathf.Max(0f, 1f - t * t));
+                if (half <= 0) continue;
+                Rect(new Rect(cx - half, cy + (i / (float)seg * 2f - 1f) * pr,
+                    half * 2, Mathf.Max(1f, h)), c);
+            }
+        }
+
+        /// <summary>A dashed segment between two WORLD points.</summary>
+        public static void DashedWorld(WorldView v, double x0, double y0, double x1, double y1,
+            Color c, float width = 1f)
+            => Dashed(new Vector2(v.SX(x0), v.SY(y0)), new Vector2(v.SX(x1), v.SY(y1)), c, width);
+
+        /// <summary>Screen-space text — lane titles, captions, strip legends.</summary>
+        public static void Text(float x, float y, float w, string text, Color c, int size = 11,
+            TextAnchor anchor = TextAnchor.UpperLeft)
+        {
+            var style = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = size,
+                alignment = anchor,
+                normal = { textColor = c }
+            };
+            GUI.Label(new Rect(x, y, w, size + 8), text, style);
         }
 
         public static void Arena(WorldView v)

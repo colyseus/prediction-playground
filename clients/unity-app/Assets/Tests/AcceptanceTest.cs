@@ -113,7 +113,7 @@ public class AcceptanceTest
         // At rest first: the meter arms on a key press from a standstill.
         yield return Drive(lab, app, 800);
         yield return Drive(lab, app, 1600, autoX: 1);
-        double atZero = Measured(lab);
+        double atZero = lab.Measured;
         Assert.Greater(atZero, 0, "meter never armed at 0 injected latency");
         Assert.Less(atZero, 250, $"input->motion {atZero:F0} ms at 0 injected — expected ~one patch interval");
 
@@ -122,18 +122,11 @@ public class AcceptanceTest
         DelayedConnection.SetLatency(200, 0);
         yield return Drive(lab, app, 1200);
         yield return Drive(lab, app, 2000, autoX: -1);
-        double at200 = Measured(lab);
+        double at200 = lab.Measured;
         Assert.Greater(at200, 300, $"input->motion {at200:F0} ms at 200 ms injected — latency not felt");
         Debug.Log($"OK lab01: {atZero:F0} ms at 0 injected, {at200:F0} ms at 200 ms");
 
         yield return Teardown(lab);
-    }
-
-    private static double Measured(Lab01 lab)
-    {
-        var f = typeof(Lab01).GetField("_measured",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (double)f.GetValue(lab);
     }
 
     [UnityTest, Timeout(TestTimeoutMs)]
@@ -164,7 +157,7 @@ public class AcceptanceTest
         var lab = new Lab03();
         yield return Mount(lab, app);
 
-        var recon = Recon(lab);
+        var recon = lab.Lane.Recon;
         yield return Drive(lab, app, 4000, autoX: -1);
 
         // Predicted while ~RTT worth of inputs are still unacked, and the shared
@@ -177,7 +170,7 @@ public class AcceptanceTest
         // A server-side shove the client cannot see coming MUST mispredict...
         lab.RoomOf<Lab.MoveState>().Send("impulse");
         yield return Drive(lab, app, 1500);
-        double peak = MaxCorr(lab);
+        double peak = lab.Lane.MaxCorrectionMag;
         Assert.Greater(peak, 0.05, "the impulse produced no visible correction");
 
         // ...and then decay back to steady state.
@@ -189,17 +182,4 @@ public class AcceptanceTest
         yield return Teardown(lab);
     }
 
-    private static Reconciler<Lab.Player, Lab.MoveInput> Recon(Lab03 lab)
-    {
-        var f = typeof(Lab03).GetField("_recon",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (Reconciler<Lab.Player, Lab.MoveInput>)f.GetValue(lab);
-    }
-
-    private static double MaxCorr(Lab03 lab)
-    {
-        var f = typeof(Lab03).GetField("_maxCorrMag",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (double)f.GetValue(lab);
-    }
 }

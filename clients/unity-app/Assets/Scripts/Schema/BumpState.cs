@@ -11,12 +11,15 @@ using UnityEngine.Scripting;
 #endif
 
 namespace PredictProbe.LabSchema {
-	public partial class MoveState : Schema {
+	public partial class BumpState : Schema {
 #if UNITY_5_3_OR_NEWER
 [Preserve]
 #endif
-public MoveState() { }
-		[Type(0, "map", typeof(MapSchema<Player>))]
-		public MapSchema<Player> players = null;
+public BumpState() { }
+		[Type(0, "map", typeof(MapSchema<BumpPlayer>))]
+		public MapSchema<BumpPlayer> players = null;
+
+		[Type(1, "map", typeof(MapSchema<Bot>))]
+		public MapSchema<Bot> bots = null;
 	}
 }

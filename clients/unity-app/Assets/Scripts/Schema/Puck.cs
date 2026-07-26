@@ -11,12 +11,21 @@ using UnityEngine.Scripting;
 #endif
 
 namespace PredictProbe.LabSchema {
-	public partial class MoveState : Schema {
+	public partial class Puck : Schema {
 #if UNITY_5_3_OR_NEWER
 [Preserve]
 #endif
-public MoveState() { }
-		[Type(0, "map", typeof(MapSchema<Player>))]
-		public MapSchema<Player> players = null;
+public Puck() { }
+		[Type(0, "number")]
+		public float x = default(float);
+
+		[Type(1, "number")]
+		public float y = default(float);
+
+		[Type(2, "number")]
+		public float vx = default(float);
+
+		[Type(3, "number")]
+		public float vy = default(float);
 	}
 }

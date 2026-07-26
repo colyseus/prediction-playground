@@ -11,12 +11,18 @@ using UnityEngine.Scripting;
 #endif
 
 namespace PredictProbe.LabSchema {
-	public partial class MoveState : Schema {
+	public partial class HockeyState : Schema {
 #if UNITY_5_3_OR_NEWER
 [Preserve]
 #endif
-public MoveState() { }
+public HockeyState() { }
 		[Type(0, "map", typeof(MapSchema<Player>))]
 		public MapSchema<Player> players = null;
+
+		[Type(1, "ref", typeof(Puck))]
+		public Puck puck = null;
+
+		[Type(2, "boolean")]
+		public bool botEnabled = default(bool);
 	}
 }
