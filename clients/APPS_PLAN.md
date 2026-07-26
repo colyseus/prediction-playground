@@ -269,16 +269,29 @@ throughout (`predict_probe` etc. are the regression gate — run before/after).
 
 ## 9. Known future-work seams (explicitly out of scope)
 
-- **`renderDelay` is not auto-bound outside JS.** `predict.reconciler()` binds
-  the input handle's `renderDelay` to the Predict's lerp delay so lag comp
-  rewinds to the instant the client displayed; the C port has no such binding,
-  so labs 06/11 pass `render_delay = REMOTE_INTERP_MS` explicitly. Measured at
-  200 ms aiming dead-on at the lerp view: 3/6 hits and 99 ms of rewind error
-  without it, 6/6 and ~65 ms with. Expect the same gap in the other ports.
-- The C spawn store has no entry ITERATOR and no `value()` overlay, so lab 09
-  keeps its own id list (fed by `spawns_spawn` + the collection's `onAdd`).
-- `colyseus_step_memo` stores doubles only — lab 07 freezes its bump verdict as
-  two memos (`bump.vx`, `bump.vy`) rather than one angle.
+**Port the app-facing surface, not just the algorithm.** Writing twelve labs
+against the raw C predict API surfaced the same boilerplate over and over; the
+fixes landed in native-sdk (`predict: make the app-facing surface do the
+boilerplate`) and the Unity / Defold / Haxe ports should carry the same shapes
+rather than rediscover them:
+
+- `predict.tick()` must RETURN the fixed input steps due this frame — it is the
+  input-pacing source, and a port that returns void makes every call site
+  hand-roll the accumulator (11 of 12 labs did).
+- `tick()` drives the Predict's children (reconcilers, event channels, spawn
+  stores): one call per frame, not four.
+- A room owns ONE decode-callback layer; a Predict borrows it. Anything the
+  Predict registers on it must be removed when the Predict dies, or a patch
+  decoded after a teardown calls into freed state.
+- `attachAll` / `attachAllReckon` / `bindSpawns` — the "every entry of this
+  collection, now and later" case is the common one.
+- Reconcilers are born FROM a Predict, which is what binds the input handle's
+  lag-comp `renderDelay` to the Predict's lerp delay. Skipping that binding cost
+  the C lab 06 exactly the lerp delay in rewind error: 3/6 hits and 99 ms off
+  without it, 6/6 and ~65 ms with.
+- A vector `memo` (a tuple under one key) — splitting one verdict across several
+  scalar memos re-runs the derivation per component.
+- `value()` on a field that doesn't exist should be NAN, not 0.
 
 - Upstreaming the Haxe main-thread decode pump into the SDK proper.
 - native SO_NOSIGPIPE inside the transport (workaround pinned in apps).
