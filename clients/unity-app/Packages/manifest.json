@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "io.colyseus.sdk": "file:../../../../colyseus-unity-sdk/Assets/Colyseus",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0",
+    "com.unity.modules.unitywebrequestwww": "1.0.0"
+  }
+}

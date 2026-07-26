@@ -1,0 +1,10 @@
+# Unity-generated; all rebuildable from Assets/ + ProjectSettings/ + Packages/
+/Library/
+/Temp/
+/Obj/
+/Build/
+/Builds/
+/Logs/
+/UserSettings/
+*.csproj
+*.sln
