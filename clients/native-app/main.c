@@ -32,6 +32,7 @@
 #include "colyseus/schema/collections.h"
 #include "colyseus/predict/predict.h"
 #include "colyseus/predict/reconciler.h"
+#include "colyseus/predict/sim_reconciler.h"
 
 #include "colyseus/predict/events.h"
 #include "colyseus/predict/spawns.h"
@@ -44,6 +45,7 @@
 #include "schema/range_state.h"
 #include "schema/range_input.h"
 #include "schema/bump_state.h"
+#include "schema/hockey_state.h"
 
 #include "sim.h"
 #include "view.h"
@@ -63,11 +65,12 @@
 #include "labs/lab07_wysiwyg.c"
 #include "labs/lab08_optimistic_events.c"
 #include "labs/lab09_predicted_spawns.c"
+#include "labs/lab10_composite_sim.c"
 #include "labs/lab11_deterministic_rng.c"
 
 static const lab_def_t* const LABS[] = {
     &LAB_00, &LAB_01, &LAB_02, &LAB_03, &LAB_04, &LAB_05,
-    &LAB_06, &LAB_07, &LAB_08, &LAB_09, &LAB_11,
+    &LAB_06, &LAB_07, &LAB_08, &LAB_09, &LAB_10, &LAB_11,
 };
 #define LAB_COUNT ((int)(sizeof(LABS) / sizeof(LABS[0])))
 
@@ -276,7 +279,7 @@ typedef struct {
 } demo_step_t;
 
 /* LABS index, by lab id — the script reads better than raw ordinals. */
-enum { IX_00, IX_01, IX_02, IX_03, IX_04, IX_05, IX_06, IX_07, IX_08, IX_09, IX_11 };
+enum { IX_00, IX_01, IX_02, IX_03, IX_04, IX_05, IX_06, IX_07, IX_08, IX_09, IX_10, IX_11 };
 
 static const demo_step_t DEMO[] = {
     /* ---- M1 ------------------------------------------------------------ */
@@ -356,7 +359,12 @@ static const demo_step_t DEMO[] = {
     { 103500, IX_11, -1, 0, 0, 0, 0, NULL, NULL },
     { 107500, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
     { 110000, -1, -1, 0, 0, 0, 0, "media/native-app/11-rng.png", "lab11-fan" },
-    { 111000, -1, -1, 0, 0, 0, 0, NULL, NULL },
+    /* Lab 10 — the composite face: the lab strikes the puck by itself. The AI
+     * paddle is switched off so the lead is MY prediction, not a contest. */
+    { 110500, IX_10, -1, 0, 0, 0, 0, NULL, NULL },
+    { 113000, -1, -1, 0, 0, KEY_B, 0, NULL, NULL },
+    { 124000, -1, -1, 0, 0, 0, 0, "media/native-app/10-hockey.png", "lab10-composite" },
+    { 125000, -1, -1, 0, 0, 0, 0, NULL, NULL },
 };
 #define DEMO_COUNT ((int)(sizeof(DEMO) / sizeof(DEMO[0])))
 
@@ -508,6 +516,24 @@ static void demo_checkpoint(const char* name) {
             "%d bumps predicted through valueAt(reckonTime)+memo vs %d authoritative "
             "(delta %d), %d large post-bump corrections",
             l07.bumps_predicted, l07.me->bumps, diff, l07.mispredicts);
+    } else if (strcmp(name, "lab10-composite") == 0) {
+        const colyseus_drift_t* d = colyseus_reconciler_drift(l10.sim);
+        double px = colyseus_reconciler_value(l10.sim, "paddle.x");
+        double py = colyseus_reconciler_value(l10.sim, "paddle.y");
+        double paddle_lead = sqrt((px - l10.me->x) * (px - l10.me->x)
+            + (py - l10.me->y) * (py - l10.me->y));
+        /*
+         * Both parts live in ONE reconciled world: the part I drive leads its
+         * server ghost by ~RTT of travel, and a struck puck — which no input of
+         * mine names directly — leads too, because it is stepped through the
+         * same unacked inputs.
+         */
+        demo_check(name, l10.touches > 0 && paddle_lead > 1.0 && l10.max_puck_lead > 1.0
+            && colyseus_reconciler_reconcile_seq(l10.sim) > 0,
+            "%d touches; paddle leads its ghost by %.1f u, struck puck peaked %.1f u ahead "
+            "of the server's at rtt %.0f ms; world drift ema %.3f over %d reconciles",
+            l10.touches, paddle_lead, l10.max_puck_lead, rtt, d->ema,
+            colyseus_reconciler_reconcile_seq(l10.sim));
     } else if (strcmp(name, "lab11-fan") == 0) {
         demo_check(name, l11.has_divergence && l11.max_divergence < 1e-6,
             "client and server fans agree to %.2e rad over %d pellets — the uint32 RNG "
@@ -535,6 +561,8 @@ static void register_vtables(void) {
     colyseus_schema_register_vtable(&range_state_vtable);
     colyseus_schema_register_vtable(&bump_player_vtable);
     colyseus_schema_register_vtable(&bump_state_vtable);
+    colyseus_schema_register_vtable(&puck_vtable);
+    colyseus_schema_register_vtable(&hockey_state_vtable);
 }
 
 /* Declared in app.h — labs 00 and friends set the stage before they mount. */

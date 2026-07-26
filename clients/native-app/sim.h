@@ -284,6 +284,52 @@ static inline void spread_angles(double base_angle, int seq, uint32_t salt, doub
     }
 }
 
+/* ---------------------------------------------------- shared/hockey.ts */
+
+#define PADDLE_RADIUS 2.2
+#define PUCK_RADIUS 1.4
+/* Per-tick puck damping (dt is fixed — a literal constant, no exp()). */
+#define PUCK_FRICTION_K 0.985
+#define PUCK_RESTITUTION 0.92
+#define PUCK_PUSH_MIN 14.0
+
+/** Puck free flight: integrate, bounce off the arena walls, bleed speed. */
+static inline void step_puck(entity_state_t* p, double dt) {
+    p->vx *= PUCK_FRICTION_K;
+    p->vy *= PUCK_FRICTION_K;
+    p->x += p->vx * dt;
+    p->y += p->vy * dt;
+    double min = PUCK_RADIUS, max_x = ARENA_W - PUCK_RADIUS, max_y = ARENA_H - PUCK_RADIUS;
+    if (p->x < min) { p->x = min; p->vx = fabs(p->vx) * PUCK_RESTITUTION; }
+    else if (p->x > max_x) { p->x = max_x; p->vx = -fabs(p->vx) * PUCK_RESTITUTION; }
+    if (p->y < min) { p->y = min; p->vy = fabs(p->vy) * PUCK_RESTITUTION; }
+    else if (p->y > max_y) { p->y = max_y; p->vy = -fabs(p->vy) * PUCK_RESTITUTION; }
+}
+
+/*
+ * Paddle<->puck contact: push the puck out of penetration along the contact
+ * normal and give it the paddle's velocity plus a minimum separation speed.
+ * Deterministic (sqrt/mul/add only) and ORDER-DEPENDENT — both sides must
+ * resolve paddles in the same order (the players-map iteration order).
+ */
+static inline bool collide_paddle_puck(double paddle_x, double paddle_y,
+    double paddle_vx, double paddle_vy, entity_state_t* puck) {
+    double dx = puck->x - paddle_x, dy = puck->y - paddle_y;
+    double r = PADDLE_RADIUS + PUCK_RADIUS;
+    double d2 = dx * dx + dy * dy;
+    if (d2 >= r * r) { return false; }
+    double d = sqrt(d2);
+    if (d == 0) { d = 1e-6; }
+    double nx = dx / d, ny = dy / d;
+    puck->x = paddle_x + nx * r;
+    puck->y = paddle_y + ny * r;
+    double paddle_along = paddle_vx * nx + paddle_vy * ny;
+    double speed = paddle_along > PUCK_PUSH_MIN ? paddle_along : PUCK_PUSH_MIN;
+    puck->vx = nx * speed + paddle_vx * 0.35;
+    puck->vy = ny * speed + paddle_vy * 0.35;
+    return true;
+}
+
 /* ---------------------------------------------------- startup canary */
 
 /*
@@ -390,6 +436,21 @@ static inline int sim_selfcheck(int verbose) {
     int ok_ray = t_hit == 8.0 && t_miss == -1;
     if (verbose) { printf("  sim: hitscan   -> hit t=%.15f miss t=%.0f\n", t_hit, t_miss); }
     if (!ok_ray) { failed++; }
+
+    /* Hockey: puck damping applies BEFORE integration, and a contact snaps the
+     * puck to the contact circle. Reference: x 50.9849999999999994316 /
+     * vx 19.6999999999999992895, then x 53.6000000000000014211 / vx 17.5. */
+    entity_state_t pk = { 50, 30, 20, 0 };
+    step_puck(&pk, dt);
+    int ok_puck = fabs(pk.x - 50.985) < 1e-12 && fabs(pk.vx - 19.7) < 1e-12;
+    if (verbose) { printf("  sim: puck      -> x=%.15f vx=%.15f\n", pk.x, pk.vx); }
+    if (!ok_puck) { failed++; }
+
+    entity_state_t contact = { 52, 30, 0, 0 };
+    bool touched = collide_paddle_puck(50, 30, 10, 0, &contact);
+    int ok_contact = touched && fabs(contact.x - 53.6) < 1e-12 && contact.vx == 17.5;
+    if (verbose) { printf("  sim: contact   -> hit=%d x=%.15f vx=%.15f\n", touched, contact.x, contact.vx); }
+    if (!ok_contact) { failed++; }
 
     /* Score gate: edge-triggered, then locked out for the cooldown. */
     int ticks = 0;

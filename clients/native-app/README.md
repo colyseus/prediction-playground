@@ -6,9 +6,8 @@ The probe proves the native predict layer is *correct*; this proves it is
 injector, against the same server as the web playground.
 
 Plan: [`clients/APPS_PLAN.md`](../APPS_PLAN.md). Milestone status: **M1, M2 and
-M3 except lab 10** — shell, latency injector, and labs 00 – 09 + 11. Lab 10
-(composite-sim) is blocked on porting `predict.sim` / SimReconciler into the
-native SDK (APPS_PLAN §5); nothing else is.
+M3 complete** — shell, latency injector, and all twelve labs. The SimReconciler
+port lab 10 needed (APPS_PLAN §5) landed in `native-sdk` alongside it.
 
 ```
 pnpm dev --host 0.0.0.0                     # --host is mandatory (native = IPv4)
@@ -37,6 +36,7 @@ run-playground -- 5173` works too.
 | 7 | WYSIWYG Collision | `value_at(ctx->reckon_time)` + `step_memo` frozen verdicts |
 | 8 | Optimistic Events | sim-born `step_predict` → confirm / grace-tick reject, with a deny-rate control |
 | 9 | Predicted Spawns | optimistic projectile → authoritative handoff, measured input lead |
+| 10 | Composite Sim | `predict.sim`: paddle AND puck in one reconciled world, bound to their decoded instances |
 | 11 | Deterministic Randomness | the shotgun fan derived from (seq, salt) on both sides, nothing on the wire |
 
 ## Keys
@@ -60,6 +60,7 @@ run-playground -- 5173` works too.
 | `C` | (6) room-wide lag compensation on/off |
 | `V` `M` | (7) read at reckonTime / freeze the verdict with memo |
 | `X` | (11) swap in an unshared RNG and watch the fans disagree |
+| `G` `B` | (10) server ghosts / the AI paddle |
 
 ## Notable ports
 
@@ -81,6 +82,12 @@ run-playground -- 5173` works too.
   `spreadAngles` stack. Every one has a canary pinned to values produced by the
   TypeScript original — including the RNG vectors, which is the module that
   would silently break on a 31-bit-int target.
+
+- **Lab 10 binds both parts.** The JS version hands `predict.sim` opaque plain
+  objects plus a custom `pose`; the C port passes the decoded `Player` and `Puck`
+  instances as BOUND parts, so the store mirrors them and derives the
+  `paddle.x` / `puck.x` pose keys itself — the auto-binding path the SDK fixture
+  pins. Custom `pose`/`interpolate` overlays are not ported.
 
 - **`render_delay` is not auto-bound in C.** In the JS SDK, `predict.reconciler()`
   binds the input handle's `renderDelay` to the Predict's lerp delay, so lag comp
@@ -121,23 +128,24 @@ run, against `pnpm dev --host 0.0.0.0`:
 
 ```
 === acceptance run: M1 + M2 (APPS_PLAN §7) ===
-OK   lab01-latency-off      input->motion 100 ms at 0 injected (rtt 105) — one patch interval
-OK   lab01-latency-200      input->motion 489 ms at 200 ms injected (rtt 508) — no prediction, so it tracks the round trip
-OK   lab02-clock            smoothed rtt 512 ms, patch stamp flowing, jitter 5.3
-OK   lab03-predicted        drift matched (ema 0.00e+00), 9 pending inputs at rtt 495 ms, 0 corrections
-OK   lab03-impulse          max |correction| 4.750 after the server-side shove
-OK   lab03-recovered        live |correction| 0.0000 (peak was 4.750), drift ema 0.0000 peak 0.0000 — decayed
-OK   lab03-reconnected      1 reconnect(s), reconciler rebound, drift ema 0.0000, 124 reconciles
-OK   lab00-split            echo lane trails the predicted lane by 7.2 u at rtt 582 ms (13 in flight)
-OK   lab04-modes            speed CV raw 152% > lerp 26% (damped 38%, extrapolate 41%) — the raw square steps at the patch rate, lerp glides
-OK   lab05-patrol           kind=patrol reckon x 31.64 vs lerp x 24.89 (gap 6.74 u over a 351 ms horizon)
-OK   lab05-wander           kind=wander, reckon x 61.17 is 4.96 u past the newest snapshot — headings are a server secret, so it extrapolates straight through every turn and gets rebased
+OK   lab01-latency-off      input->motion 171 ms at 0 injected (rtt 117) — one patch interval
+OK   lab01-latency-200      input->motion 526 ms at 200 ms injected (rtt 507) — no prediction, so it tracks the round trip
+OK   lab02-clock            smoothed rtt 512 ms, patch stamp flowing, jitter 6.8
+OK   lab03-predicted        drift matched (ema 0.00e+00), 9 pending inputs at rtt 519 ms, 0 corrections
+OK   lab03-impulse          max |correction| 4.823 after the server-side shove
+OK   lab03-recovered        live |correction| 0.0000 (peak was 4.823), drift ema 0.0000 peak 0.0001 — decayed
+OK   lab03-reconnected      1 reconnect(s), reconciler rebound, drift ema 0.0000, 118 reconciles
+OK   lab00-split            echo lane trails the predicted lane by 10.6 u at rtt 580 ms (13 in flight)
+OK   lab04-modes            speed CV raw 162% > lerp 26% (damped 40%, extrapolate 43%) — the raw square steps at the patch rate, lerp glides
+OK   lab05-patrol           kind=patrol reckon x 33.51 vs lerp x 26.90 (gap 6.61 u over a 255 ms horizon)
+OK   lab05-wander           kind=wander, reckon x 59.26 is 6.04 u past the newest snapshot — headings are a server secret, so it extrapolates straight through every turn and gets rebased
 OK   lab08-confirmed        2 predicted, 2 confirmed at deny rate 0 % (score 2)
 OK   lab08-denied           4 rejected at deny rate 100 % — the banner went up, then retracted
-OK   lab09-spawn            1 fired, authoritative entity correlated in place, measured input lead 469 ms
-OK   lab06-shot             6/6 hits (100 %) aiming dead-on at the lerp view, rtt 512 ms; the server rewound to within 1.44 u of what I saw while live had moved 12.24 u away [stamp render=1 reckon=0, 65 ms of bot travel]
-OK   lab07-bumps            8 bumps predicted through valueAt(reckonTime)+memo vs 7 authoritative (delta 1), 2 large post-bump corrections
-OK   lab11-fan              client and server fans agree to 9.71e-09 rad over 6 pellets — the uint32 RNG port reproduces the stream exactly, and nothing about it rode the wire
+OK   lab09-spawn            1 fired, authoritative entity correlated in place, measured input lead 564 ms
+OK   lab06-shot             6/6 hits (100 %) aiming dead-on at the lerp view, rtt 511 ms; the server rewound to within 1.79 u of what I saw while live had moved 13.52 u away [stamp render=1 reckon=0, 81 ms of bot travel]
+OK   lab07-bumps            7 bumps predicted through valueAt(reckonTime)+memo vs 7 authoritative (delta 0), 0 large post-bump corrections
+OK   lab11-fan              client and server fans agree to 8.27e-09 rad over 6 pellets — the uint32 RNG port reproduces the stream exactly, and nothing about it rode the wire
+OK   lab10-composite        4 touches; paddle leads its ghost by 15.1 u, struck puck peaked 20.6 u ahead of the server's at rtt 507 ms; world drift ema 0.246 over 237 reconciles
 ACCEPTANCE OK
 ```
 
@@ -151,8 +159,9 @@ runs ahead of lerp on a predictable pattern and gets rebased on `wander`; the
 goal banner is instant and the deny slider produces visible rejects; a
 predicted shot hands off to the authoritative entity with a measured lead;
 aiming dead-on at the lerp view hits at 200 ms with lag comp on; the bump
-verdict predicted through `value_at`+memo matches the server's count; and the
-client and server shotgun fans agree to ~1e-8 rad.
+verdict predicted through `value_at`+memo matches the server's count; the client
+and server shotgun fans agree to ~1e-8 rad; and in the composite world both the
+paddle *and* a struck puck lead their server ghosts by ~RTT of travel.
 
 ## Found while building this
 
