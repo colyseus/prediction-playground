@@ -41,7 +41,9 @@
 #include "schema/bots_state.h"
 #include "schema/goal_state.h"
 #include "schema/projectile_state.h"
+#include "schema/range_state.h"
 #include "schema/range_input.h"
+#include "schema/bump_state.h"
 
 #include "sim.h"
 #include "view.h"
@@ -57,11 +59,15 @@
 #include "labs/lab00_split.c"
 #include "labs/lab04_interp_modes.c"
 #include "labs/lab05_dead_reckoning.c"
+#include "labs/lab06_lag_comp.c"
+#include "labs/lab07_wysiwyg.c"
 #include "labs/lab08_optimistic_events.c"
 #include "labs/lab09_predicted_spawns.c"
+#include "labs/lab11_deterministic_rng.c"
 
 static const lab_def_t* const LABS[] = {
-    &LAB_00, &LAB_01, &LAB_02, &LAB_03, &LAB_04, &LAB_05, &LAB_08, &LAB_09,
+    &LAB_00, &LAB_01, &LAB_02, &LAB_03, &LAB_04, &LAB_05,
+    &LAB_06, &LAB_07, &LAB_08, &LAB_09, &LAB_11,
 };
 #define LAB_COUNT ((int)(sizeof(LABS) / sizeof(LABS[0])))
 
@@ -270,7 +276,7 @@ typedef struct {
 } demo_step_t;
 
 /* LABS index, by lab id — the script reads better than raw ordinals. */
-enum { IX_00, IX_01, IX_02, IX_03, IX_04, IX_05, IX_08, IX_09 };
+enum { IX_00, IX_01, IX_02, IX_03, IX_04, IX_05, IX_06, IX_07, IX_08, IX_09, IX_11 };
 
 static const demo_step_t DEMO[] = {
     /* ---- M1 ------------------------------------------------------------ */
@@ -320,7 +326,37 @@ static const demo_step_t DEMO[] = {
     { 78500, IX_09, -1, 0, 0, 0, 0, NULL, NULL },
     { 80000, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
     { 83000, -1, -1, 0, 0, 0, 0, "media/native-app/09-spawns.png", "lab09-spawn" },
-    { 84000, -1, -1, 0, 0, 0, 0, NULL, NULL },
+
+    /* ---- M3 (labs 06 / 07 / 11; lab 10 needs the SimReconciler port) ---- */
+    /*
+     * Every lab switch costs a join round trip (~1 s at these presets), so an
+     * input scheduled right after one lands before attach() and is lost. The
+     * M3 legs allow 2 s of settle. Shot records also fade after 2.6 s — fire
+     * close enough to the checkpoint that the record still exists.
+     */
+    /* Lab 06 — the autopilot aims at the bot's lerp pose and fires a volley;
+     * a single grazing shot is noise, a hit RATE is the claim (same shape as
+     * scripts/probe-rewind.mjs). */
+    { 83500, IX_06, 2, 0, 0, 0, 0, NULL, NULL },   /* 200 ms, no jitter */
+    { 86000, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 86500, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 87000, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 87500, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 88000, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 88500, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 90200, -1, -1, 0, 0, 0, 0, "media/native-app/06-lagcomp.png", "lab06-shot" },
+    /* Lab 07 — park in the bot's patrol lane (y 30) and get swept. Spawn is
+     * y 45 and the predicted pose moves instantly, so ~0.6 s of "up" lands on
+     * the lane; any longer and it parks against the top wall. */
+    { 91700, IX_07, -1, 0, 0, 0, 0, NULL, NULL },
+    { 93700, -1, -1, 0, -1, 0, 0, NULL, NULL },
+    { 94300, -1, -1, 0, 0, 0, 0, NULL, NULL },
+    { 103000, -1, -1, 0, 0, 0, 0, "media/native-app/07-wysiwyg.png", "lab07-bumps" },
+    /* Lab 11 — one fan, compared against the server's. */
+    { 103500, IX_11, -1, 0, 0, 0, 0, NULL, NULL },
+    { 107500, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 110000, -1, -1, 0, 0, 0, 0, "media/native-app/11-rng.png", "lab11-fan" },
+    { 111000, -1, -1, 0, 0, 0, 0, NULL, NULL },
 };
 #define DEMO_COUNT ((int)(sizeof(DEMO) / sizeof(DEMO[0])))
 
@@ -436,6 +472,47 @@ static void demo_checkpoint(const char* name) {
         demo_check(name, l09.fired > 0 && !isnan(l09.last_lead_ms) && l09.last_lead_ms > 0,
             "%d fired, authoritative entity correlated in place, measured input lead "
             "%.0f ms", l09.fired, l09.last_lead_ms);
+
+    /* ---- M3 ---- */
+    } else if (strcmp(name, "lab06-shot") == 0) {
+        const l06_shot_t* s = NULL;
+        for (int i = l06.shot_count - 1; i >= 0; i--) {
+            if (l06.shots[i].answered) { s = &l06.shots[i]; break; }
+        }
+        double lead = s ? sqrt((s->red_x - s->blue_x) * (s->red_x - s->blue_x)
+            + (s->red_y - s->blue_y) * (s->red_y - s->blue_y)) : -1;
+        /* The rewound read must land on what the shooter saw, not on live. */
+        double rewind_err = s ? sqrt((s->green_x - s->blue_x) * (s->green_x - s->blue_x)
+            + (s->green_y - s->blue_y) * (s->green_y - s->blue_y)) : -1;
+        double rate = l06.shots_on ? (double)l06.hits_on / l06.shots_on : 0;
+        demo_check(name, s != NULL && l06.state->lagComp && l06.shots_on >= 5
+            && rate >= 0.6 && rewind_err < lead,
+            "%d/%d hits (%.0f %%) aiming dead-on at the lerp view, rtt %.0f ms; the "
+            "server rewound to within %.2f u of what I saw while live had moved %.2f u "
+            "away [stamp render=%d reckon=%d, %.0f ms of bot travel]",
+            l06.hits_on, l06.shots_on, rate * 100, rtt, rewind_err, lead,
+            l06.room->input_stamp_render, l06.room->input_stamp_reckon,
+            rewind_err / 22.0 * 1000.0);
+    } else if (strcmp(name, "lab07-bumps") == 0) {
+        double bx = colyseus_predict_value(l07.predict, (colyseus_schema_t*)l07.bot, "x");
+        double by = colyseus_predict_value(l07.predict, (colyseus_schema_t*)l07.bot, "y");
+        (void)bx; (void)by;
+        /*
+         * The claim is that the client's verdict EQUALS the server's, so the
+         * check is the two counters, not a correction-magnitude heuristic:
+         * one bump may still be in flight when the checkpoint reads them.
+         */
+        int diff = l07.bumps_predicted - (int)l07.me->bumps;
+        if (diff < 0) { diff = -diff; }
+        demo_check(name, l07.bumps_predicted >= 3 && diff <= 1,
+            "%d bumps predicted through valueAt(reckonTime)+memo vs %d authoritative "
+            "(delta %d), %d large post-bump corrections",
+            l07.bumps_predicted, l07.me->bumps, diff, l07.mispredicts);
+    } else if (strcmp(name, "lab11-fan") == 0) {
+        demo_check(name, l11.has_divergence && l11.max_divergence < 1e-6,
+            "client and server fans agree to %.2e rad over %d pellets — the uint32 RNG "
+            "port reproduces the stream exactly, and nothing about it rode the wire",
+            l11.max_divergence, PELLETS);
     } else {
         demo_check(name, false, "unknown checkpoint");
     }
@@ -454,6 +531,10 @@ static void register_vtables(void) {
     colyseus_schema_register_vtable(&projectile_vtable);
     colyseus_schema_register_vtable(&projectile_state_vtable);
     colyseus_schema_register_vtable(&range_input_vtable);
+    colyseus_schema_register_vtable(&range_player_vtable);
+    colyseus_schema_register_vtable(&range_state_vtable);
+    colyseus_schema_register_vtable(&bump_player_vtable);
+    colyseus_schema_register_vtable(&bump_state_vtable);
 }
 
 /* Declared in app.h — labs 00 and friends set the stage before they mount. */

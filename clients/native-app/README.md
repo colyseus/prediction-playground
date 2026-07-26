@@ -5,9 +5,10 @@ The probe proves the native predict layer is *correct*; this proves it is
 *usable* — real rendering, keyboard input, a telemetry HUD, and a latency
 injector, against the same server as the web playground.
 
-Plan: [`clients/APPS_PLAN.md`](../APPS_PLAN.md). Milestone status: **M1 + M2
-done** — shell, latency injector, and labs 00 / 01 / 02 / 03 / 04 / 05 / 08 / 09.
-M3 (SimReconciler port + labs 06 / 07 / 10 / 11) is still open.
+Plan: [`clients/APPS_PLAN.md`](../APPS_PLAN.md). Milestone status: **M1, M2 and
+M3 except lab 10** — shell, latency injector, and labs 00 – 09 + 11. Lab 10
+(composite-sim) is blocked on porting `predict.sim` / SimReconciler into the
+native SDK (APPS_PLAN §5); nothing else is.
 
 ```
 pnpm dev --host 0.0.0.0                     # --host is mandatory (native = IPv4)
@@ -32,8 +33,11 @@ run-playground -- 5173` works too.
 | 3 | Predict & Reconcile | reconciler over the shared `step_entity`, server ghost, correction arrows, drift telemetry |
 | 4 | Remote Interpolation | raw / lerp / damped / extrapolate over one bot + a sample-vs-render timeline strip |
 | 5 | Dead Reckoning | `track_reckon` over the shared `step_bot`, against a lerp ghost |
+| 6 | Lag Compensation | `allow_rewind` fire-gate + lerp-delayed bots; blue/green/red shot markers |
+| 7 | WYSIWYG Collision | `value_at(ctx->reckon_time)` + `step_memo` frozen verdicts |
 | 8 | Optimistic Events | sim-born `step_predict` → confirm / grace-tick reject, with a deny-rate control |
 | 9 | Predicted Spawns | optimistic projectile → authoritative handoff, measured input lead |
+| 11 | Deterministic Randomness | the shotgun fan derived from (seq, salt) on both sides, nothing on the wire |
 
 ## Keys
 
@@ -51,8 +55,11 @@ run-playground -- 5173` works too.
 | `F1`–`F4` | (4) show/hide one interpolation mode |
 | `,` `.` | (5) reckon snap threshold |
 | `-` `=` | (3) smoothing · (1) damping · (5) rebase smoothing · (8) server deny rate |
-| mouse / `SPACE` | (9) aim / fire |
+| mouse / `SPACE` | (6, 9, 11) aim / fire |
 | `O` | (9) toggle the optimistic spawn |
+| `C` | (6) room-wide lag compensation on/off |
+| `V` `M` | (7) read at reckonTime / freeze the verdict with memo |
+| `X` | (11) swap in an unshared RNG and watch the fans disagree |
 
 ## Notable ports
 
@@ -68,9 +75,27 @@ run-playground -- 5173` works too.
   `nd_pump()` on the **main thread**, so every schema decode happens there and
   labs read state without a mutex.
 
-- **`sim.h`** — `stepEntity`, `stepBot` (patrol / circle / wander / teleport),
-  `stepScoreGate` and `stepProjectile` as bit-exact f64 transliterations, plus a
-  startup canary pinned to values produced by the TypeScript original.
+- **`sim.h`** — the whole shared sim: `stepEntity`, `stepBot` (patrol / circle /
+  wander / teleport), `stepScoreGate`, `stepProjectile`, `rayCircle`,
+  `stepBumpGate`/`collideBot`, and the uint32 `splitmix32`/`mulberry32`/
+  `spreadAngles` stack. Every one has a canary pinned to values produced by the
+  TypeScript original — including the RNG vectors, which is the module that
+  would silently break on a 31-bit-int target.
+
+- **`render_delay` is not auto-bound in C.** In the JS SDK, `predict.reconciler()`
+  binds the input handle's `renderDelay` to the Predict's lerp delay, so lag comp
+  rewinds to exactly the instant the client displayed. The C port has no such
+  binding: labs 06 and 11 pass `in_opts.render_delay = REMOTE_INTERP_MS`
+  explicitly. Measured with and without, at 200 ms and aiming dead-on at the
+  lerp view: **3/6 hits and 99 ms of rewind error without it, 6/6 and 65 ms
+  with**. 99 ms is precisely the missing lerp delay.
+
+- **Lab 07 encodes its verdict as two memos.** `colyseus_step_memo` stores
+  DOUBLES only, so the knockback is frozen as `bump.vx` and `bump.vy` under
+  separate keys rather than one struct. Both computes run on the same live step
+  over the same state, so the pair is exact; folding them into a single angle
+  would round through `atan2`/`cos` and reintroduce the drift the lab exists to
+  eliminate.
 
 - **Lab 09 keeps its own entry list.** The C spawn store has no entry iterator
   and no `value()` overlay (the JS `projectiles.entries()` / `.value(e, "x")`),
@@ -86,7 +111,7 @@ run-playground -- 5173` works too.
 
 ```
 ./zig-out/bin/predict_playground --selfcheck     # headless: shared-sim canary, no window
-./zig-out/bin/predict_playground --demo          # M1 acceptance run (needs a display)
+./zig-out/bin/predict_playground --demo          # full acceptance run (needs a display)
 ```
 
 `--demo` is the autopilot: it switches labs, cycles latency presets, drives the
@@ -96,32 +121,38 @@ run, against `pnpm dev --host 0.0.0.0`:
 
 ```
 === acceptance run: M1 + M2 (APPS_PLAN §7) ===
-OK   lab01-latency-off      input->motion 101 ms at 0 injected (rtt 115) — one patch interval
-OK   lab01-latency-200      input->motion 505 ms at 200 ms injected (rtt 504) — no prediction, so it tracks the round trip
-OK   lab02-clock            smoothed rtt 498 ms, patch stamp flowing, jitter 2.7
-OK   lab03-predicted        drift matched (ema 0.00e+00), 10 pending inputs at rtt 488 ms, 0 corrections
+OK   lab01-latency-off      input->motion 100 ms at 0 injected (rtt 105) — one patch interval
+OK   lab01-latency-200      input->motion 489 ms at 200 ms injected (rtt 508) — no prediction, so it tracks the round trip
+OK   lab02-clock            smoothed rtt 512 ms, patch stamp flowing, jitter 5.3
+OK   lab03-predicted        drift matched (ema 0.00e+00), 9 pending inputs at rtt 495 ms, 0 corrections
 OK   lab03-impulse          max |correction| 4.750 after the server-side shove
 OK   lab03-recovered        live |correction| 0.0000 (peak was 4.750), drift ema 0.0000 peak 0.0000 — decayed
-OK   lab03-reconnected      1 reconnect(s), reconciler rebound, drift ema 0.0000, 123 reconciles
-OK   lab00-split            echo lane trails the predicted lane by 5.5 u at rtt 574 ms (12 in flight)
-OK   lab04-modes            speed CV raw 157% > lerp 25% (damped 38%, extrapolate 41%) — the raw square steps at the patch rate, lerp glides
-OK   lab05-patrol           kind=patrol reckon x 34.49 vs lerp x 27.90 (gap 6.58 u over a 310 ms horizon)
-OK   lab05-wander           kind=wander, reckon x 63.48 is 4.95 u past the newest snapshot — headings are a server secret, so it extrapolates straight through every turn and gets rebased
+OK   lab03-reconnected      1 reconnect(s), reconciler rebound, drift ema 0.0000, 124 reconciles
+OK   lab00-split            echo lane trails the predicted lane by 7.2 u at rtt 582 ms (13 in flight)
+OK   lab04-modes            speed CV raw 152% > lerp 26% (damped 38%, extrapolate 41%) — the raw square steps at the patch rate, lerp glides
+OK   lab05-patrol           kind=patrol reckon x 31.64 vs lerp x 24.89 (gap 6.74 u over a 351 ms horizon)
+OK   lab05-wander           kind=wander, reckon x 61.17 is 4.96 u past the newest snapshot — headings are a server secret, so it extrapolates straight through every turn and gets rebased
 OK   lab08-confirmed        2 predicted, 2 confirmed at deny rate 0 % (score 2)
-OK   lab08-denied           3 rejected at deny rate 100 % — the banner went up, then retracted
-OK   lab09-spawn            1 fired, authoritative entity correlated in place, measured input lead 553 ms
+OK   lab08-denied           4 rejected at deny rate 100 % — the banner went up, then retracted
+OK   lab09-spawn            1 fired, authoritative entity correlated in place, measured input lead 469 ms
+OK   lab06-shot             6/6 hits (100 %) aiming dead-on at the lerp view, rtt 512 ms; the server rewound to within 1.44 u of what I saw while live had moved 12.24 u away [stamp render=1 reckon=0, 65 ms of bot travel]
+OK   lab07-bumps            8 bumps predicted through valueAt(reckonTime)+memo vs 7 authoritative (delta 1), 2 large post-bump corrections
+OK   lab11-fan              client and server fans agree to 9.71e-09 rad over 6 pellets — the uint32 RNG port reproduces the stream exactly, and nothing about it rode the wire
 ACCEPTANCE OK
 ```
 
-That covers the APPS_PLAN §7 M1 and M2 exit criteria: lab 01 visibly
+That covers the APPS_PLAN §7 exit criteria for every shipped lab: lab 01 visibly
 rubber-bands at 200 ms; lab 03 is instant with matched drift (corrections
 exactly 0 — the C f64 port reproduces the server's float math bit-for-bit while
 ~10 inputs are in flight); the impulse produces a correction that decays; `D`
 auto-reconnects and the reconciler rebinds cleanly; the split lanes diverge by
 ~RTT; the four interpolation modes separate on the smoothness metric; reckon
 runs ahead of lerp on a predictable pattern and gets rebased on `wander`; the
-goal banner is instant and the deny slider produces visible rejects; and a
-predicted shot hands off to the authoritative entity with a measured lead.
+goal banner is instant and the deny slider produces visible rejects; a
+predicted shot hands off to the authoritative entity with a measured lead;
+aiming dead-on at the lerp view hits at 200 ms with lag comp on; the bump
+verdict predicted through `value_at`+memo matches the server's count; and the
+client and server shotgun fans agree to ~1e-8 rad.
 
 ## Found while building this
 

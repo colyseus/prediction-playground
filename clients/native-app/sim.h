@@ -13,6 +13,7 @@
 
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -180,6 +181,109 @@ static inline void step_bot(bot_sim_t* b, double dt, double elapsed_ms) {
     bot_patrol(b, dt);
 }
 
+/* --------------------------------------------------- shared/hitscan.ts */
+
+/*
+ * 2D hitscan: ray vs circle. Returns the ray parameter t (distance along the
+ * unit direction) of the nearest intersection, or -1 on a miss. Pure math,
+ * shared so the client's shot preview and the server's resolution can't drift.
+ */
+static inline double ray_circle(double ox, double oy, double dx, double dy,
+    double cx, double cy, double r, double max_dist) {
+    double mx = ox - cx, my = oy - cy;
+    double b = mx * dx + my * dy;
+    double c = mx * mx + my * my - r * r;
+    if (c > 0 && b > 0) { return -1; }            /* outside, pointing away */
+    double disc = b * b - c;
+    if (disc < 0) { return -1; }
+    double t = -b - sqrt(disc);
+    double hit = t < 0 ? 0 : t;                   /* inside the circle = t 0 */
+    return hit <= max_dist ? hit : -1;
+}
+
+/* ------------------------------------------------------ shared/bump.ts */
+
+/* Post-bump immunity (fixed steps) — a RECONCILED tick gate: both sides run
+ * the identical countdown, so "can I be bumped?" is never a misprediction. */
+#define BUMP_COOLDOWN_TICKS 12
+#define BUMP_SPEED 48.0
+
+/** Per-step cooldown countdown — run BEFORE the movement step on both sides. */
+static inline void step_bump_gate(int* bump_ticks) {
+    if (*bump_ticks > 0) { (*bump_ticks)--; }
+}
+
+/*
+ * Player-vs-bot bump test at an agreed bot position. Writes the knockback
+ * velocity and returns true on a hit. The CALLER applies it and re-arms
+ * bump_ticks — on the client that happens inside the reconciler step, so the
+ * whole outcome (velocity + immunity window) rides adopt+replay.
+ */
+static inline bool collide_bot(double px, double py, int bump_ticks,
+    double bot_x, double bot_y, double* out_vx, double* out_vy) {
+    if (bump_ticks > 0) { return false; }
+    double dx = px - bot_x, dy = py - bot_y;
+    double r = PLAYER_HALF + BOT_RADIUS;
+    double d2 = dx * dx + dy * dy;
+    if (d2 >= r * r) { return false; }
+    double d = sqrt(d2);
+    if (d == 0) { d = 1e-6; }
+    *out_vx = dx / d * BUMP_SPEED;
+    *out_vy = dy / d * BUMP_SPEED;
+    return true;
+}
+
+/* ---------------------------------------------------- shared/random.ts */
+
+/*
+ * Deterministic off-wire RNG: both sides derive the SAME seed from
+ * (seq, salt) — the stream itself never goes on the wire.
+ *
+ * uint32_t throughout, matching the JS `| 0` / `>>> 0` / Math.imul semantics
+ * exactly. (This is the module that breaks on 31-bit ints — see APPS_PLAN §2.)
+ */
+
+/** splitmix32 — one-shot avalanche of a 32-bit seed into a well-mixed word. */
+static inline uint32_t splitmix32(uint32_t a) {
+    a = a + 0x9e3779b9u;
+    uint32_t t = a ^ (a >> 16);
+    t = t * 0x21f0aaadu;
+    t = t ^ (t >> 15);
+    t = t * 0x735a2d97u;
+    return t ^ (t >> 15);
+}
+
+/** mulberry32 — tiny seeded PRNG; advances `state` and returns [0,1). */
+static inline double mulberry32_next(uint32_t* state) {
+    *state = *state + 0x6d2b79f5u;
+    uint32_t a = *state;
+    uint32_t t = (a ^ (a >> 15)) * (1u | a);
+    t = (t + ((t ^ (t >> 7)) * (61u | t))) ^ t;
+    return (double)(t ^ (t >> 14)) / 4294967296.0;
+}
+
+/** Per-shot seed from the input sequence + a synced per-round salt. */
+static inline uint32_t shot_seed(int seq, uint32_t salt) {
+    return splitmix32((uint32_t)seq ^ (salt * 0x85ebca6bu));
+}
+
+/* ---------------------------------------------------- shared/spread.ts */
+
+#define PELLETS 6
+#define SPREAD_RAD 0.38
+
+/*
+ * The shotgun fan — SAME derivation on both sides, nothing random on the
+ * wire: the seed is (input seq, synced per-room salt), so client and server
+ * roll identical pellets for the same shot.
+ */
+static inline void spread_angles(double base_angle, int seq, uint32_t salt, double* out) {
+    uint32_t state = shot_seed(seq, salt);
+    for (int i = 0; i < PELLETS; i++) {
+        out[i] = base_angle + (mulberry32_next(&state) - 0.5) * SPREAD_RAD;
+    }
+}
+
 /* ---------------------------------------------------- startup canary */
 
 /*
@@ -253,6 +357,39 @@ static inline int sim_selfcheck(int verbose) {
     int ok_proj = pj.x == ARENA_W && pj.vx == -34.0;
     if (verbose) { printf("  sim: bounce    -> x=%.15f vx=%.15f\n", pj.x, pj.vx); }
     if (!ok_proj) { failed++; }
+
+    /*
+     * RNG: uint32 integer math, the one module that is NOT a straight f64
+     * transliteration. Reference vectors from src/shared/random.ts.
+     */
+    uint32_t rng = 0xB07B07u;
+    double r0 = mulberry32_next(&rng), r1 = mulberry32_next(&rng), r2 = mulberry32_next(&rng);
+    int ok_rng = fabs(r0 - 0.00975770130753517150879) < 1e-18
+        && fabs(r1 - 0.220020313980057835579) < 1e-15
+        && fabs(r2 - 0.457878412213176488876) < 1e-15
+        && splitmix32(1) == 1580013426u
+        && shot_seed(7, 12345) == 1994071465u;
+    if (verbose) {
+        printf("  sim: mulberry  -> %.17f %.17f %.17f\n", r0, r1, r2);
+        printf("  sim: seeds     -> splitmix32(1)=%u shotSeed(7,12345)=%u\n",
+            splitmix32(1), shot_seed(7, 12345));
+    }
+    if (!ok_rng) { failed++; }
+
+    /* The shotgun fan rides entirely on that stream. */
+    double fan[PELLETS];
+    spread_angles(0.5, 7, 12345, fan);
+    int ok_fan = fabs(fan[0] - 0.599485442587174510720) < 1e-15
+        && fabs(fan[1] - 0.672593814930878552971) < 1e-15;
+    if (verbose) { printf("  sim: spread    -> %.17f %.17f\n", fan[0], fan[1]); }
+    if (!ok_fan) { failed++; }
+
+    /* Hitscan: tangent-free hit at t=8, and a clean miss past the radius. */
+    double t_hit = ray_circle(0, 0, 1, 0, 10, 0, 2, 100);
+    double t_miss = ray_circle(0, 0, 1, 0, 10, 5, 2, 100);
+    int ok_ray = t_hit == 8.0 && t_miss == -1;
+    if (verbose) { printf("  sim: hitscan   -> hit t=%.15f miss t=%.0f\n", t_hit, t_miss); }
+    if (!ok_ray) { failed++; }
 
     /* Score gate: edge-triggered, then locked out for the cooldown. */
     int ticks = 0;
