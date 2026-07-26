@@ -36,6 +36,17 @@ namespace Playground
         /// </summary>
         void OnReconnect();
 
+        /// <summary>
+        /// The joined room, type-erased. Room&lt;T&gt; is invariant, so a generic
+        /// accessor can only ever hand back the lab's own exact state type —
+        /// `room as Room&lt;Schema&gt;` is null. The shell needs these two to leave
+        /// the room and to draw the status bar without knowing that type.
+        /// </summary>
+        IRoom Room { get; }
+
+        RoomClock Clock { get; }
+
+        /// <summary>Typed access, for a caller that knows the lab's state type.</summary>
         Room<T> RoomOf<T>() where T : ColyseusSchema;
     }
 

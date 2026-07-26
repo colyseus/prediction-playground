@@ -60,6 +60,13 @@ namespace Playground
             JitterMs = Math.Max(0, jitterMs);
         }
 
+        /// <summary>Forget every socket and zero the latency — between test cases.</summary>
+        public static void Reset()
+        {
+            lock (Live) Live.Clear();
+            DelayMs = JitterMs = 0;
+        }
+
         /// <summary>Kill every live socket, so the SDK sees a drop and not a leave.</summary>
         public static void DropAll()
         {
@@ -86,7 +93,11 @@ namespace Playground
             foreach (var c in all) c.Pump(now);
         }
 
-        private static double OneWay() => DelayMs + Rng.NextDouble() * JitterMs;
+        // Rng is shared across connections but Enqueue only holds the per-socket lock.
+        private static double OneWay()
+        {
+            lock (Rng) return DelayMs + Rng.NextDouble() * JitterMs;
+        }
 
         private static void Enqueue(Queue<Packet> q, ref double last, Packet p, double now)
         {
@@ -148,7 +159,8 @@ namespace Playground
                 {
                     case 0: base.RaiseOpen(); break;
                     case 1: base.RaiseMessage(p.Data); break;
-                    case 2: base.RaiseClose(p.Code); break;
+                    // Reconnect builds a fresh Connection, so a closed one is done.
+                    case 2: base.RaiseClose(p.Code); lock (Live) Live.Remove(this); return;
                     case 3: base.RaiseError(p.Text); break;
                 }
             }

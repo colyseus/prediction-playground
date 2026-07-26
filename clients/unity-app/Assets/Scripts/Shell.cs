@@ -15,13 +15,23 @@ namespace Playground
         /// Multiple clients land in the SAME room by default (multiplayer is
         /// free); `P` forces a solo room, mirroring the web build's ?private=1.
         /// </summary>
-        public static async Task<Room<T>> JoinLab<T>(App app, string name) where T : ColyseusSchema
+        /// <param name="ready">
+        /// What the caller needs decoded before it can wire up — the web build's
+        /// `waitFor`. Waiting on `State` alone is NOT enough: the SDK instantiates
+        /// it at join, but every collection field stays null until a patch fills
+        /// it in, so a lab that reaches for `State.players` mounts on nothing.
+        /// </param>
+        public static async Task<Room<T>> JoinLab<T>(App app, string name, Func<Room<T>, bool> ready = null)
+            where T : ColyseusSchema
         {
             var room = app.PrivateRoom
                 ? await app.Client.Create<T>(name)
                 : await app.Client.JoinOrCreate<T>(name);
-            // The first full sync races the join promise.
-            for (int i = 0; i < 100 && room.State == null; i++) await Task.Delay(40);
+            for (int i = 0; i < 200; i++)
+            {
+                if (room.State != null && (ready == null || ready(room))) break;
+                await Task.Delay(25);
+            }
             return room;
         }
     }
@@ -76,8 +86,7 @@ namespace Playground
                 if (_active != null)
                 {
                     _active.Unmount();
-                    var room = _active.RoomOf<ColyseusSchema>();
-                    if (room != null) await room.Leave();
+                    if (_active.Room != null) await _active.Room.Leave(true);
                     _active = null;
                 }
                 _labIndex = index;
@@ -158,7 +167,7 @@ namespace Playground
         {
             float y = h - 46;
             Draw.Rect(new Rect(0, y, w, 46), Palette.Panel);
-            var clock = _active?.RoomOf<ColyseusSchema>()?.Clock;
+            var clock = _active?.Clock;
             var stat = new GUIStyle(GUI.skin.label) { fontSize = 11, normal = { textColor = Palette.Text } };
             string line = clock != null
                 ? $"RTT {clock.SmoothedRtt():F0} ms    JITTER {clock.Jitter():F0} ms    " +

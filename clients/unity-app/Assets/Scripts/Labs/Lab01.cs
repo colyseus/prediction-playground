@@ -35,12 +35,16 @@ namespace Playground
         private Phase _phase;
         private double _armT, _armX, _armY, _measured;
 
+        public IRoom Room => _room;
+        public RoomClock Clock => _room?.Clock;
         public Room<T> RoomOf<T>() where T : ColyseusSchema => _room as Room<T>;
 
         public async Task<bool> Mount(App app)
         {
-            _room = await Shell.JoinLab<Lab.MoveState>(app, "lab-move");
+            _room = await Shell.JoinLab<Lab.MoveState>(app, "lab-move",
+                r => r.State.players != null && r.State.players.ContainsKey(r.SessionId));
             _sid = _room.SessionId;
+            if (_room.State.players == null) return false;
             _cmd = new Lab.MoveInput();
             _input = _room.Input(_cmd);
             _pacer = new Pacer(1000.0 / Sim.TickHz);

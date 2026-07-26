@@ -35,13 +35,16 @@ namespace Playground
         private double _lastPatchStamp, _sparkGate;
         private readonly Spark _rtt = new Spark(), _age = new Spark(), _slew = new Spark();
 
+        public IRoom Room => _room;
+        public RoomClock Clock => _room?.Clock;
         public Room<T> RoomOf<T>() where T : ColyseusSchema => _room as Room<T>;
 
         public async Task<bool> Mount(App app)
         {
-            _room = await Shell.JoinLab<Lab.BotsState>(app, "lab-bots");
+            _room = await Shell.JoinLab<Lab.BotsState>(app, "lab-bots",
+                r => r.State.bots != null && r.State.bots.ContainsKey("bot1"));
             _sid = _room.SessionId;
-            if (!_room.State.bots.TryGetValue("bot1", out _bot)) return false;
+            if (_room.State.bots == null || !_room.State.bots.TryGetValue("bot1", out _bot)) return false;
             _cmd = new Lab.MoveInput();
             // Inputs feed the clock: one send per fixed tick = one RTT/offset sample.
             _input = _room.Input(_cmd);

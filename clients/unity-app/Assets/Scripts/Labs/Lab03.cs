@@ -37,13 +37,16 @@ namespace Playground
         private readonly Spark _driftSpark = new Spark();
         private double _sparkGate;
 
+        public IRoom Room => _room;
+        public RoomClock Clock => _room?.Clock;
         public Room<T> RoomOf<T>() where T : ColyseusSchema => _room as Room<T>;
 
         public async Task<bool> Mount(App app)
         {
-            _room = await Shell.JoinLab<Lab.MoveState>(app, "lab-move");
+            _room = await Shell.JoinLab<Lab.MoveState>(app, "lab-move",
+                r => r.State.players != null && r.State.players.ContainsKey(r.SessionId));
             _sid = _room.SessionId;
-            if (!_room.State.players.TryGetValue(_sid, out _me)) return false;
+            if (_room.State.players == null || !_room.State.players.TryGetValue(_sid, out _me)) return false;
 
             _cmd = new Lab.MoveInput();
             _input = _room.Input(_cmd);

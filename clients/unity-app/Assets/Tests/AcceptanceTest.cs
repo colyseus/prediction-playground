@@ -19,7 +19,18 @@ using Lab = PredictProbe.LabSchema;
 public class AcceptanceTest
 {
     private const string Endpoint = "ws://localhost:5173";
-    private const int TickMs = 16;
+    private const int TestTimeoutMs = 120000;
+
+    [SetUp]
+    public void SetUp()
+    {
+        DelayedConnection.Reset();
+        Kb.Autopilot = true;
+        Kb.AutoX = Kb.AutoY = 0;
+    }
+
+    [TearDown]
+    public void TearDown() => Kb.Autopilot = false;
 
     private static Client MakeClient()
     {
@@ -44,13 +55,45 @@ public class AcceptanceTest
         }
     }
 
-    private static IEnumerator Await(Task task)
+    /// <summary>
+    /// Spin until `task` completes — pumping the injector every frame. The pump
+    /// is load-bearing, not hygiene: a join resolves on the inbound JOIN_ROOM
+    /// frame and a leave on the inbound close, and the injector is holding both.
+    /// Awaiting without draining deadlocks on any nonzero latency.
+    /// </summary>
+    private static IEnumerator Await(Task task, string what, double timeoutMs = 20000)
     {
-        while (!task.IsCompleted) yield return null;
+        double start = RoomClock.GetNow();
+        while (!task.IsCompleted)
+        {
+            DelayedConnection.PumpAll();
+            if (RoomClock.GetNow() - start > timeoutMs)
+            {
+                Assert.Fail($"{what}: still pending after {timeoutMs:F0} ms " +
+                            $"({DelayedConnection.InFlight()} pkt in the injector)");
+            }
+            yield return null;
+        }
         if (task.IsFaulted) throw task.Exception;
     }
 
-    [UnityTest]
+    /// <summary>Join, then wait out the join round trip. Fails loudly on timeout.</summary>
+    private static IEnumerator Mount(ILab lab, App app)
+    {
+        Debug.Log($"[acceptance] mounting {lab.Id}");
+        var mount = lab.Mount(app);
+        yield return Await(mount, $"{lab.Id} mount");
+        Assert.IsTrue(mount.Result, $"{lab.Id} joined but its state never arrived");
+        Debug.Log($"[acceptance] mounted {lab.Id}");
+    }
+
+    private static IEnumerator Teardown(ILab lab)
+    {
+        lab.Unmount();
+        yield return Await(lab.Room.Leave(true), $"{lab.Id} leave");
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
     public IEnumerator Sim_reproduces_the_reference_numbers()
     {
         // The canary the native app runs as --selfcheck: a constant typo can
@@ -59,15 +102,13 @@ public class AcceptanceTest
         yield return null;
     }
 
-    [UnityTest]
+    [UnityTest, Timeout(TestTimeoutMs)]
     public IEnumerator Lab01_input_to_motion_tracks_the_round_trip()
     {
         var app = new App { Client = MakeClient(), PrivateRoom = true };
         DelayedConnection.SetLatency(0, 0);
         var lab = new Lab01();
-        var mount = lab.Mount(app);
-        yield return Await(mount);
-        Assert.IsTrue(mount.Result, "lab 01 failed to mount");
+        yield return Mount(lab, app);
 
         // At rest first: the meter arms on a key press from a standstill.
         yield return Drive(lab, app, 800);
@@ -85,8 +126,7 @@ public class AcceptanceTest
         Assert.Greater(at200, 300, $"input->motion {at200:F0} ms at 200 ms injected — latency not felt");
         Debug.Log($"OK lab01: {atZero:F0} ms at 0 injected, {at200:F0} ms at 200 ms");
 
-        lab.Unmount();
-        yield return Await(lab.RoomOf<Colyseus.Schema.Schema>().Leave());
+        yield return Teardown(lab);
     }
 
     private static double Measured(Lab01 lab)
@@ -96,15 +136,13 @@ public class AcceptanceTest
         return (double)f.GetValue(lab);
     }
 
-    [UnityTest]
+    [UnityTest, Timeout(TestTimeoutMs)]
     public IEnumerator Lab02_clock_readouts_respond_to_injected_latency()
     {
         var app = new App { Client = MakeClient(), PrivateRoom = true };
         DelayedConnection.SetLatency(200, 0);
         var lab = new Lab02();
-        var mount = lab.Mount(app);
-        yield return Await(mount);
-        Assert.IsTrue(mount.Result, "lab 02 failed to mount");
+        yield return Mount(lab, app);
 
         yield return Drive(lab, app, 4000, autoX: 1);
         var clock = lab.RoomOf<Lab.BotsState>().Clock;
@@ -115,19 +153,16 @@ public class AcceptanceTest
         Debug.Log($"OK lab02: rtt {clock.SmoothedRtt():F0} ms, patch {clock.PatchInterval():F0} ms, " +
                   $"jitter {clock.Jitter():F1} ms");
 
-        lab.Unmount();
-        yield return Await(lab.RoomOf<Colyseus.Schema.Schema>().Leave());
+        yield return Teardown(lab);
     }
 
-    [UnityTest]
+    [UnityTest, Timeout(TestTimeoutMs)]
     public IEnumerator Lab03_predicts_instantly_and_absorbs_a_mispredict()
     {
         var app = new App { Client = MakeClient(), PrivateRoom = true };
         DelayedConnection.SetLatency(200, 0);
         var lab = new Lab03();
-        var mount = lab.Mount(app);
-        yield return Await(mount);
-        Assert.IsTrue(mount.Result, "lab 03 failed to mount");
+        yield return Mount(lab, app);
 
         var recon = Recon(lab);
         yield return Drive(lab, app, 4000, autoX: -1);
@@ -151,8 +186,7 @@ public class AcceptanceTest
             $"corrections still {recon.LastCorrectionMag:F3} after 5 s — not converging");
         Debug.Log($"OK lab03 impulse: peak {peak:F3}, settled to {recon.LastCorrectionMag:F4}");
 
-        lab.Unmount();
-        yield return Await(lab.RoomOf<Colyseus.Schema.Schema>().Leave());
+        yield return Teardown(lab);
     }
 
     private static Reconciler<Lab.Player, Lab.MoveInput> Recon(Lab03 lab)
