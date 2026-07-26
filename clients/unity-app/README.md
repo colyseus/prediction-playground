@@ -34,7 +34,7 @@ reload with no copy step.
 
 | key | |
 |---|---|
-| `1` `2` `3` | switch lab |
+| `0`–`9` | switch lab |
 | `WASD` / arrows | drive |
 | `L` | cycle the injected-latency preset |
 | `D` | drop the socket (tests auto-reconnect) |
@@ -76,7 +76,7 @@ whole feature. And lab 11's seeded fan agrees with the server to 4e-8 rad but
 diverges to 2e-1 the moment an unshared RNG is swapped in, which is what makes
 the first number evidence rather than a tautology.
 
-A drift EMA of 9.3e-9 is float32 wire precision: `Sim.StepEntity` reproduces the
+A drift EMA of ~1e-8 is float32 wire precision: `Sim.StepEntity` reproduces the
 server's math to the last representable bit, and the residual is only the schema
 field rounding on the way down. (The C port shows exactly zero because it can
 hold the server's f64 all the way through.)
@@ -119,3 +119,26 @@ takes a readiness predicate and each lab names what it needs decoded.
 status bar would never find a clock and a lab switch would never leave the old
 room. `ILab` now exposes a type-erased `IRoom Room` and a `RoomClock Clock`
 alongside the typed `RoomOf<T>()`.
+
+**`Predict` had no teardown at all.** `AttachAll` returns an unsubscribe the
+caller is unlikely to hold, and driven children were never disposed — so every
+lab unmount left handlers registered against a room that was about to go away.
+`Predict` now implements `IDisposable` and releases tracked fields, reckon sims,
+AttachAll wiring and driven children together; disposing it is the only teardown
+a lab needs. (The C SDK had the same hole, where it showed up as a crash.)
+
+**`InputHandle.RenderDelay` was settable only at construction, and nothing set
+it.** A lag-compensating server rewinds to `serverNow − (renderDelay + rtt/2)`,
+so leaving it at zero makes every rewound read land one full render-delay early
+— shots miss by exactly that much and nothing in the logs says so.
+`Predict.MakeReconciler` now binds it from the lerp delay already attached, which
+is what makes lab 06 land 6/6 instead of missing by the view lag. This is the
+same trap the C port hit, and it is worth stating plainly for the two SDKs still
+to come: **if a client draws the past, it has to say so.**
+
+**Two conveniences worth having:** `Predict.For(room)` replaces
+`new Predict(new PredictCallbacks<T>(Callbacks.Get(room)), room.Clock)` — the
+same two collaborators every time, and no decision the caller is better placed to
+make. `AttachAllReckon` is the reckon twin of `AttachAll`, for a collection whose
+members should be forward-simulated rather than smoothed toward the past (lab
+07's bots).
