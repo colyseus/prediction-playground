@@ -355,6 +355,27 @@ do -- lab 11: client and server roll identical pellets from (seq, salt)
   leave(lab, room)
 end
 
+do -- lab 10: the puck is predicted THROUGH our own inputs
+  local Lab10 = require 'playground.labs.lab10'
+  local lab = Lab10.new()
+  net_delay.reset()
+  local room = mount(lab, context)   -- mount picks its own latency preset
+
+  -- The lab steers itself toward the puck under autopilot; a plain sweep never
+  -- reaches it, and a puck nobody touches proves nothing.
+  drive(lab, context, 12000)
+
+  check("lab10 predicts with inputs still in flight", lab.sim:pending_count() > 0,
+    lab.sim:pending_count() .. " unacked")
+  check("lab10 the predicted puck leads the authoritative one",
+    lab.max_puck_lead > 0.5,
+    string.format("peak %.2f u over %d touches", lab.max_puck_lead, lab.touches))
+  check("lab10 the composite step agrees with the server's",
+    lab.sim.drift.ema < 0.05, string.format("drift ema %.3e", lab.sim.drift.ema))
+
+  leave(lab, room)
+end
+
 print()
 if failed == 0 then
   print("all checks passed")

@@ -27,6 +27,7 @@ local LABS = {
   require 'playground.labs.lab07',
   require 'playground.labs.lab08',
   require 'playground.labs.lab09',
+  require 'playground.labs.lab10',
   require 'playground.labs.lab11',
 }
 
