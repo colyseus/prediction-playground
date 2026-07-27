@@ -63,7 +63,7 @@ namespace Playground
             _predict = Predict.For(Room);
             // Bots are DEAD-RECKONED through the shared step — the timeline the
             // collision test below reads at ctx.ReckonTime.
-            _predict.AttachAllReckon("bots", new ReckonOptions<Lab.Bot>
+            _predict.AttachAll("bots", new ReckonOptions<Lab.Bot>
             {
                 Fields = new[] { "x", "y" },
                 Smoothing = 25,
@@ -80,8 +80,9 @@ namespace Playground
                     b.lastTeleport = (float)s.lastTeleport;
                 },
             });
-            _predict.AttachAll("players", new[] { "x", "y" },
-                new PredictFieldOptions { Mode = PredictMode.Damped });
+            _predict.AttachAll("players", new AttachConfig {
+                ["x"] = PredictMode.Damped, ["y"] = PredictMode.Damped,
+            });
 
             _cmd = new Lab.MoveInput();
             _input = Room.Input(_cmd);

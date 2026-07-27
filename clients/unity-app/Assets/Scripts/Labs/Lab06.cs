@@ -67,10 +67,13 @@ namespace Playground
 
             _predict = Predict.For(Room);
             // Bots ride the lerp timeline — the one the server rewinds to.
-            _predict.AttachAll("bots", new[] { "x", "y" },
-                new PredictFieldOptions { Mode = PredictMode.Lerp, Delay = Sim.RemoteInterpMs });
-            _predict.AttachAll("players", new[] { "x", "y" },
-                new PredictFieldOptions { Mode = PredictMode.Damped });
+            _predict.AttachAll("bots", new AttachConfig {
+                ["x"] = new PredictFieldOptions { Mode = PredictMode.Lerp, Delay = Sim.RemoteInterpMs },
+                ["y"] = new PredictFieldOptions { Mode = PredictMode.Lerp, Delay = Sim.RemoteInterpMs },
+            });
+            _predict.AttachAll("players", new AttachConfig {
+                ["x"] = PredictMode.Damped, ["y"] = PredictMode.Damped,
+            });
 
             Room.OnMessage<Dictionary<string, object>>("shot", OnShot);
 

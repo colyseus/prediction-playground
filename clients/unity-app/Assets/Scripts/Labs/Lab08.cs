@@ -62,8 +62,9 @@ namespace Playground
             _denyRate = Room.State.denyRate;
 
             _predict = Predict.For(Room);
-            _predict.AttachAll("players", new[] { "x", "y" },
-                new PredictFieldOptions { Mode = PredictMode.Damped });
+            _predict.AttachAll("players", new AttachConfig {
+                ["x"] = PredictMode.Damped, ["y"] = PredictMode.Damped,
+            });
 
             _goals = _predict.DefineEvent(new PredictedEventChannelOptions<string>
             {

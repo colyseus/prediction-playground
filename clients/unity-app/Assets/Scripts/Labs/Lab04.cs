@@ -87,8 +87,7 @@ namespace Playground
         private Mode Attach(string name, Color color, PredictFieldOptions opts)
         {
             var predict = Predict.For(Room);
-            predict.Track(_bot, "x", opts);
-            predict.Track(_bot, "y", opts);
+            predict.Attach(_bot, new AttachConfig { ["x"] = opts, ["y"] = opts });
             return new Mode { Name = name, Color = color, Predict = predict };
         }
 

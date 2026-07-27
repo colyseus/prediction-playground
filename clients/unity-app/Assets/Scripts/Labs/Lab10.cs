@@ -89,6 +89,16 @@ namespace Playground
         /// Exposed here because <c>Room</c> is protected on <see cref="LabBase{T}" />.
         /// </summary>
         public (double x, double y) ServerPuck() => (Room.State.puck.x, Room.State.puck.y);
+        /// <summary>
+        /// Switch the server's AI paddle on/off. The acceptance run turns it OFF:
+        /// a contested touch mispredicts BY DESIGN (remote paddles enter the
+        /// prediction at their last snapshot), so leaving the AI in makes the
+        /// determinism check measure how often the bot happened to engage — the
+        /// haxe port read 0.0013 to 0.72 across five runs, straddling the
+        /// threshold. The native demo has always done this; the interactive
+        /// build keeps its AI.
+        /// </summary>
+        public void SetBot(bool on) => Room.Send("bot", new { on });
 
         public override async Task<bool> Mount(App app)
         {
@@ -103,8 +113,9 @@ namespace Playground
             _predict = Predict.For(Room);
             // Remote paddles: damped toward the latest snapshot. They enter the
             // sim as colliders, not as predicted parts.
-            _predict.AttachAll("players", new[] { "x", "y" },
-                new PredictFieldOptions { Mode = PredictMode.Damped });
+            _predict.AttachAll("players", new AttachConfig {
+                ["x"] = PredictMode.Damped, ["y"] = PredictMode.Damped,
+            });
 
             _cmd = new Lab.MoveInput();
             _input = Room.Input(_cmd);

@@ -52,8 +52,9 @@ namespace Playground
             Predict = Predict.For(Room);
             // Remote squares: damped toward the latest snapshot. Their inputs are
             // not ours to predict — lab 04 explores the modes.
-            Predict.AttachAll("players", new[] { "x", "y" },
-                new PredictFieldOptions { Mode = PredictMode.Damped });
+            Predict.AttachAll("players", new AttachConfig {
+                ["x"] = PredictMode.Damped, ["y"] = PredictMode.Damped,
+            });
             Build(Smoothing);
             return true;
         }

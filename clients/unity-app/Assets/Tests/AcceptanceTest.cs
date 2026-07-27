@@ -497,6 +497,7 @@ public class AcceptanceTest
         var app = new App { Client = MakeClient(), PrivateRoom = true };
         var lab = new Lab10();
         yield return Mount(lab, app);      // mount picks its own latency preset
+        lab.SetBot(false);                 // isolate OUR step from a contested touch
 
         // Drive back and forth across the puck. The lead is transient — largest
         // just after a strike — so this tracks the PEAK rather than sampling.

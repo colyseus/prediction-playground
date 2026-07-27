@@ -60,8 +60,7 @@ namespace Playground
             // The delayed baseline to compare against.
             _lerp = Predict.For(Room);
             var lerpOpts = new PredictFieldOptions { Mode = PredictMode.Lerp, Delay = Sim.RemoteInterpMs };
-            _lerp.Track(_bot, "x", lerpOpts);
-            _lerp.Track(_bot, "y", lerpOpts);
+            _lerp.Attach(_bot, new AttachConfig { ["x"] = lerpOpts, ["y"] = lerpOpts });
 
             AttachReckon();
 
@@ -82,7 +81,7 @@ namespace Playground
         private void AttachReckon()
         {
             _reckon = Predict.For(Room);
-            _reckon.TrackReckon(_bot, new ReckonOptions<Lab.Bot>
+            _reckon.Attach(_bot, new ReckonOptions<Lab.Bot>
             {
                 Fields = new[] { "x", "y" },
                 Smoothing = _smoothing,

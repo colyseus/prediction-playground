@@ -62,8 +62,9 @@ namespace Playground
             if (Room.State.players == null || !Room.State.players.TryGetValue(_sid, out _me)) return false;
 
             _predict = Predict.For(Room);
-            _predict.AttachAll("players", new[] { "x", "y" },
-                new PredictFieldOptions { Mode = PredictMode.Damped });
+            _predict.AttachAll("players", new AttachConfig {
+                ["x"] = PredictMode.Damped, ["y"] = PredictMode.Damped,
+            });
 
             _spawns = _predict.Spawns<Lab.Projectile, Shot>("projectiles",
                 new PredictedSpawnsOptions<Lab.Projectile, Shot>
