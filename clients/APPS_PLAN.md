@@ -146,7 +146,7 @@ debug panel does the same).
 | 06 lag-comp | allowRewind fire-gate, lerp-delayed bots, hit/miss markers (server broadcasts) | ✅ ready; needs hitscan port for the client-side aim ray |
 | 07 wysiwyg | `valueAt(ctx.reckonTime)` + `ctx.memo` frozen verdicts | ✅ ready; **C memo stores doubles only** — encode the verdict as a number |
 | 11 deterministic-rng | random+spread ports; overlay client fan vs server fan | ✅ engine-free; watch integer width (§2) |
-| 10 composite-sim | SimReconciler (`predict.sim`) | ✅ native + Unity + Defold (ported, §5); ⬜ Haxe |
+| 10 composite-sim | SimReconciler (`predict.sim`) | ✅ all four SDKs (ported, §5) |
 
 ## 5. SimReconciler port (prerequisite for lab 10)
 
@@ -244,9 +244,9 @@ jitter), `D` = drop transport, `P` = private-room toggle (rejoin).
 | **native-app** (C / raylib) | **DONE** — all 12 labs, `--demo` autopilot 18/18 |
 | **unity-app** (C# / Unity 6000.3) | **DONE — all 12 labs**; PlayMode suite 15/15 green vs a live server |
 | **defold-app** (Lua / Defold) | **DONE — all 12 labs**; headless suite 34 checks green vs a live server; `bob resolve build` clean |
-| **haxe-app** (Haxe / Heaps + hl) | **DONE except lab 10** — 11 labs (00-09, 11); headless suite 34/34 green vs a live server; both `acceptance.hxml` (neko) and `build.hxml` (hl) compile |
+| **haxe-app** (Haxe / Heaps + hl) | **DONE — all 12 labs**; headless suite 37/37 green vs a live server; both `acceptance.hxml` (neko) and `build.hxml` (hl) compile |
 
-Lab 10 is done in C, C# and Lua; still blocked on the SimReconciler port in Haxe (§5).
+Lab 10 is done in all four SDKs. The world-handle shape differs by language, deliberately: JS/Lua take a plain object or table, C#/Haxe take a caller-declared class (neither has anonymous objects that survive to runtime safely), C takes a descriptor array.
 
 ### Verification invocations
 

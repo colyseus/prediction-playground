@@ -11,6 +11,7 @@ import labs.Lab06;
 import labs.Lab07;
 import labs.Lab08;
 import labs.Lab09;
+import labs.Lab10;
 import labs.Lab11;
 
 /**
@@ -363,6 +364,26 @@ class Acceptance {
 			check("lab11 an unshared RNG visibly disagrees",
 				!Math.isNaN(lab.maxDivergence) && lab.maxDivergence > 1e-6,
 				'divergence ${lab.maxDivergence} rad');
+
+			leave(lab, room);
+		}
+
+		{ // lab 10: the puck is predicted THROUGH our own inputs
+			var lab = new Lab10();
+			NetDelay.reset();
+			var room = mount(lab, app);      // mount picks its own latency preset
+
+			// The lab steers itself toward the puck under autopilot; a plain sweep
+			// never reaches it, and a puck nobody touches proves nothing.
+			drive(lab, app, 12000);
+
+			check("lab10 predicts with inputs still in flight", lab.sim.pendingCount > 0,
+				'${lab.sim.pendingCount} unacked');
+			check("lab10 the predicted puck leads the authoritative one",
+				lab.maxPuckLead > 0.5,
+				'peak ${Math.round(lab.maxPuckLead * 100) / 100} u over ${lab.touches} touches');
+			check("lab10 the composite step agrees with the server's",
+				lab.sim.drift.ema < 0.05, 'drift ema ${lab.sim.drift.ema}');
 
 			leave(lab, room);
 		}

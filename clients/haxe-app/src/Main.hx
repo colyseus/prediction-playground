@@ -58,7 +58,7 @@ class Main extends hxd.App {
 		app = new App(new Client(ENDPOINT), false);
 		labs = [
 			new Lab00(), new Lab01(), new Lab02(), new Lab03(), new Lab04(),
-			new Lab05(), new Lab06(), new Lab07(), new Lab08(), new Lab09(), new Lab11(),
+			new Lab05(), new Lab06(), new Lab07(), new Lab08(), new Lab09(), new Lab10(), new Lab11(),
 		];
 		switchTo(0);
 	}
