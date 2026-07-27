@@ -57,6 +57,7 @@ namespace Playground
         private readonly Series _samples = new Series(TraceCap);
         private double _lastRawX = double.NaN, _lastRawY = double.NaN;
         private int _pattern;
+        private double _botTravel;
 
         public override async Task<bool> Mount(App app)
         {
@@ -118,6 +119,11 @@ namespace Playground
             // A received sample = the decoded value changing, once per patch.
             if (_bot.x != _lastRawX || _bot.y != _lastRawY)
             {
+                if (!double.IsNaN(_lastRawX))
+                {
+                    double bdx = _bot.x - _lastRawX, bdy = _bot.y - _lastRawY;
+                    _botTravel += System.Math.Sqrt(bdx * bdx + bdy * bdy);
+                }
                 _lastRawX = _bot.x;
                 _lastRawY = _bot.y;
                 _samples.Push(Room.Clock.LastServerTime(), _bot.x);
@@ -228,6 +234,16 @@ namespace Playground
             if (i < 0) return;
             _pattern = i;
             Room.Send("pattern", new Dictionary<string, string> { ["kind"] = kind });
+        }
+
+        /// <summary>How far the raw bot has travelled — a stationary bot scores NaN.</summary>
+        public double BotTravel => _botTravel;
+
+        /// <summary>Start a clean measurement window once the pattern has landed.</summary>
+        public void ResetMeters()
+        {
+            foreach (var m in _modes) m.Smooth.Clear();
+            _botTravel = 0;
         }
 
         /// <summary>Per-mode speed CV, for the acceptance harness.</summary>

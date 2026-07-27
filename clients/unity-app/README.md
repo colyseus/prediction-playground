@@ -85,12 +85,25 @@ hold the server's f64 all the way through.)
 
 **The latency injector needs a seam the SDK didn't have.** On localhost labs
 00/01/03 demonstrate nothing, so every non-web client needs its own delay/jitter.
-Two upstream additions made it possible (`colyseus-unity-sdk@78ee668`):
-`Client.ConnectionFactory`, so a room builds a `DelayedConnection` instead of a
-plain one; and `virtual RaiseOpen/RaiseMessage/RaiseError/RaiseClose` on
-`Connection`, so inbound frames can be intercepted *in front of* the room's
-handler. Subscribing to `OnMessage` cannot work — a subscriber runs alongside the
-room's handler, so it could not delay anything.
+Subscribing to `OnMessage` cannot work — a subscriber runs *alongside* the room's
+handler, so it could not delay anything. You have to be in front of it.
+
+The first attempt gave `Connection` four `protected virtual Raise*` methods and
+added a global `Client.ConnectionFactory` so a `DelayedConnection` subclass could
+be built in the first place: six moving parts, one of them a static that changes
+behaviour for every `Client` in the process.
+
+The Lua client needed exactly one. `Connection` there is an EventEmitter, so
+replacing `emit` puts you in front of every listener at once — and you wrap the
+instance you already have, after the room joined. C# now has the same shape:
+`Connection.Dispatch` (one delegate carrying a `ConnectionEvent`) and its
+outbound twin `Transmit`. Capture the previous value, queue, call it when the
+packet comes due. The subclass, the four virtuals and the static factory are all
+gone, and the injector is per-room instead of per-process.
+
+Wrapping *after* the join has a second benefit worth naming: the handshake rides
+an undelayed link, so awaiting a join can no longer deadlock on a queue nobody is
+draining yet — which is exactly the bug described below.
 
 **Both directions queue and drain from `Update()`**, with each packet's
 deliver-at clamped to ≥ the previous one's. The wire is a stream; TCP never

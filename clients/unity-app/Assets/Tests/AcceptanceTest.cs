@@ -24,7 +24,7 @@ public class AcceptanceTest
     [SetUp]
     public void SetUp()
     {
-        DelayedConnection.Reset();
+        NetDelay.Reset();
         Kb.Autopilot = true;
         Kb.AutoX = Kb.AutoY = 0;
     }
@@ -32,11 +32,7 @@ public class AcceptanceTest
     [TearDown]
     public void TearDown() => Kb.Autopilot = false;
 
-    private static Client MakeClient()
-    {
-        DelayedConnection.Install();
-        return new Client(Endpoint);
-    }
+    private static Client MakeClient() => new Client(Endpoint);
 
     /// <summary>Pump the injector + a lab for `ms`, exactly like Update() does.</summary>
     private static IEnumerator Drive(ILab lab, App app, double ms, int autoX = 0, int autoY = 0)
@@ -47,7 +43,7 @@ public class AcceptanceTest
         double start = RoomClock.GetNow(), last = start;
         while (RoomClock.GetNow() - start < ms)
         {
-            DelayedConnection.PumpAll();
+            NetDelay.PumpAll();
             double now = RoomClock.GetNow();
             lab?.Frame(app, now, now - last);
             last = now;
@@ -66,11 +62,11 @@ public class AcceptanceTest
         double start = RoomClock.GetNow();
         while (!task.IsCompleted)
         {
-            DelayedConnection.PumpAll();
+            NetDelay.PumpAll();
             if (RoomClock.GetNow() - start > timeoutMs)
             {
                 Assert.Fail($"{what}: still pending after {timeoutMs:F0} ms " +
-                            $"({DelayedConnection.InFlight()} pkt in the injector)");
+                            $"({NetDelay.InFlight()} pkt in the injector)");
             }
             yield return null;
         }
@@ -106,7 +102,7 @@ public class AcceptanceTest
     public IEnumerator Lab01_input_to_motion_tracks_the_round_trip()
     {
         var app = new App { Client = MakeClient(), PrivateRoom = true };
-        DelayedConnection.SetLatency(0, 0);
+        NetDelay.SetLatency(0, 0);
         var lab = new Lab01();
         yield return Mount(lab, app);
 
@@ -119,7 +115,7 @@ public class AcceptanceTest
 
         // Now with 200 ms each way; no prediction, so it must track the round trip.
         yield return Drive(lab, app, 900);
-        DelayedConnection.SetLatency(200, 0);
+        NetDelay.SetLatency(200, 0);
         yield return Drive(lab, app, 1200);
         yield return Drive(lab, app, 2000, autoX: -1);
         double at200 = lab.Measured;
@@ -133,7 +129,7 @@ public class AcceptanceTest
     public IEnumerator Lab02_clock_readouts_respond_to_injected_latency()
     {
         var app = new App { Client = MakeClient(), PrivateRoom = true };
-        DelayedConnection.SetLatency(200, 0);
+        NetDelay.SetLatency(200, 0);
         var lab = new Lab02();
         yield return Mount(lab, app);
 
@@ -153,7 +149,7 @@ public class AcceptanceTest
     public IEnumerator Lab03_predicts_instantly_and_absorbs_a_mispredict()
     {
         var app = new App { Client = MakeClient(), PrivateRoom = true };
-        DelayedConnection.SetLatency(200, 0);
+        NetDelay.SetLatency(200, 0);
         var lab = new Lab03();
         yield return Mount(lab, app);
 
@@ -213,7 +209,7 @@ public class AcceptanceTest
         var app = new App { Client = MakeClient(), PrivateRoom = true };
         var lab = new Lab06();
         yield return Mount(lab, app);
-        DelayedConnection.SetLatency(200, 0);
+        NetDelay.SetLatency(200, 0);
         yield return Drive(lab, app, 1500);
 
         // Lag comp ON: the autopilot aims at the lerp view — exactly what the
@@ -251,16 +247,23 @@ public class AcceptanceTest
     public IEnumerator Lab04_interpolation_modes_differ_as_advertised()
     {
         var app = new App { Client = MakeClient(), PrivateRoom = true };
-        DelayedConnection.SetLatency(120, 40);
+        NetDelay.SetLatency(120, 40);
         var lab = new Lab04();
         yield return Mount(lab, app);
 
         // Pin the pattern rather than inherit whatever the room defaulted to —
         // a stationary bot scores NaN and the comparison below means nothing.
         lab.SetPattern("patrol");
-        yield return Drive(lab, app, 7000);
+        yield return Drive(lab, app, 2000);   // let the pattern land
+        lab.ResetMeters();                    // then score a clean window
+        yield return Drive(lab, app, 6000);
+
+        Assert.Greater(lab.BotTravel, 10,
+            $"the bot only travelled {lab.BotTravel:F1} u — nothing to measure smoothness of");
         var cv = lab.SmoothnessByMode();
-        foreach (var pair in cv) Assert.False(double.IsNaN(pair.Value), $"{pair.Key} never scored");
+        foreach (var pair in cv)
+            Assert.False(double.IsNaN(pair.Value),
+                $"{pair.Key} never scored over {lab.BotTravel:F1} u of bot travel");
         // raw is the decoded snapshot verbatim, so it stutters at the patch rate;
         // lerp walks between two real samples and must be measurably steadier.
         Assert.Greater(cv["raw"], cv["lerp"],
@@ -276,7 +279,7 @@ public class AcceptanceTest
     public IEnumerator Lab05_reckon_leads_the_lerp_view()
     {
         var app = new App { Client = MakeClient(), PrivateRoom = true };
-        DelayedConnection.SetLatency(200, 0);
+        NetDelay.SetLatency(200, 0);
         var lab = new Lab05();
         yield return Mount(lab, app);
 
@@ -298,7 +301,7 @@ public class AcceptanceTest
         var app = new App { Client = MakeClient(), PrivateRoom = true };
         var lab = new Lab07();
         yield return Mount(lab, app);
-        DelayedConnection.SetLatency(200, 0);
+        NetDelay.SetLatency(200, 0);
 
         // The autopilot seeks the bot's lane and lets the patrol sweep hit it.
         yield return Drive(lab, app, 14000, autoX: 1);
@@ -323,7 +326,7 @@ public class AcceptanceTest
         var app = new App { Client = MakeClient(), PrivateRoom = true };
         var lab = new Lab08();
         yield return Mount(lab, app);
-        DelayedConnection.SetLatency(200, 0);
+        NetDelay.SetLatency(200, 0);
 
         // Deny nothing: every optimistic banner must be confirmed.
         lab.SetDenyRate(0);
@@ -355,7 +358,7 @@ public class AcceptanceTest
         var app = new App { Client = MakeClient(), PrivateRoom = true };
         var lab = new Lab09();
         yield return Mount(lab, app);
-        DelayedConnection.SetLatency(200, 0);
+        NetDelay.SetLatency(200, 0);
         yield return Drive(lab, app, 800);
 
         lab.AimAt(50, 55);
@@ -383,7 +386,7 @@ public class AcceptanceTest
         var app = new App { Client = MakeClient(), PrivateRoom = true };
         var lab = new Lab11();
         yield return Mount(lab, app);
-        DelayedConnection.SetLatency(200, 0);
+        NetDelay.SetLatency(200, 0);
         yield return Drive(lab, app, 1200);
 
         // Seeded from (seq, salt): both sides must derive the SAME fan, bit for

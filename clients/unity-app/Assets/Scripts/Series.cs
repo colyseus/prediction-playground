@@ -56,6 +56,8 @@ namespace Playground
         private double _lastX, _lastY;
         private bool _seeded;
 
+        public void Clear() { _head = 0; _count = 0; _seeded = false; }
+
         public void Sample(double x, double y, double dtMs)
         {
             if (_seeded && dtMs > 0)

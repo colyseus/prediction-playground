@@ -97,7 +97,7 @@ namespace Playground
         /// Ask the shell for a latency preset on mount. Labs 00/01/03 make no
         /// point at all on a 1 ms localhost link, so they set one themselves.
         /// </summary>
-        public void SetLatencyPreset(int index) => DelayedConnection.UsePreset(index);
+        public void SetLatencyPreset(int index) => NetDelay.UsePreset(index);
     }
 
     /// <summary>

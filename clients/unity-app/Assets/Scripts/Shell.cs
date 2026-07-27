@@ -27,6 +27,9 @@ namespace Playground
             var room = app.PrivateRoom
                 ? await app.Client.Create<T>(name)
                 : await app.Client.JoinOrCreate<T>(name);
+            // In front of the room's own listeners, but only now that it has
+            // joined: the handshake rides an undelayed link, gameplay does not.
+            NetDelay.Wrap(room.Connection);
             for (int i = 0; i < 200; i++)
             {
                 if (room.State != null && (ready == null || ready(room))) break;
@@ -58,7 +61,6 @@ namespace Playground
             Application.runInBackground = true;
             if (Sim.SelfCheck() != 0) Debug.LogError("shared-sim port mismatch");
 
-            DelayedConnection.Install();
             _app.Client = new Client(Endpoint);
             _labs = new ILab[] { new Lab00(), new Lab01(), new Lab02(), new Lab03(), new Lab04(), new Lab05(), new Lab06(), new Lab07(), new Lab08(), new Lab09(), new Lab11() };
             _ = SwitchTo(0);
@@ -90,7 +92,7 @@ namespace Playground
         {
             // Deliver due packets first: the injector queues both directions and
             // only drains here, on the main thread.
-            DelayedConnection.PumpAll();
+            NetDelay.PumpAll();
 
             double now = RoomClock.GetNow();
             double dt = _lastNow > 0 ? now - _lastNow : 0;
@@ -98,8 +100,8 @@ namespace Playground
 
             for (int i = 0; i < _labs.Length && i < 9; i++)
                 if (Kb.Key(KeyCode.Alpha1 + _labs[i].Num - 1)) _ = SwitchTo(i);
-            if (Kb.Key(KeyCode.L)) DelayedConnection.NextPreset();
-            if (Kb.Key(KeyCode.D)) DelayedConnection.DropAll();
+            if (Kb.Key(KeyCode.L)) NetDelay.NextPreset();
+            if (Kb.Key(KeyCode.D)) NetDelay.DropAll();
             if (Kb.Key(KeyCode.P)) { _app.PrivateRoom = !_app.PrivateRoom; _ = SwitchTo(_labIndex); }
 
             _active?.Frame(_app, now, dt);
@@ -155,9 +157,9 @@ namespace Playground
             var stat = new GUIStyle(GUI.skin.label) { fontSize = 11, normal = { textColor = Palette.Text } };
             string line = clock != null
                 ? $"RTT {clock.SmoothedRtt():F0} ms    JITTER {clock.Jitter():F0} ms    " +
-                  $"INJECTED {DelayedConnection.PresetLabel}    IN FLIGHT {DelayedConnection.InFlight()} pkt    " +
+                  $"INJECTED {NetDelay.PresetLabel}    IN FLIGHT {NetDelay.InFlight()} pkt    " +
                   $"ROOM {(_app.PrivateRoom ? "private" : "shared")}"
-                : $"INJECTED {DelayedConnection.PresetLabel}    connecting...";
+                : $"INJECTED {NetDelay.PresetLabel}    connecting...";
             GUI.Label(new Rect(16, y + 14, w - 32, 18), line, stat);
 
             stat = new GUIStyle(GUI.skin.label)
