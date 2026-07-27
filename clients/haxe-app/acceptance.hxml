@@ -1,0 +1,11 @@
+# Headless acceptance run against a live server.
+#
+# neko, not hl: the SDK is proven on this target by clients/haxe/PredictProbe,
+# and the shared-sim canary passes here bit-for-bit (Haxe gives Int32 semantics
+# on neko, so the uint32 RNG is safe despite neko's native 31-bit ints).
+-main Acceptance
+-cp src
+-cp ../../../../colyseus-haxe/src
+-lib colyseus-websocket
+-lib tink_http
+-neko bin/acceptance.n
