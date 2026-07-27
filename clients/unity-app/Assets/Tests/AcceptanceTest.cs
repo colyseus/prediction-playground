@@ -178,6 +178,87 @@ public class AcceptanceTest
         yield return Teardown(lab);
     }
 
+    [Test]
+    public void Connection_seam_allocates_nothing_per_message()
+    {
+        // The precise question: does putting the injector in front of
+        // Connection.Dispatch cost a heap object per message? No server needed —
+        // drive synthetic events straight through the seam and weigh the heap.
+        var conn = new Connection("ws://localhost:1", null);
+        int delivered = 0;
+        conn.OnMessage += _ => delivered++;
+        NetDelay.Reset();
+        NetDelay.SetLatency(0, 0);
+        NetDelay.Wrap(conn);
+
+        var payload = new byte[64];
+        for (int i = 0; i < 512; i++) { conn.Dispatch(ConnectionEvent.Received(payload)); NetDelay.PumpAll(); }
+
+        System.GC.Collect();
+        System.GC.WaitForPendingFinalizers();
+        System.GC.Collect();
+        long before = System.GC.GetTotalMemory(false);
+
+        const int N = 20000;
+        for (int i = 0; i < N; i++) { conn.Dispatch(ConnectionEvent.Received(payload)); NetDelay.PumpAll(); }
+
+        double perMessage = (System.GC.GetTotalMemory(false) - before) / (double)N;
+        Assert.AreEqual(512 + N, delivered, "the seam dropped or duplicated messages");
+        Debug.Log($"OK gc seam: {perMessage:F2} B/message over {N} round trips");
+        Assert.Less(perMessage, 8,
+            $"the injector allocates {perMessage:F1} B per message — a closure or a " +
+            "copy crept back into the per-packet path");
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Steady_state_traffic_does_not_churn_the_heap()
+    {
+        // Lab 03 is the busiest steady state in the suite: 20 inputs/s out and
+        // 20 patches/s in, each one crossing the injector twice. If a per-message
+        // allocation crept into the Dispatch/Transmit seam this is where it shows.
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        NetDelay.SetLatency(200, 0);
+        var lab = new Lab03();
+        yield return Mount(lab, app);
+
+        // Warm up first: join, buffer growth and one-time delegate allocation are
+        // not what this is measuring.
+        yield return Drive(lab, app, 3000, autoX: 1);
+
+        System.GC.Collect();
+        System.GC.WaitForPendingFinalizers();
+        System.GC.Collect();
+        long before = System.GC.GetTotalMemory(false);
+        int collectionsBefore = System.GC.CollectionCount(0);
+        double start = RoomClock.GetNow();
+
+        yield return Drive(lab, app, 8000, autoX: -1);
+
+        double seconds = (RoomClock.GetNow() - start) / 1000.0;
+        long grew = System.GC.GetTotalMemory(false) - before;
+        int collections = System.GC.CollectionCount(0) - collectionsBefore;
+        // ~40 messages/s each way; a two-object closure per message would be
+        // ~5 KB/s on its own, and the rest of the frame adds more.
+        double perSecond = grew / seconds;
+        double perMessage = grew / (seconds * 40);
+
+        Debug.Log($"OK gc: {grew / 1024.0:F1} KiB over {seconds:F1}s " +
+                  $"({perSecond / 1024.0:F2} KiB/s, ~{perMessage:F0} B/message), " +
+                  $"{collections} gen0 collection(s)");
+
+        // This is the WHOLE frame, and it is dominated by the SDK's receive and
+        // decode path (a byte[] per frame off the socket, per-patch decode
+        // garbage), not by the injector — Connection_seam_allocates_nothing_
+        // per_message measures that part at ~0. Kept as a coarse regression
+        // guard: a closure-per-packet regression moved this by ~5 KiB/s, and
+        // anything structurally worse will blow past the ceiling.
+        Assert.Less(perSecond, 128 * 1024,
+            $"steady-state traffic allocated {perSecond / 1024.0:F1} KiB/s — " +
+            "well above the measured baseline, so something new is churning");
+
+        yield return Teardown(lab);
+    }
+
     [UnityTest, Timeout(TestTimeoutMs)]
     public IEnumerator Lab00_predicted_lane_leads_the_server_echo()
     {

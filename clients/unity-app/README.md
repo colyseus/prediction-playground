@@ -109,6 +109,24 @@ draining yet — which is exactly the bug described below.
 deliver-at clamped to ≥ the previous one's. The wire is a stream; TCP never
 reorders, and neither may the injector.
 
+**The seam costs nothing per message.** `ConnectionEvent` is a readonly struct
+and `Action<ConnectionEvent>` doesn't box it, so the SDK side is allocation-free
+by construction — but the *wrapper* is where that is easy to lose, and the first
+version did: a `() => inner(e)` closure per packet plus a `Live.ToArray()` per
+frame. `Connection_seam_allocates_nothing_per_message` pushes 20 000 synthetic
+round trips through the seam and weighs the heap:
+
+```
+OK gc seam: 0.00 B/message over 20000 round trips
+OK gc:      152.0 KiB over 8.0s (19.00 KiB/s, ~486 B/message), 75 gen0 collections
+```
+
+The second line is the whole frame under lab 03's steady state (20 inputs/s out,
+20 patches/s in) and is dominated by the SDK's receive-and-decode path, not by
+the injector. It was **78.5 KiB/s / ~2010 B per message** before the closures
+came out — worth knowing that a two-object closure on a 40 msg/s path costs 4× the
+rest of the frame put together.
+
 ## Found while building this
 
 **`Connection.Connect()` returns on close, not on open.** It awaits

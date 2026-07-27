@@ -28,10 +28,16 @@ namespace Playground
     /// </summary>
     public class NetDelay
     {
+        /// <summary>
+        /// A queued packet. It carries the payload rather than a closure over it
+        /// on purpose: a `() => inner(e)` per frame would be two heap objects per
+        /// message, and this queue sees every patch and every input.
+        /// </summary>
         private struct Packet
         {
             public double DeliverAt;
-            public Action Deliver;
+            public ConnectionEvent Event;   // inbound
+            public byte[] Data;             // outbound
         }
 
         public static double DelayMs;
@@ -45,6 +51,8 @@ namespace Playground
         private double _inLast, _outLast;
         private readonly object _lock = new object();
         private readonly Connection _conn;
+        private Action<ConnectionEvent> _innerDispatch;
+        private Func<byte[], Task> _innerTransmit;
 
         private NetDelay(Connection conn) { _conn = conn; }
 
@@ -61,17 +69,14 @@ namespace Playground
             }
 
             var nd = new NetDelay(conn);
-            var innerDispatch = conn.Dispatch;
-            var innerTransmit = conn.Transmit;
+            nd._innerDispatch = conn.Dispatch;
+            nd._innerTransmit = conn.Transmit;
 
-            conn.Dispatch = e => nd.Enqueue(nd._inbound, ref nd._inLast, () => innerDispatch(e));
-            conn.Transmit = data =>
-            {
-                nd.Enqueue(nd._outbound, ref nd._outLast, () => innerTransmit(data));
-                return Task.CompletedTask;
-            };
+            // Both lambdas are allocated once, here — not per packet.
+            conn.Dispatch = nd.QueueInbound;
+            conn.Transmit = nd.QueueOutbound;
 
-            lock (Live) Live.Add(nd);
+            Live.Add(nd);
             return nd;
         }
 
@@ -115,7 +120,7 @@ namespace Playground
         /// <summary>Forget every socket and zero the latency — between test cases.</summary>
         public static void Reset()
         {
-            lock (Live) Live.Clear();
+            Live.Clear();
             DelayMs = JitterMs = 0;
             PresetIndex = 0;
         }
@@ -123,27 +128,33 @@ namespace Playground
         /// <summary>Kill every live socket, so the SDK sees a drop and not a leave.</summary>
         public static void DropAll()
         {
-            NetDelay[] all;
-            lock (Live) all = Live.ToArray();
-            foreach (var w in all) w._conn.Drop();
+            for (int i = 0; i < Live.Count; i++) Live[i]._conn.Drop();
         }
 
         public static int InFlight()
         {
             int n = 0;
-            NetDelay[] all;
-            lock (Live) all = Live.ToArray();
-            foreach (var w in all) lock (w._lock) n += w._inbound.Count + w._outbound.Count;
+            for (int i = 0; i < Live.Count; i++)
+            {
+                var w = Live[i];
+                lock (w._lock) n += w._inbound.Count + w._outbound.Count;
+            }
             return n;
         }
 
-        /// <summary>Drain everything due. Call once per frame from Update().</summary>
+        /// <summary>
+        /// Drain everything due. Call once per frame from Update().
+        ///
+        /// Indexed, not foreach-over-a-copy: `Live` is only ever mutated on the
+        /// main thread (Wrap runs on an awaited continuation, Reset from a test),
+        /// while the per-socket queues are what the socket thread touches — and
+        /// those have their own lock. Copying the list here would allocate an
+        /// array every frame for nothing.
+        /// </summary>
         public static void PumpAll()
         {
             double now = RoomClock.GetNow();
-            NetDelay[] all;
-            lock (Live) all = Live.ToArray();
-            foreach (var w in all) w.Pump(now);
+            for (int i = 0; i < Live.Count; i++) Live[i].Pump(now);
         }
 
         // Rng is shared across connections but Enqueue only holds the per-socket lock.
@@ -152,34 +163,50 @@ namespace Playground
             lock (Rng) return DelayMs + Rng.NextDouble() * JitterMs;
         }
 
-        private void Enqueue(Queue<Packet> q, ref double last, Action deliver)
+        private void QueueInbound(ConnectionEvent e)
         {
             double at = RoomClock.GetNow() + OneWay();
             lock (_lock)
             {
-                if (at < last) at = last;      // the wire never reorders
-                last = at;
-                q.Enqueue(new Packet { DeliverAt = at, Deliver = deliver });
+                if (at < _inLast) at = _inLast;    // the wire never reorders
+                _inLast = at;
+                _inbound.Enqueue(new Packet { DeliverAt = at, Event = e });
             }
         }
 
-        private void Pump(double now)
+        private Task QueueOutbound(byte[] data)
         {
-            Drain(_outbound, now);
-            Drain(_inbound, now);
+            double at = RoomClock.GetNow() + OneWay();
+            lock (_lock)
+            {
+                if (at < _outLast) at = _outLast;
+                _outLast = at;
+                _outbound.Enqueue(new Packet { DeliverAt = at, Data = data });
+            }
+            return Task.CompletedTask;
         }
 
-        private void Drain(Queue<Packet> q, double now)
+        private void Pump(double now)
         {
             while (true)
             {
                 Packet p;
                 lock (_lock)
                 {
-                    if (q.Count == 0 || q.Peek().DeliverAt > now) return;
-                    p = q.Dequeue();
+                    if (_outbound.Count == 0 || _outbound.Peek().DeliverAt > now) break;
+                    p = _outbound.Dequeue();
                 }
-                p.Deliver();      // outside the lock: this reaches the room
+                _innerTransmit(p.Data);       // outside the lock: this hits the socket
+            }
+            while (true)
+            {
+                Packet p;
+                lock (_lock)
+                {
+                    if (_inbound.Count == 0 || _inbound.Peek().DeliverAt > now) break;
+                    p = _inbound.Dequeue();
+                }
+                _innerDispatch(p.Event);      // outside the lock: this reaches the room
             }
         }
     }
