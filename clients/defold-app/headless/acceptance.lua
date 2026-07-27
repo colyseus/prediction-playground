@@ -217,6 +217,65 @@ do -- lab 03: predicted instantly, and a mispredict decays back to steady state
   leave(lab, room)
 end
 
+do -- lab 08: the optimistic banner fires instantly, then settles
+  local Lab08 = require 'playground.labs.lab08'
+  local lab = Lab08.new()
+  net_delay.reset()
+  net_delay.set_latency(200, 0)
+  local room = mount(lab, context)
+
+  -- Deny nothing: every optimistic banner must be confirmed.
+  lab:set_deny_rate(0)
+  drive(lab, context, 600)
+  drive(lab, context, 6000, 1)
+  local confirmed, rejected = lab:counts()
+  check("lab08 entered the goal zone and predicted", #lab.records > 0,
+    #lab.records .. " predicted")
+  check("lab08 optimistic goals get confirmed at a 0 % deny rate",
+    confirmed > 0 and rejected == 0,
+    confirmed .. " confirmed, " .. rejected .. " rejected")
+  local clean_run = #lab.records
+
+  -- Deny everything: the banner still fires instantly, then retracts.
+  lab:set_deny_rate(100)
+  drive(lab, context, 600)
+  drive(lab, context, 9000, 1)
+  local _, rejected2 = lab:counts()
+  check("lab08 keeps predicting once the server starts denying",
+    #lab.records > clean_run, #lab.records .. " total")
+  check("lab08 grace-tick auto-reject retracts the unconfirmed banners",
+    rejected2 > 0, rejected2 .. " rejected")
+
+  leave(lab, room)
+end
+
+do -- lab 09: an optimistic spawn hands off to the authoritative entity
+  local Lab09 = require 'playground.labs.lab09'
+  local lab = Lab09.new()
+  net_delay.reset()
+  net_delay.set_latency(200, 0)
+  local room = mount(lab, context)
+  drive(lab, context, 800)
+
+  lab:aim_at(50, 55)
+  lab:fire()
+  -- Immediately after firing there must be a local to look at — that IS the
+  -- feature; a full RTT later it would be far too late.
+  drive(lab, context, 150)
+  check("lab09 spawns a local the same frame it fires", lab.pending > 0,
+    lab.pending .. " pending")
+
+  -- ...and by ~2 RTT the server's entity has arrived and correlated.
+  drive(lab, context, 1600)
+  check("lab09 the server's projectile correlates", lab.confirmed > 0,
+    lab.confirmed .. " confirmed")
+  check("lab09 measures the input lead (else the handoff would jump)",
+    lab.last_lead_ms ~= nil and lab.last_lead_ms > 0,
+    lab.last_lead_ms and string.format("%.0f ms", lab.last_lead_ms) or "never measured")
+
+  leave(lab, room)
+end
+
 print()
 if failed == 0 then
   print("all checks passed")

@@ -81,7 +81,10 @@ function M.lane(_index) end
 function M.lane_title(_main, _sub, _color) end
 
 --- A centred line under the stage — the divider readout and the hero's caption.
-function M.caption(_text, _color) end
+function M.caption(_text, _color, _size) end
+
+--- A filled+outlined world rectangle: the goal zone, and anything like it.
+function M.zone(_x, _y, _w, _h, _fill, _stroke) end
 
 -- ------------------------------------------------------------------ hud --
 
