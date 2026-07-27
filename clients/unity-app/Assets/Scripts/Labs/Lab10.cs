@@ -99,6 +99,9 @@ namespace Playground
 
         private void Build()
         {
+            // Dispose BEFORE respawning, like the reference: the old controller
+            // would otherwise keep ticking against the same input handle.
+            _sim?.Dispose();
             _sim = _predict.Sim(new SimReconcilerOptions<HockeyWorld, Lab.MoveInput>
             {
                 Input = _input,

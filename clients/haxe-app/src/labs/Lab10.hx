@@ -56,6 +56,16 @@ class Lab10 implements Lab {
 	 * collapses between them, so a spot reading says nothing.
 	 */
 	public var maxPuckLead(default, null): Float = 0;
+
+	/**
+	 * Server-authoritative puck position. Read through a typed accessor because
+	 * `room` is only concrete in here: the harness holds the room as `Dynamic`,
+	 * and `state` is a property getter, which Dynamic access silently resolves
+	 * to null on a sys target.
+	 */
+	public function serverPuck(): { x: Float, y: Float } {
+		return { x: room.state.puck.x, y: room.state.puck.y };
+	}
 	public var touches(default, null) = 0;
 	public var sim(default, null): SimReconciler<HockeyWorld, lab.MoveInput>;
 
@@ -68,7 +78,11 @@ class Lab10 implements Lab {
 	var smoothing = 15.0;
 	var showGhosts = true;
 	var touchedLastStep = false;
+	var retreatTicks = 0;
 	var trail: Array<Array<Float>> = [];
+
+	/** Fixed steps the autopilot spends heading home after a strike (20Hz -> ~0.6s). */
+	static inline var RETREAT_TICKS = 12;
 
 	public function new() {}
 
@@ -103,6 +117,9 @@ class Lab10 implements Lab {
 	}
 
 	function build(): Void {
+		// Dispose BEFORE respawning, like the reference: the old controller would
+		// otherwise keep ticking against the same input handle.
+		if (sim != null) sim.dispose();
 		sim = predict.sim({
 			input: input,
 			smoothing: smoothing,
@@ -138,10 +155,23 @@ class Lab10 implements Lab {
 	 * Where the predicted puck is relative to the predicted paddle. An autopilot
 	 * that just sweeps never reaches the puck, and a puck nobody touches makes
 	 * the lab look broken while proving nothing.
+	 *
+	 * Backs off to its own half for a beat after each strike. Chasing without
+	 * release traps the puck against a wall and holds it there: contacts
+	 * re-eject it out of bounds every tick (stepPuck clamps, then the contact
+	 * pushes it back out), so the whole world freezes with both sides in
+	 * perfect agreement. `retreatTicks` counts down on the fixed-step loop —
+	 * this runs per frame, which is far faster than the tick.
 	 */
 	function seekPuck(): { x: Int, y: Int } {
-		var dx = sim.value("puck.x") - sim.value("paddle.x");
-		var dy = sim.value("puck.y") - sim.value("paddle.y");
+		var tx = sim.value("puck.x");
+		var ty = sim.value("puck.y");
+		if (retreatTicks > 0) {
+			tx = Sim.ARENA_W / 2;
+			ty = Sim.ARENA_H * 0.75;
+		}
+		var dx = tx - sim.value("paddle.x");
+		var dy = ty - sim.value("paddle.y");
 		return {
 			x: dx > 0.4 ? 1 : dx < -0.4 ? -1 : 0,
 			y: dy > 0.4 ? 1 : dy < -0.4 ? -1 : 0,
@@ -164,7 +194,8 @@ class Lab10 implements Lab {
 			cmd.moveX = mx;
 			cmd.moveY = my;
 			input.send();
-			if (touchedLastStep) { touches++; touchedLastStep = false; }
+			if (retreatTicks > 0) retreatTicks--;
+			if (touchedLastStep) { touches++; touchedLastStep = false; retreatTicks = RETREAT_TICKS; }
 		}
 
 		var dx = sim.value("puck.x") - room.state.puck.x;

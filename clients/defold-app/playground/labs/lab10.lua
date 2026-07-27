@@ -56,7 +56,12 @@ function Lab:mount(context, room)
   self.room = room
   self.sid = room.session_id
   self.me = room.state.players[self.sid]
-  if self.me == nil or room.state.puck == nil then return false end
+  -- The DECODED instances, kept as the read handles. The sim swaps mirrors into
+  -- the world table, but these stay the source — which is what the bound
+  -- overlay keys on, so `predict:value(self.puck, "x")` resolves to the
+  -- controller's pose without anyone naming "puck.x".
+  self.puck = room.state.puck
+  if self.me == nil or self.puck == nil then return false end
 
   self.predict = Predict.for_room(room)
   -- Remote paddles: damped toward the latest snapshot. They enter the sim as
@@ -72,12 +77,17 @@ end
 
 function Lab:build()
   local lab = self
+  -- Dispose BEFORE respawning, like the reference: the old controller would
+  -- otherwise keep ticking, and its bound overlay would fight the new one for
+  -- the same (instance, field) slots.
+  if self.sim ~= nil then self.sim:dispose() end
   self.sim = self.predict:sim({
     input = self.input,
     smoothing = self.smoothing,
     -- Both entries are decoded instances, so both are auto-bound and replaced
-    -- in place by mirrors; the poses come out as "paddle.x" / "puck.x".
-    world = { paddle = self.me, puck = self.room.state.puck },
+    -- in place by mirrors. The pose keys they derive stay internal: reads go
+    -- through predict:value(instance, field).
+    world = { paddle = self.me, puck = self.puck },
     step = function(ctx, w, inp) lab:step(ctx, w, inp) end,
   })
 end
@@ -113,16 +123,16 @@ end
 --- it out of bounds every tick (step_puck clamps, then the contact pushes it
 --- back out), so the whole world freezes with both sides in perfect agreement.
 function Lab:seek_puck()
-  local tx = self.sim:value("puck.x")
-  local ty = self.sim:value("puck.y")
+  local tx = self.predict:value(self.puck, "x")
+  local ty = self.predict:value(self.puck, "y")
   -- Counted down on the fixed-step loop, not here: seek_puck runs once per
   -- frame, which is several times faster than the tick and would burn the
   -- retreat off almost immediately.
   if self.retreat_ticks > 0 then
     tx, ty = sim.ARENA_W / 2, sim.ARENA_H * 0.75
   end
-  local dx = tx - self.sim:value("paddle.x")
-  local dy = ty - self.sim:value("paddle.y")
+  local dx = tx - self.predict:value(self.me, "x")
+  local dy = ty - self.predict:value(self.me, "y")
   local mx = dx > 0.4 and 1 or dx < -0.4 and -1 or 0
   local my = dy > 0.4 and 1 or dy < -0.4 and -1 or 0
   return mx, my
@@ -152,12 +162,12 @@ function Lab:frame(context, now, dt_ms)
     end
   end
 
-  local dx = self.sim:value("puck.x") - self.room.state.puck.x
-  local dy = self.sim:value("puck.y") - self.room.state.puck.y
+  local dx = self.predict:value(self.puck, "x") - self.room.state.puck.x
+  local dy = self.predict:value(self.puck, "y") - self.room.state.puck.y
   local lead = math.sqrt(dx * dx + dy * dy)
   if lead > self.max_puck_lead then self.max_puck_lead = lead end
 
-  table.insert(self.trail, { self.sim:value("puck.x"), self.sim:value("puck.y") })
+  table.insert(self.trail, { self.predict:value(self.puck, "x"), self.predict:value(self.puck, "y") })
   if #self.trail > 120 then table.remove(self.trail, 1) end
 end
 
@@ -186,12 +196,12 @@ function Lab:render(gfx)
       gfx.a(gfx.PALETTE.accent, 0.4 * i / #self.trail), 1.5)
   end
 
-  local px, py = self.sim:value("paddle.x"), self.sim:value("paddle.y")
+  local px, py = self.predict:value(self.me, "x"), self.predict:value(self.me, "y")
   gfx.circle(px, py, sim.PADDLE_RADIUS, gfx.hue(self.me.hue, 0.5))
   gfx.circle_outline(px, py, sim.PADDLE_RADIUS, gfx.PALETTE.text)
   gfx.label(px, py, "you (predicted)", gfx.PALETTE.text, 11, -16)
 
-  local kx, ky = self.sim:value("puck.x"), self.sim:value("puck.y")
+  local kx, ky = self.predict:value(self.puck, "x"), self.predict:value(self.puck, "y")
   gfx.circle(kx, ky, sim.PUCK_RADIUS, gfx.a(gfx.PALETTE.accent, 0.9))
   gfx.circle_outline(kx, ky, sim.PUCK_RADIUS, gfx.PALETTE.accent)
   gfx.label(kx, ky, "puck (predicted)", gfx.PALETTE.accent, 10, -14)

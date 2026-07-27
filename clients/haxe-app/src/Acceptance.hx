@@ -39,7 +39,12 @@ class Acceptance {
 	static function nowMs(): Float return haxe.Timer.stamp() * 1000;
 
 	/** Pump the injector + a lab for `ms`, exactly like the shell's update does. */
-	static function drive(lab: Lab, app: App, ms: Float, autoX: Int = 0, autoY: Int = 0) {
+	/**
+	 * `onFrame(elapsedMs)`, when given, runs after each frame — for checks that
+	 * need the shape of a run rather than one end-of-run reading.
+	 */
+	static function drive(lab: Lab, app: App, ms: Float, autoX: Int = 0, autoY: Int = 0,
+			?onFrame: Float -> Void) {
 		Kb.autopilot = true;
 		Kb.autoX = autoX;
 		Kb.autoY = autoY;
@@ -50,9 +55,17 @@ class Acceptance {
 			lab.frame(app, now, now - last);
 			lab.render(gfx);          // no-op visually, but it exercises the draw path
 			last = now;
+			if (onFrame != null) onFrame(now - start);
 			Sys.sleep(0.008);
 			Kb.pressed = new Map();
 		}
+	}
+
+	/** Median of a numeric list (sorts in place). */
+	static function median(values: Array<Float>): Float {
+		if (values.length == 0) return -1;
+		values.sort((a, b) -> a < b ? -1 : (a > b ? 1 : 0));
+		return values[Math.ceil(values.length / 2) - 1];
 	}
 
 	/** Join and wait for the lab's own readiness predicate. Fails loudly. */
@@ -375,15 +388,52 @@ class Acceptance {
 
 			// The lab steers itself toward the puck under autopilot; a plain sweep
 			// never reaches it, and a puck nobody touches proves nothing.
-			drive(lab, app, 12000);
+			//
+			// Sample every reconcile as it happens, and how far the puck travels
+			// late in the run. Reading drift.ema once at the end measures the wrong
+			// thing twice over: it decays toward zero when the world stops moving,
+			// so a puck pinned against a wall scores BETTER than honest play.
+			var mags: Array<Float> = [];
+			var seq = lab.sim.reconcileSeq;
+			var latePath = 0.0;
+			var px = Math.NaN, py = Math.NaN;
+			drive(lab, app, 12000, 0, 0, function(elapsed) {
+				if (lab.sim.reconcileSeq != seq) {
+					seq = lab.sim.reconcileSeq;
+					mags.push(lab.sim.lastCorrectionMag);
+				}
+				if (elapsed > 9000) {
+					var puck = lab.serverPuck();
+					if (!Math.isNaN(px)) {
+						latePath += Math.sqrt((puck.x - px) * (puck.x - px)
+							+ (puck.y - py) * (puck.y - py));
+					}
+					px = puck.x;
+					py = puck.y;
+				}
+			});
 
 			check("lab10 predicts with inputs still in flight", lab.sim.pendingCount > 0,
 				'${lab.sim.pendingCount} unacked');
 			check("lab10 the predicted puck leads the authoritative one",
 				lab.maxPuckLead > 0.5,
 				'peak ${Math.round(lab.maxPuckLead * 100) / 100} u over ${lab.touches} touches');
+
+			// The MEDIAN reconcile, not the worst or the last. Remote paddles enter
+			// the prediction at their last snapshot, so a contested touch
+			// mispredicts by design — lab 10 exists to show that. 0.5 is measured:
+			// honest play lands at 0.0000-0.1527, a client stepping the puck with
+			// the wrong friction (0.900 vs 0.985) lands at 1.7751. Catches GROSS
+			// divergence only; bit-exactness is the startup canary's job.
+			var mid = median(mags);
 			check("lab10 the composite step agrees with the server's",
-				lab.sim.drift.ema < 0.05, 'drift ema ${lab.sim.drift.ema}');
+				mid >= 0 && mid < 0.5,
+				'median correction ${Math.round(mid * 10000) / 10000} over ${mags.length} reconciles');
+
+			// Guards the check above: a frozen world agrees with itself perfectly.
+			check("lab10 the puck is still live at the end",
+				latePath > 5,
+				'${Math.round(latePath * 10) / 10} u travelled in the last 3s');
 
 			leave(lab, room);
 		}
