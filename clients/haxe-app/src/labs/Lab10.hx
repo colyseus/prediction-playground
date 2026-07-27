@@ -72,6 +72,12 @@ class Lab10 implements Lab {
 	var room: Room<HockeyState>;
 	var sid: String;
 	var me: lab.Player;
+	/**
+	 * The DECODED puck, kept as the read handle. The sim swaps a mirror into the
+	 * world, but this stays the SOURCE — which is what the bound overlay keys on,
+	 * so `predict.value(puck, "x")` resolves without anyone naming "puck.x".
+	 */
+	var puck: lab.Puck;
 	var predict: Predict;
 	var input: Dynamic;
 	var cmd: Dynamic;
@@ -102,7 +108,8 @@ class Lab10 implements Lab {
 		room = cast raw;
 		sid = room.sessionId;
 		me = room.state.players.items.get(sid);
-		if (me == null || room.state.puck == null) return false;
+		puck = room.state.puck;
+		if (me == null || puck == null) return false;
 
 		predict = Predict.forRoom(room);
 		// Remote paddles: damped toward the latest snapshot. They enter the sim
@@ -123,7 +130,7 @@ class Lab10 implements Lab {
 		sim = predict.sim({
 			input: input,
 			smoothing: smoothing,
-			world: new HockeyWorld(me, room.state.puck),
+			world: new HockeyWorld(me, puck),
 			step: step,
 		});
 	}
@@ -164,14 +171,14 @@ class Lab10 implements Lab {
 	 * this runs per frame, which is far faster than the tick.
 	 */
 	function seekPuck(): { x: Int, y: Int } {
-		var tx = sim.value("puck.x");
-		var ty = sim.value("puck.y");
+		var tx = predict.value(puck, "x");
+		var ty = predict.value(puck, "y");
 		if (retreatTicks > 0) {
 			tx = Sim.ARENA_W / 2;
 			ty = Sim.ARENA_H * 0.75;
 		}
-		var dx = tx - sim.value("paddle.x");
-		var dy = ty - sim.value("paddle.y");
+		var dx = tx - predict.value(me, "x");
+		var dy = ty - predict.value(me, "y");
 		return {
 			x: dx > 0.4 ? 1 : dx < -0.4 ? -1 : 0,
 			y: dy > 0.4 ? 1 : dy < -0.4 ? -1 : 0,
@@ -198,12 +205,12 @@ class Lab10 implements Lab {
 			if (touchedLastStep) { touches++; touchedLastStep = false; retreatTicks = RETREAT_TICKS; }
 		}
 
-		var dx = sim.value("puck.x") - room.state.puck.x;
-		var dy = sim.value("puck.y") - room.state.puck.y;
+		var dx = predict.value(puck, "x") - room.state.puck.x;
+		var dy = predict.value(puck, "y") - room.state.puck.y;
 		var lead = Math.sqrt(dx * dx + dy * dy);
 		if (lead > maxPuckLead) maxPuckLead = lead;
 
-		trail.push([sim.value("puck.x"), sim.value("puck.y")]);
+		trail.push([predict.value(puck, "x"), predict.value(puck, "y")]);
 		if (trail.length > 120) trail.shift();
 	}
 
@@ -232,12 +239,12 @@ class Lab10 implements Lab {
 				Palette.a(Palette.ACCENT, 0.4 * i / trail.length), 1.5);
 		}
 
-		var px = sim.value("paddle.x"), py = sim.value("paddle.y");
+		var px = predict.value(me, "x"), py = predict.value(me, "y");
 		g.circle(px, py, Sim.PADDLE_RADIUS, Palette.hue(me.hue, 0.5));
 		g.circleOutline(px, py, Sim.PADDLE_RADIUS, Palette.TEXT);
 		g.label(px, py, "you (predicted)", Palette.TEXT, 11, -16);
 
-		var kx = sim.value("puck.x"), ky = sim.value("puck.y");
+		var kx = predict.value(puck, "x"), ky = predict.value(puck, "y");
 		g.circle(kx, ky, Sim.PUCK_RADIUS, Palette.a(Palette.ACCENT, 0.9));
 		g.circleOutline(kx, ky, Sim.PUCK_RADIUS, Palette.ACCENT);
 		g.label(kx, ky, "puck (predicted)", Palette.ACCENT, 10, -14);
