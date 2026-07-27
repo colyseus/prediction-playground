@@ -5,7 +5,13 @@ import labs.Lab00;
 import labs.Lab01;
 import labs.Lab02;
 import labs.Lab03;
+import labs.Lab04;
 import labs.Lab05;
+import labs.Lab06;
+import labs.Lab07;
+import labs.Lab08;
+import labs.Lab09;
+import labs.Lab11;
 
 /**
  * The haxe-app's acceptance harness — the twin of the native app's `--demo`, the
@@ -200,6 +206,157 @@ class Acceptance {
 			}
 			check("lab05 reckon follows the circle pattern, not a patrol fallback",
 				maxY - minY > 4, 'y swept ${Math.round((maxY - minY) * 100) / 100} u');
+
+			leave(lab, room);
+		}
+
+		{ // lab 04: the interpolation modes differ as advertised
+			var lab = new Lab04();
+			NetDelay.reset();
+			NetDelay.setLatency(120, 40);
+			var room = mount(lab, app);
+
+			// Pin the pattern rather than inherit whatever the room defaulted to —
+			// a stationary bot scores NaN and the comparison below means nothing.
+			lab.setPattern("patrol");
+			drive(lab, app, 2000);          // let the pattern land
+			lab.resetMeters();              // then score a clean window
+			drive(lab, app, 6000);
+
+			check("lab04 the bot actually moved", lab.botTravel > 10,
+				'${Math.round(lab.botTravel)} u travelled');
+			var cv = lab.smoothnessByMode();
+			var scored = true;
+			for (name in cv.keys()) if (Math.isNaN(cv.get(name))) scored = false;
+			check("lab04 every mode scored", scored);
+			// raw is the decoded snapshot verbatim, so it stutters at the patch
+			// rate; lerp walks between two real samples and must be steadier.
+			check("lab04 raw stutters more than lerp", cv.get("raw") > cv.get("lerp"),
+				'raw ${Math.round(cv.get("raw") * 100) / 100} vs lerp ${Math.round(cv.get("lerp") * 100) / 100}');
+
+			leave(lab, room);
+		}
+
+		{ // lab 08: the optimistic banner fires instantly, then settles
+			var lab = new Lab08();
+			NetDelay.reset();
+			NetDelay.setLatency(200, 0);
+			var room = mount(lab, app);
+
+			// Deny nothing: every optimistic banner must be confirmed.
+			lab.setDenyRate(0);
+			drive(lab, app, 600);
+			drive(lab, app, 6000, 1);
+			var c = lab.counts();
+			check("lab08 entered the goal zone and predicted", lab.records.length > 0,
+				'${lab.records.length} predicted');
+			check("lab08 optimistic goals get confirmed at a 0 % deny rate",
+				c.confirmed > 0 && c.rejected == 0,
+				'${c.confirmed} confirmed, ${c.rejected} rejected');
+			var cleanRun = lab.records.length;
+
+			// Deny everything: the banner still fires instantly, then retracts.
+			lab.setDenyRate(100);
+			drive(lab, app, 600);
+			drive(lab, app, 9000, 1);
+			var c2 = lab.counts();
+			check("lab08 keeps predicting once the server starts denying",
+				lab.records.length > cleanRun, '${lab.records.length} total');
+			check("lab08 grace-tick auto-reject retracts the unconfirmed banners",
+				c2.rejected > 0, '${c2.rejected} rejected');
+
+			leave(lab, room);
+		}
+
+		{ // lab 09: an optimistic spawn hands off to the authoritative entity
+			var lab = new Lab09();
+			NetDelay.reset();
+			NetDelay.setLatency(200, 0);
+			var room = mount(lab, app);
+			drive(lab, app, 800);
+
+			lab.aimAt(50, 55);
+			lab.fire();
+			// Immediately after firing there must be a local to look at — that IS
+			// the feature; a full RTT later would be far too late.
+			drive(lab, app, 150);
+			check("lab09 spawns a local the same frame it fires", lab.pending > 0,
+				'${lab.pending} pending');
+
+			// ...and by ~2 RTT the server's entity has arrived and correlated.
+			drive(lab, app, 1600);
+			check("lab09 the server's projectile correlates", lab.confirmed > 0,
+				'${lab.confirmed} confirmed');
+			check("lab09 measures the input lead (else the handoff would jump)",
+				!Math.isNaN(lab.lastLeadMs) && lab.lastLeadMs > 0,
+				Math.isNaN(lab.lastLeadMs) ? "never measured" : '${Math.round(lab.lastLeadMs)} ms');
+
+			leave(lab, room);
+		}
+
+		{ // lab 06: lag comp lands the shot where the shooter aimed
+			var lab = new Lab06();
+			NetDelay.reset();
+			var room = mount(lab, app);      // mount picks its own latency preset
+			drive(lab, app, 1500);
+
+			lab.setLagComp(true);
+			drive(lab, app, 800);
+			for (_ in 0...6) { lab.fire(); drive(lab, app, 700); }
+			check("lab06 the server reported the shots", lab.shotsOn > 0,
+				'${lab.shotsOn} with comp on');
+			check("lab06 lag comp hits what the shooter saw",
+				lab.hitsOn * 10 > lab.shotsOn * 6, '${lab.hitsOn}/${lab.shotsOn} hits');
+			// The assertion that catches an unbound renderDelay: the rewound read
+			// has to coincide with our view, while the view lags well behind live.
+			check("lab06 the rewound read coincides with our view",
+				lab.rewindError() >= 0 && lab.rewindError() < 3.0,
+				'rewind error ${Math.round(lab.rewindError() * 100) / 100} u, '
+					+ 'view lag ${Math.round(lab.viewLag() * 10) / 10} u');
+
+			leave(lab, room);
+		}
+
+		{ // lab 07: a frozen verdict agrees with the server's
+			var lab = new Lab07();
+			NetDelay.reset();
+			var room = mount(lab, app);      // mount picks its own latency preset
+
+			// The autopilot seeks the bot's lane and lets the patrol sweep hit it.
+			drive(lab, app, 14000, 1);
+			check("lab07 bumped the bot at all", lab.bumpsPredicted > 0,
+				'${lab.bumpsPredicted} predicted');
+			// The server's own counter is the only verdict that settles it: with
+			// valueAt + memo the client's count must TRACK it, not merely be close.
+			check("lab07 the client's verdict matches the server's",
+				Math.abs(lab.bumpsPredicted - lab.bumpsAuthoritative()) <= 1,
+				'predicted ${lab.bumpsPredicted}, authoritative ${lab.bumpsAuthoritative()}, '
+					+ 'mispredict rate ${Math.round(lab.mispredictRate())} %');
+
+			leave(lab, room);
+		}
+
+		{ // lab 11: client and server roll identical pellets from (seq, salt)
+			var lab = new Lab11();
+			NetDelay.reset();
+			NetDelay.setLatency(200, 0);
+			var room = mount(lab, app);
+			drive(lab, app, 1200);
+
+			for (_ in 0...3) { lab.fire(); drive(lab, app, 700); }
+			check("lab11 the server reported a fan", lab.answeredFans() > 0,
+				'${lab.answeredFans()} answered');
+			check("lab11 seeded from (seq, salt), both sides derive the same fan",
+				!Math.isNaN(lab.maxDivergence) && lab.maxDivergence < 1e-6,
+				'divergence ${lab.maxDivergence} rad');
+
+			// Swap in an unshared RNG and the SAME comparison must fail — otherwise
+			// the check above proves nothing.
+			lab.cheat = true;
+			for (_ in 0...3) { lab.fire(); drive(lab, app, 700); }
+			check("lab11 an unshared RNG visibly disagrees",
+				!Math.isNaN(lab.maxDivergence) && lab.maxDivergence > 1e-6,
+				'divergence ${lab.maxDivergence} rad');
 
 			leave(lab, room);
 		}
