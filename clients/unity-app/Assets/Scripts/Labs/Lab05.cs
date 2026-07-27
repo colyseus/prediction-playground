@@ -220,6 +220,9 @@ namespace Playground
                    "and watch the teleport smear across the arena.");
         }
 
+        /// <summary>The reckoned pose, for the acceptance harness.</summary>
+        public double ReckonY => _reckon.Value(_bot, "y");
+
         /// <summary>Largest reckon↔lerp separation seen, for the acceptance harness.</summary>
         public double PeakReckonLerpGap => _peakGap;
 

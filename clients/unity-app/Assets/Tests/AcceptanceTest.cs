@@ -371,7 +371,25 @@ public class AcceptanceTest
         Assert.Greater(lab.PeakReckonLerpGap, 1.0,
             $"reckon and lerp never separated (peak {lab.PeakReckonLerpGap:F2} u) — " +
             "the forward simulation is not running");
-        Debug.Log($"OK lab05: peak reckon↔lerp gap {lab.PeakReckonLerpGap:F2} u");
+
+        // The circle is the check that matters: it is the one pattern whose y
+        // moves. If the reckon scratch cannot see `kind` the step falls through
+        // to patrol, which pins y to baseY — so a flat y here means the scratch
+        // dropped the pattern on the way in.
+        lab.SetPattern("circle");
+        yield return Drive(lab, app, 2000);
+        double minY = double.MaxValue, maxY = double.MinValue;
+        for (int i = 0; i < 40; i++)
+        {
+            yield return Drive(lab, app, 100);
+            minY = System.Math.Min(minY, lab.ReckonY);
+            maxY = System.Math.Max(maxY, lab.ReckonY);
+        }
+        Assert.Greater(maxY - minY, 4,
+            $"reckoned y only swept {maxY - minY:F2} u on the circle pattern — " +
+            "the step is falling back to patrol");
+        Debug.Log($"OK lab05: peak reckon↔lerp gap {lab.PeakReckonLerpGap:F2} u, " +
+                  $"circle y sweep {maxY - minY:F2} u");
 
         yield return Teardown(lab);
     }

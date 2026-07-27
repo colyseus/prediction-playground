@@ -154,6 +154,35 @@ do -- lab 00: the predicted lane leads the server echo by ~RTT
   leave(lab, room)
 end
 
+do -- lab 05: reckon renders the present, and honours the bot's actual pattern
+  local Lab05 = require 'playground.labs.lab05'
+  local lab = Lab05.new()
+  net_delay.reset()
+  net_delay.set_latency(200, 0)
+  local room = mount(lab, context)
+
+  lab:set_pattern("patrol")
+  drive(lab, context, 5000)
+  check("lab05 reckon leads the lerp view", lab.peak_gap > 1.0,
+    string.format("peak %.2f u", lab.peak_gap))
+
+  -- The circle is the check that matters: it is the one pattern whose y moves.
+  -- If the reckon step cannot see `kind` it falls through to patrol, which pins
+  -- y to base_y — so a flat y here means the scratch lost the pattern.
+  lab:set_pattern("circle")
+  drive(lab, context, 2000)
+  local min_y, max_y = 1e9, -1e9
+  for _ = 1, 40 do
+    drive(lab, context, 100)
+    local ry = lab.reckon:value(lab.bot, "y")
+    min_y, max_y = math.min(min_y, ry), math.max(max_y, ry)
+  end
+  check("lab05 reckon follows the circle pattern, not a patrol fallback",
+    max_y - min_y > 4, string.format("y swept %.2f u", max_y - min_y))
+
+  leave(lab, room)
+end
+
 do -- lab 03: predicted instantly, and a mispredict decays back to steady state
   local Lab03 = require 'playground.labs.lab03'
   local drift = require 'colyseus.predict.drift'
