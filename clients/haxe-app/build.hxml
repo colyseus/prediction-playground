@@ -1,0 +1,13 @@
+# The windowed client: Heaps on HashLink.
+#
+# Heaps targets hl or js only — neither neko nor cpp can run it — so this is the
+# one part of the Haxe client that needs a working `hl`. The netcode is verified
+# independently by acceptance.hxml, which runs the same lab modules headless.
+-main Main
+-cp src
+-cp ../../../../colyseus-haxe/src
+-lib heaps
+-lib hlsdl
+-lib colyseus-websocket
+-lib tink_http
+-hl bin/playground.hl

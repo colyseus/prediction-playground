@@ -341,18 +341,23 @@ class Acceptance {
 			NetDelay.reset();
 			NetDelay.setLatency(200, 0);
 			var room = mount(lab, app);
-			drive(lab, app, 1200);
+			// Warm up past the input channel's first consumption before firing: a
+			// shot whose seq the server has not consumed yet derives from a
+			// different (seq, salt) and the fans have nothing to do with each other.
+			drive(lab, app, 2500);
+			lab.resetDivergence();
 
-			for (_ in 0...3) { lab.fire(); drive(lab, app, 700); }
+			for (_ in 0...4) { lab.fire(); drive(lab, app, 700); }
 			check("lab11 the server reported a fan", lab.answeredFans() > 0,
 				'${lab.answeredFans()} answered');
 			check("lab11 seeded from (seq, salt), both sides derive the same fan",
-				!Math.isNaN(lab.maxDivergence) && lab.maxDivergence < 1e-6,
-				'divergence ${lab.maxDivergence} rad');
+				!Math.isNaN(lab.worstDivergence) && lab.worstDivergence < 1e-6,
+				'worst divergence ${lab.worstDivergence} rad over ${lab.answeredFans()} fans');
 
 			// Swap in an unshared RNG and the SAME comparison must fail — otherwise
 			// the check above proves nothing.
 			lab.cheat = true;
+			lab.resetDivergence();
 			for (_ in 0...3) { lab.fire(); drive(lab, app, 700); }
 			check("lab11 an unshared RNG visibly disagrees",
 				!Math.isNaN(lab.maxDivergence) && lab.maxDivergence > 1e-6,

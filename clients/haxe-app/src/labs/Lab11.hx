@@ -31,6 +31,8 @@ class Lab11 implements Lab {
 
 	/** Worst client/server pellet disagreement, in radians. NaN until answered. */
 	public var maxDivergence(default, null) = Math.NaN;
+	/** Worst divergence over the whole volley, not just the last answered fan. */
+	public var worstDivergence(default, null) = Math.NaN;
 	public var cheat = false;
 
 	static inline var FAN_LEN = 40.0;
@@ -124,11 +126,18 @@ class Lab11 implements Lab {
 			f.hits = (m.hits != null) ? m.hits : 0;
 			f.answered = true;
 			maxDivergence = worst;
+			if (Math.isNaN(worstDivergence) || worst > worstDivergence) worstDivergence = worst;
 			return;
 		}
 	}
 
 	public function fire(): Void pendingFire = true;
+
+	/** Start a clean divergence window — the seeded and cheating volleys differ. */
+	public function resetDivergence(): Void {
+		maxDivergence = Math.NaN;
+		worstDivergence = Math.NaN;
+	}
 
 	public function answeredFans(): Int {
 		var n = 0;
@@ -200,7 +209,7 @@ class Lab11 implements Lab {
 			}
 			if (f.answered) {
 				for (p in 0...Sim.PELLETS) {
-					if (f.server[p] == null) continue;
+					if (p >= f.server.length) continue;   // hl: Array<Float> has no null
 					var ang = f.server[p];
 					g.dashed(f.ox, f.oy, f.ox + Math.cos(ang) * FAN_LEN,
 						f.oy + Math.sin(ang) * FAN_LEN, Palette.a(Palette.TEXT, a * 0.9), 0.8);
