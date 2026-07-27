@@ -44,6 +44,16 @@ static struct {
      * lead is transient (largest right after a strike), so a spot reading at
      * an arbitrary instant says nothing. */
     double max_puck_lead;
+
+    /* Every reconcile's correction magnitude, for the acceptance MEDIAN. The
+     * drift ema is a decaying average sampled at one instant: it falls toward
+     * zero whenever the world goes quiet, which flatters exactly the runs that
+     * deserve scrutiny. The median ignores the contested-touch tail — remote
+     * paddles enter the prediction at their last snapshot, so those mispredict
+     * by design — while still catching a step that genuinely diverged. */
+    double mags[1024];
+    int mag_count;
+    int last_recon_seq;
 } l10;
 
 /* The server's step order, reproduced: my paddle -> puck -> contacts. */
@@ -201,10 +211,14 @@ static void lab10_frame(app_t* app, double now, double dt) {
 
     colyseus_map_schema_foreach(l10.state->players, l10_draw_remote, app);
 
-    double px = colyseus_reconciler_value(l10.sim, "paddle.x");
-    double py = colyseus_reconciler_value(l10.sim, "paddle.y");
-    double kx = colyseus_reconciler_value(l10.sim, "puck.x");
-    double ky = colyseus_reconciler_value(l10.sim, "puck.y");
+    /* One read idiom: the same call that reads a passively-smoothed remote
+       paddle above also reads the controller-predicted pair, because the sim
+       registered these instances into predict's overlay. The composite pose
+       key stays inside the SDK. */
+    double px = colyseus_predict_value(l10.predict, (colyseus_schema_t*)l10.me, "x");
+    double py = colyseus_predict_value(l10.predict, (colyseus_schema_t*)l10.me, "y");
+    double kx = colyseus_predict_value(l10.predict, (colyseus_schema_t*)l10.state->puck, "x");
+    double ky = colyseus_predict_value(l10.predict, (colyseus_schema_t*)l10.state->puck, "y");
 
     if (l10.show_ghosts) {
         draw_circle_dashed_world(v, l10.me->x, l10.me->y, PADDLE_RADIUS, with_alpha(COL_TEXT, 0.4));
@@ -235,6 +249,14 @@ static void lab10_frame(app_t* app, double now, double dt) {
     double puck_gap = sqrt((kx - l10.state->puck->x) * (kx - l10.state->puck->x)
         + (ky - l10.state->puck->y) * (ky - l10.state->puck->y));
     if (puck_gap > l10.max_puck_lead) { l10.max_puck_lead = puck_gap; }
+
+    int seq = colyseus_reconciler_reconcile_seq(l10.sim);
+    if (seq != l10.last_recon_seq) {
+        l10.last_recon_seq = seq;
+        if (l10.mag_count < (int)(sizeof(l10.mags) / sizeof(l10.mags[0]))) {
+            l10.mags[l10.mag_count++] = colyseus_reconciler_last_correction_mag(l10.sim);
+        }
+    }
 
     hud_t* h = &app->hud;
     char buf[64];

@@ -518,8 +518,8 @@ static void demo_checkpoint(const char* name) {
             l07.bumps_predicted, l07.me->bumps, diff, l07.mispredicts);
     } else if (strcmp(name, "lab10-composite") == 0) {
         const colyseus_drift_t* d = colyseus_reconciler_drift(l10.sim);
-        double px = colyseus_reconciler_value(l10.sim, "paddle.x");
-        double py = colyseus_reconciler_value(l10.sim, "paddle.y");
+        double px = colyseus_predict_value(l10.predict, (colyseus_schema_t*)l10.me, "x");
+        double py = colyseus_predict_value(l10.predict, (colyseus_schema_t*)l10.me, "y");
         double paddle_lead = sqrt((px - l10.me->x) * (px - l10.me->x)
             + (py - l10.me->y) * (py - l10.me->y));
         /*
@@ -528,12 +528,39 @@ static void demo_checkpoint(const char* name) {
          * mine names directly — leads too, because it is stepped through the
          * same unacked inputs.
          */
+        /*
+         * The MEDIAN reconcile, not the drift ema this used to merely PRINT:
+         * nothing here asserted the composite step was right, so a step that
+         * diverged outright would still pass — a wrong prediction leads its
+         * ghost just as convincingly as a correct one. 0.5 is measured: honest
+         * play sits well under it, a client stepping the puck with the wrong
+         * friction (0.900 vs 0.985) lands at ~1.8. Gross divergence only;
+         * bit-exactness is --selfcheck's job.
+         *
+         * The leads double as the liveness guard the other ports need
+         * explicitly: a world pinned against a wall agrees with itself, so its
+         * prediction stops leading and these fail.
+         */
+        double median = -1;
+        if (l10.mag_count > 0) {
+            double* sorted = malloc((size_t)l10.mag_count * sizeof(double));
+            memcpy(sorted, l10.mags, (size_t)l10.mag_count * sizeof(double));
+            for (int i = 1; i < l10.mag_count; i++) {   /* insertion sort: n <= 1024, once */
+                double v = sorted[i];
+                int j = i - 1;
+                while (j >= 0 && sorted[j] > v) { sorted[j + 1] = sorted[j]; j--; }
+                sorted[j + 1] = v;
+            }
+            median = sorted[(l10.mag_count - 1) / 2];
+            free(sorted);
+        }
         demo_check(name, l10.touches > 0 && paddle_lead > 1.0 && l10.max_puck_lead > 1.0
-            && colyseus_reconciler_reconcile_seq(l10.sim) > 0,
+            && colyseus_reconciler_reconcile_seq(l10.sim) > 0
+            && median >= 0 && median < 0.5,
             "%d touches; paddle leads its ghost by %.1f u, struck puck peaked %.1f u ahead "
-            "of the server's at rtt %.0f ms; world drift ema %.3f over %d reconciles",
-            l10.touches, paddle_lead, l10.max_puck_lead, rtt, d->ema,
-            colyseus_reconciler_reconcile_seq(l10.sim));
+            "of the server's at rtt %.0f ms; median correction %.4f over %d reconciles "
+            "(drift ema %.3f)",
+            l10.touches, paddle_lead, l10.max_puck_lead, rtt, median, l10.mag_count, d->ema);
     } else if (strcmp(name, "lab11-fan") == 0) {
         demo_check(name, l11.has_divergence && l11.max_divergence < 1e-6,
             "client and server fans agree to %.2e rad over %d pellets — the uint32 RNG "
