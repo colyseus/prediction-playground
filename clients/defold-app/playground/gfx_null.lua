@@ -72,6 +72,17 @@ function M.label(_x, _y, _text, _color, _size, _dy) end
 --- The arena grid and border. The shell draws this unless the lab owns it.
 function M.arena() end
 
+--- Split-screen: subsequent world draws land in lane 1 (top) or 2 (bottom);
+--- nil restores the full stage. Only the hero lab uses this, and it exists so
+--- that lab never has to learn the backend's pixel geometry.
+function M.lane(_index) end
+
+--- A title inside the current lane's arena.
+function M.lane_title(_main, _sub, _color) end
+
+--- A centred line under the stage — the divider readout and the hero's caption.
+function M.caption(_text, _color) end
+
 -- ------------------------------------------------------------------ hud --
 
 function M.hud_begin() end

@@ -54,6 +54,7 @@ local function drive(lab, context, ms, auto_x, auto_y)
     net_delay.pump(app.now_ms())
     local now = app.now_ms()
     lab:frame(context, now, now - last)
+    lab:render(gfx)          -- no-op visually, but it exercises the draw path
     last = now
     net.sleep_ms(8)
   end
@@ -116,6 +117,39 @@ do -- lab 01: with no prediction, input->motion IS the round trip
   local at_200 = lab.measured
   check("lab01 input->motion tracks the round trip at 200 ms each way",
     at_200 > 300, string.format("%.0f ms (was %.0f ms)", at_200, at_zero))
+
+  leave(lab, room)
+end
+
+do -- lab 02: every clock readout responds to the injected link
+  local Lab02 = require 'playground.labs.lab02'
+  local lab = Lab02.new()
+  net_delay.reset()
+  net_delay.set_latency(200, 0)
+  local room = mount(lab, context)
+
+  drive(lab, context, 4000, 1)
+  local clock = room.clock
+  check("lab02 smoothed rtt sees the injected latency", clock:smoothed_rtt() > 350,
+    string.format("%.0f ms", clock:smoothed_rtt()))
+  check("lab02 clock synced from the TIMED prefix", clock:last_server_time() > 0)
+  check("lab02 patch cadence advertised", clock:patch_interval() > 0,
+    string.format("%.0f ms", clock:patch_interval()))
+  check("lab02 saw patch arrivals", #lab.arrivals > 10, #lab.arrivals .. " buffered")
+
+  leave(lab, room)
+end
+
+do -- lab 00: the predicted lane leads the server echo by ~RTT
+  local Lab00 = require 'playground.labs.lab00'
+  local lab = Lab00.new()
+  net_delay.reset()
+  local room = mount(lab, context)   -- mount picks its own latency preset
+
+  drive(lab, context, 6000)          -- its autopilot drives itself
+  check("lab00 lanes separate under latency", lab.peak_gap > 2.0,
+    string.format("peak %.2f u", lab.peak_gap))
+  check("lab00 autopilot ran without a hand on the keyboard", not lab.user_drove)
 
   leave(lab, room)
 end
