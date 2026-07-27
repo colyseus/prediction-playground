@@ -120,6 +120,40 @@ do -- lab 01: with no prediction, input->motion IS the round trip
   leave(lab, room)
 end
 
+do -- lab 03: predicted instantly, and a mispredict decays back to steady state
+  local Lab03 = require 'playground.labs.lab03'
+  local drift = require 'colyseus.predict.drift'
+  local lab = Lab03.new()
+  net_delay.reset()
+  net_delay.set_latency(200, 0)
+  local room = mount(lab, context)
+  local recon = lab.lane.recon
+
+  drive(lab, context, 4000, -1)
+  -- Predicted while ~RTT worth of inputs are still unacked, and the shared step
+  -- reproduces the server's math to wire precision (Lua numbers are f64, so
+  -- unlike C# there is no schema rounding on the way down either).
+  check("lab03 predicts with inputs still in flight", recon:pending_count() > 0,
+    recon:pending_count() .. " unacked")
+  check("lab03 client step agrees with the server's",
+    drift.classify(recon.drift, 0.01) ~= "diverging",
+    string.format("drift ema %.3e", recon.drift.ema))
+
+  -- A server-side shove the client cannot see coming MUST mispredict...
+  room:send("impulse")
+  drive(lab, context, 1500)
+  check("lab03 impulse produces a visible correction",
+    lab.lane.max_correction_mag > 0.05,
+    string.format("peak %.3f", lab.lane.max_correction_mag))
+
+  -- ...and then decay back to steady state.
+  drive(lab, context, 5000, 1)
+  check("lab03 corrections converge again", recon.last_correction_mag < 0.05,
+    string.format("settled to %.4f", recon.last_correction_mag))
+
+  leave(lab, room)
+end
+
 print()
 if failed == 0 then
   print("all checks passed")
