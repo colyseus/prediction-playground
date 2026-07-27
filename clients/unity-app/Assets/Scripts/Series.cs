@@ -49,9 +49,23 @@ namespace Playground
     /// </summary>
     public class Smoothness
     {
-        private const int Cap = 120;
+        // Sized for wall time, not frames: the harness has been seen running at
+        // ~3300 fps, where even 600 samples span under 200 ms — less than four
+        // patches, and a raw signal that only moves on a patch then looks
+        // stationary. 4000 covers well over a second at that rate.
+        private const int Cap = 4000;
+        /// <summary>
+        /// The window must span several patches before the ratio means anything.
+        /// A raw (unsmoothed) signal only moves when a patch lands, so a window
+        /// shorter than the patch interval sees nothing but zeroes and scores a
+        /// mean of 0 — which reads as "no data" and is indistinguishable from a
+        /// stationary entity. Frame rate decides how much wall time N samples
+        /// cover, so the guard has to be in milliseconds, not samples.
+        /// </summary>
+        private const double MinWindowMs = 400;
 
         private readonly double[] _speeds = new double[Cap];
+        private readonly double[] _dts = new double[Cap];
         private int _head, _count;
         private double _lastX, _lastY;
         private bool _seeded;
@@ -64,6 +78,7 @@ namespace Playground
             {
                 double dx = x - _lastX, dy = y - _lastY;
                 _speeds[_head] = Math.Sqrt(dx * dx + dy * dy) / dtMs * 1000.0;
+                _dts[_head] = dtMs;
                 _head = (_head + 1) % Cap;
                 if (_count < Cap) _count++;
             }
@@ -72,10 +87,23 @@ namespace Playground
             _seeded = true;
         }
 
-        /// <summary>NaN when there isn't enough motion for the ratio to mean anything.</summary>
+        /// <summary>Why Cv() returned what it did — for a failing assertion to quote.</summary>
+        public string Describe()
+        {
+            double span = 0, mean = 0;
+            for (int i = 0; i < _count; i++) { span += _dts[i]; mean += _speeds[i]; }
+            if (_count > 0) mean /= _count;
+            return $"n={_count} span={span:F0}ms mean={mean:F2}u/s";
+        }
+
+        /// <summary>NaN until the window is long enough to mean anything.</summary>
         public double Cv()
         {
             if (_count < 20) return double.NaN;
+            double span = 0;
+            for (int i = 0; i < _count; i++) span += _dts[i];
+            if (span < MinWindowMs) return double.NaN;
+
             double mean = 0;
             for (int i = 0; i < _count; i++) mean += _speeds[i];
             mean /= _count;

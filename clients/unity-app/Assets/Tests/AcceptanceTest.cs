@@ -21,6 +21,9 @@ public class AcceptanceTest
     private const string Endpoint = "ws://localhost:5173";
     private const int TestTimeoutMs = 120000;
 
+    /// <summary>Frames driven, so allocation can be measured per FRAME.</summary>
+    private static long DrivenFrames;
+
     [SetUp]
     public void SetUp()
     {
@@ -47,6 +50,7 @@ public class AcceptanceTest
             double now = RoomClock.GetNow();
             lab?.Frame(app, now, now - last);
             last = now;
+            DrivenFrames++;
             yield return null;
         }
     }
@@ -231,29 +235,29 @@ public class AcceptanceTest
         long before = System.GC.GetTotalMemory(false);
         int collectionsBefore = System.GC.CollectionCount(0);
         double start = RoomClock.GetNow();
+        DrivenFrames = 0;
 
         yield return Drive(lab, app, 8000, autoX: -1);
 
         double seconds = (RoomClock.GetNow() - start) / 1000.0;
         long grew = System.GC.GetTotalMemory(false) - before;
         int collections = System.GC.CollectionCount(0) - collectionsBefore;
-        // ~40 messages/s each way; a two-object closure per message would be
-        // ~5 KB/s on its own, and the rest of the frame adds more.
-        double perSecond = grew / seconds;
-        double perMessage = grew / (seconds * 40);
+        // Per FRAME, not per second: this harness has run anywhere from 200 to
+        // 3300 fps, and a per-second budget silently tracks the frame rate rather
+        // than the code. Per frame is the number that stays put.
+        double perFrame = grew / (double)DrivenFrames;
 
-        Debug.Log($"OK gc: {grew / 1024.0:F1} KiB over {seconds:F1}s " +
-                  $"({perSecond / 1024.0:F2} KiB/s, ~{perMessage:F0} B/message), " +
+        Debug.Log($"OK gc: {grew / 1024.0:F1} KiB over {seconds:F1}s / {DrivenFrames} frames " +
+                  $"({perFrame:F0} B/frame, {grew / seconds / 1024.0:F1} KiB/s), " +
                   $"{collections} gen0 collection(s)");
 
         // This is the WHOLE frame, and it is dominated by the SDK's receive and
         // decode path (a byte[] per frame off the socket, per-patch decode
         // garbage), not by the injector — Connection_seam_allocates_nothing_
         // per_message measures that part at ~0. Kept as a coarse regression
-        // guard: a closure-per-packet regression moved this by ~5 KiB/s, and
-        // anything structurally worse will blow past the ceiling.
-        Assert.Less(perSecond, 128 * 1024,
-            $"steady-state traffic allocated {perSecond / 1024.0:F1} KiB/s — " +
+        // guard; the closure-per-packet version this replaced was ~4x higher.
+        Assert.Less(perFrame, 512,
+            $"steady-state traffic allocated {perFrame:F0} B/frame — " +
             "well above the measured baseline, so something new is churning");
 
         yield return Teardown(lab);
@@ -344,7 +348,8 @@ public class AcceptanceTest
         var cv = lab.SmoothnessByMode();
         foreach (var pair in cv)
             Assert.False(double.IsNaN(pair.Value),
-                $"{pair.Key} never scored over {lab.BotTravel:F1} u of bot travel");
+                $"{pair.Key} never scored over {lab.BotTravel:F1} u of bot travel " +
+                $"({lab.DescribeMode(pair.Key)})");
         // raw is the decoded snapshot verbatim, so it stutters at the patch rate;
         // lerp walks between two real samples and must be measurably steadier.
         Assert.Greater(cv["raw"], cv["lerp"],

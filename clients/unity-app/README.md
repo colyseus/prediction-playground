@@ -118,14 +118,15 @@ round trips through the seam and weighs the heap:
 
 ```
 OK gc seam: 0.00 B/message over 20000 round trips
-OK gc:      152.0 KiB over 8.0s (19.00 KiB/s, ~486 B/message), 75 gen0 collections
+OK gc:      1144.0 KiB over 8.0s / 26375 frames (44 B/frame), 71 gen0 collections
 ```
 
-The second line is the whole frame under lab 03's steady state (20 inputs/s out,
-20 patches/s in) and is dominated by the SDK's receive-and-decode path, not by
-the injector. It was **78.5 KiB/s / ~2010 B per message** before the closures
-came out — worth knowing that a two-object closure on a 40 msg/s path costs 4× the
-rest of the frame put together.
+The second line is the whole frame under lab 03's steady state and is dominated
+by the SDK's receive-and-decode path, not by the injector. It is measured **per
+frame, not per second**: this harness has run anywhere from 200 to 3300 fps, so a
+per-second budget tracks the frame rate rather than the code — a lesson learned
+when the same unchanged code reported 19 KiB/s on one run and 154 KiB/s on
+another.
 
 ## Found while building this
 

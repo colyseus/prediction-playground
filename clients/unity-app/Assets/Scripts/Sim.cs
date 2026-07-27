@@ -463,6 +463,21 @@ namespace Playground
             log?.Invoke($"  sim: spread    -> {fan[0]:R} {fan[1]:R}");
             if (!ok) failed++;
 
+            // A seed that EXCEEDS 2^31. Both vectors above stay under it, so
+            // between them they only exercise the half of the input space where
+            // a 32-bit seed still fits a signed int — the Haxe port shipped a
+            // collapse in the other half and this canary passed anyway.
+            // ShotSeed(50, 3004265928) is 2712337003, and the room salts the
+            // server rolls are uniform over the full u32 range, so half of all
+            // real shots land here.
+            var wide = new double[Pellets];
+            SpreadAngles(0.5, 50, 3004265928u, wide);
+            ok = ShotSeed(50, 3004265928u) == 2712337003u
+              && Math.Abs(wide[0] - 0.558667531493119873254) < 1e-15
+              && Math.Abs(wide[5] - 0.613833207678981085387) < 1e-15;
+            log?.Invoke($"  sim: wide seed -> shotSeed={ShotSeed(50, 3004265928u)} {wide[0]:R} {wide[5]:R}");
+            if (!ok) failed++;
+
             // Hitscan: a tangent-free hit at t=8, and a clean miss past the radius.
             double tHit = RayCircle(0, 0, 1, 0, 10, 0, 2, 100);
             double tMiss = RayCircle(0, 0, 1, 0, 10, 5, 2, 100);

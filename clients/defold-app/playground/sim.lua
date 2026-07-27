@@ -381,6 +381,19 @@ function M.selfcheck(log)
     and abs(fan[2] - 0.672593814930878552971) < 1e-15,
     string.format("  sim: spread    -> %.17f %.17f", fan[1], fan[2]))
 
+  -- A seed that EXCEEDS 2^31. Both vectors above stay under it, so between them
+  -- they only exercise the half of the input space where a 32-bit seed still
+  -- fits a signed int — the Haxe port shipped a collapse in the other half and
+  -- this canary passed anyway. shot_seed(50, 3004265928) is 2712337003, and the
+  -- room salts the server rolls are uniform over the full u32 range, so half of
+  -- all real shots land here.
+  local wide = M.spread_angles(0.5, 50, 3004265928)
+  check(M.shot_seed(50, 3004265928) == 2712337003
+    and abs(wide[1] - 0.558667531493119873254) < 1e-15
+    and abs(wide[6] - 0.613833207678981085387) < 1e-15,
+    string.format("  sim: wide seed -> shotSeed=%d %.17f %.17f",
+      M.shot_seed(50, 3004265928), wide[1], wide[6]))
+
   local t_hit = M.ray_circle(0, 0, 1, 0, 10, 0, 2, 100)
   local t_miss = M.ray_circle(0, 0, 1, 0, 10, 5, 2, 100)
   check(t_hit == 8.0 and t_miss == -1,

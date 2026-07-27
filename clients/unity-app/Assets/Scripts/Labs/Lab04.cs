@@ -254,6 +254,13 @@ namespace Playground
             return r;
         }
 
+        /// <summary>Per-mode meter state, so a NaN can explain itself.</summary>
+        public string DescribeMode(string name)
+        {
+            foreach (var m in _modes) if (m.Name == name) return m.Smooth.Describe();
+            return "?";
+        }
+
         public override void Unmount()
         {
             foreach (var m in _modes) m.Predict?.Dispose();
