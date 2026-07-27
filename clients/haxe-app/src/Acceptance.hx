@@ -385,6 +385,7 @@ class Acceptance {
 			var lab = new Lab10();
 			NetDelay.reset();
 			var room = mount(lab, app);      // mount picks its own latency preset
+			lab.setBot(false);               // isolate OUR step from a contested touch
 
 			// The lab steers itself toward the puck under autopilot; a plain sweep
 			// never reaches it, and a puck nobody touches proves nothing.

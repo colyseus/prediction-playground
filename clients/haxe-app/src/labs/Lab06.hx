@@ -74,8 +74,11 @@ class Lab06 implements Lab {
 
 		predict = Predict.forRoom(room);
 		// Bots ride the lerp timeline — the one the server rewinds to.
-		predict.attachAll("bots", ["x", "y"], { mode: "lerp", delay: Sim.REMOTE_INTERP_MS });
-		predict.attachAll("players", ["x", "y"], { mode: "damped" });
+		predict.attachAll("bots", {
+			x: { mode: "lerp", delay: Sim.REMOTE_INTERP_MS },
+			y: { mode: "lerp", delay: Sim.REMOTE_INTERP_MS },
+		});
+		predict.attachAll("players", { x: "damped", y: "damped" });
 
 		room.onMessage("shot", function(m: Dynamic) onShot(m));
 

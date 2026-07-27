@@ -81,8 +81,7 @@ class Lab04 implements Lab {
 	/** One Predict per mode — same entity, same fields, different smoothing. */
 	function attach(opts: Dynamic): Predict {
 		var p = Predict.forRoom(room);
-		p.track(bot, "x", opts);
-		p.track(bot, "y", opts);
+		p.attach(bot, { x: opts, y: opts });
 		return p;
 	}
 

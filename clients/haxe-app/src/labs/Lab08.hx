@@ -70,7 +70,7 @@ class Lab08 implements Lab {
 		denyRate = room.state.denyRate;
 
 		predict = Predict.forRoom(room);
-		predict.attachAll("players", ["x", "y"], { mode: "damped" });
+		predict.attachAll("players", { x: "damped", y: "damped" });
 
 		goals = predict.defineEvent({
 			onPredict: (_) -> { push(App.nowMs()); flash("GOAL!", Palette.GOOD); },

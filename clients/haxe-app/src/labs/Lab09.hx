@@ -74,7 +74,7 @@ class Lab09 implements Lab {
 		if (me == null) return false;
 
 		predict = Predict.forRoom(room);
-		predict.attachAll("players", ["x", "y"], { mode: "damped" });
+		predict.attachAll("players", { x: "damped", y: "damped" });
 
 		var mySid = sid;
 		spawns = predict.spawns("projectiles", {

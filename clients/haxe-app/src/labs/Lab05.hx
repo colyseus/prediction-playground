@@ -72,8 +72,8 @@ class Lab05 implements Lab {
 
 		// The delayed baseline to compare against.
 		lerp = Predict.forRoom(room);
-		lerp.track(bot, "x", { mode: "lerp", delay: Sim.REMOTE_INTERP_MS });
-		lerp.track(bot, "y", { mode: "lerp", delay: Sim.REMOTE_INTERP_MS });
+		var lerpOpts = { mode: "lerp", delay: Sim.REMOTE_INTERP_MS };
+		lerp.attach(bot, { x: lerpOpts, y: lerpOpts });
 
 		attachReckon();
 
@@ -93,7 +93,8 @@ class Lab05 implements Lab {
 	 */
 	function attachReckon(): Void {
 		reckon = Predict.forRoom(room);
-		reckon.trackReckon(bot, {
+		reckon.attach(bot, {
+			mode: "reckon",
 			fields: ["x", "y"],
 			smoothing: smoothing,
 			snap: snap,

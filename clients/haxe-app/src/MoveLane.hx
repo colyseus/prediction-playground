@@ -55,7 +55,7 @@ class MoveLane {
 		this.predict = Predict.forRoom(room);
 		// Remote squares: damped toward the latest snapshot. Their inputs are not
 		// ours to predict — lab 04 explores the modes.
-		predict.attachAll("players", ["x", "y"], { mode: "damped" });
+		predict.attachAll("players", { x: "damped", y: "damped" });
 		build(smoothing);
 		return true;
 	}

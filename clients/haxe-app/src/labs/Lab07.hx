@@ -85,7 +85,8 @@ class Lab07 implements Lab {
 		predict = Predict.forRoom(room);
 		// Bots are DEAD-RECKONED through the shared step — the timeline the
 		// collision test below reads at ctx.reckonTime.
-		predict.attachAllReckon("bots", {
+		predict.attachAll("bots", {
+			mode: "reckon",
 			fields: ["x", "y"],
 			smoothing: 25,
 			step: (b, dt, elapsedMs) -> {
@@ -99,7 +100,7 @@ class Lab07 implements Lab {
 				b.lastTeleport = s.lastTeleport;
 			},
 		});
-		predict.attachAll("players", ["x", "y"], { mode: "damped" });
+		predict.attachAll("players", { x: "damped", y: "damped" });
 
 		input = room.input({ type: lab.MoveInput });
 		cmd = input.data;

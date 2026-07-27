@@ -63,6 +63,18 @@ class Lab10 implements Lab {
 	 * and `state` is a property getter, which Dynamic access silently resolves
 	 * to null on a sys target.
 	 */
+	/**
+	 * Switch the server's AI paddle on/off. The acceptance run turns it OFF: a
+	 * contested touch mispredicts BY DESIGN (remote paddles enter the prediction
+	 * at their last snapshot), so leaving the AI in makes the determinism check
+	 * measure how often the bot happened to engage — measured 0.0013 to 0.72
+	 * across five runs, straddling the threshold. The native demo has always
+	 * done this; the interactive build keeps its AI.
+	 */
+	public function setBot(on: Bool): Void {
+		room.send("bot", { on: on });
+	}
+
 	public function serverPuck(): { x: Float, y: Float } {
 		return { x: room.state.puck.x, y: room.state.puck.y };
 	}
@@ -114,7 +126,7 @@ class Lab10 implements Lab {
 		predict = Predict.forRoom(room);
 		// Remote paddles: damped toward the latest snapshot. They enter the sim
 		// as colliders, not as predicted parts.
-		predict.attachAll("players", ["x", "y"], { mode: "damped" });
+		predict.attachAll("players", { x: "damped", y: "damped" });
 
 		input = room.input({ type: lab.MoveInput });
 		cmd = input.data;
