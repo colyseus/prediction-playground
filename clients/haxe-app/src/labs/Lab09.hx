@@ -73,7 +73,7 @@ class Lab09 implements Lab {
 		me = room.state.players.items.get(sid);
 		if (me == null) return false;
 
-		predict = Predict.create(App.callbacks(room), room.clock);
+		predict = Predict.forRoom(room);
 		predict.attachAll("players", ["x", "y"], { mode: "damped" });
 
 		var mySid = sid;
@@ -90,7 +90,7 @@ class Lab09 implements Lab {
 	}
 
 	function build(): Void {
-		recon = predict.makeReconciler(me, {
+		recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy"],
 			smoothing: 15,

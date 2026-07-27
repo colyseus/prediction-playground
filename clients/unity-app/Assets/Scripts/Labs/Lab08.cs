@@ -90,7 +90,7 @@ namespace Playground
         /// <summary>stepEntity + the shared score gate, with the sim-born event.</summary>
         private void Build()
         {
-            _recon = _predict.MakeReconciler(_me, new ReconcilerOptions<Lab.GoalPlayer, Lab.MoveInput>
+            _recon = _predict.Reconciler(_me, new ReconcilerOptions<Lab.GoalPlayer, Lab.MoveInput>
             {
                 Input = _input,
                 Fields = new[] { "x", "y", "vx", "vy", "scoreTicks" },

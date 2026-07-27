@@ -132,9 +132,10 @@ binds it explicitly.
 
 **`Callbacks.get(room)` queues onto Heaps' MainLoop**, which never drains on a
 headless sys target — the harness would silently see no callbacks at all.
-`App.callbacks()` uses the immediate `SchemaCallbacks(decoder)` flavour instead,
-which is correct in both builds because the shell already calls everything from
-its own loop.
+`Predict.forRoom(room)` uses the immediate `SchemaCallbacks(decoder)` flavour
+instead, which is correct in both builds because prediction is driven from the
+caller's own loop. That trap belongs in the SDK rather than in every app that
+hits it, which is why the helper moved out of `App`.
 
 **The reckon scratch was dropping string fields** (`colyseus-haxe`, fixed).
 `shared/movers.ts` documents it as a full copy of the entity, but strings were
@@ -148,5 +149,4 @@ could intercept one direction and not the other.
 
 **Three DX gaps closed to match the other SDKs** (`colyseus-haxe`):
 `predict.dispose()`, `renderDelay` bound from the attached lerp delay inside
-`makeReconciler`, and `attachAllReckon`. `Predict.create(callbacks, clock)`
-already covered the room one-liner.
+`reconciler()`, and `attachAllReckon`.

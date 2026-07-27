@@ -90,7 +90,7 @@ namespace Playground
 
         private void Build()
         {
-            _recon = _predict.MakeReconciler(_me, new ReconcilerOptions<Lab.RangePlayer, Lab.RangeInput>
+            _recon = _predict.Reconciler(_me, new ReconcilerOptions<Lab.RangePlayer, Lab.RangeInput>
             {
                 Input = _input,
                 Fields = new[] { "x", "y", "vx", "vy" },

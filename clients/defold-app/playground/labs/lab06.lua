@@ -60,7 +60,7 @@ function Lab:mount(context, room)
 
   room:on_message("shot", function(m) self:on_shot(m) end)
 
-  -- render_delay is bound for us: make_reconciler pushes this Predict's lerp
+  -- render_delay is bound for us: :reconciler() pushes this Predict's lerp
   -- delay onto the handle, so the server rewinds to exactly the instant we drew.
   -- Passing it here would only override that.
   self.input = room:input({ allow_rewind = function(data) return data.fire end })
@@ -71,7 +71,7 @@ function Lab:mount(context, room)
 end
 
 function Lab:build()
-  self.recon = self.predict:make_reconciler(self.me, {
+  self.recon = self.predict:reconciler(self.me, {
     input = self.input,
     fields = { "x", "y", "vx", "vy" },
     smoothing = 15,

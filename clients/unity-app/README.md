@@ -160,7 +160,7 @@ a lab needs. (The C SDK had the same hole, where it showed up as a crash.)
 it.** A lag-compensating server rewinds to `serverNow − (renderDelay + rtt/2)`,
 so leaving it at zero makes every rewound read land one full render-delay early
 — shots miss by exactly that much and nothing in the logs says so.
-`Predict.MakeReconciler` now binds it from the lerp delay already attached, which
+`Predict.Reconciler` now binds it from the lerp delay already attached, which
 is what makes lab 06 land 6/6 instead of missing by the view lag. This is the
 same trap the C port hit, and it is worth stating plainly for the two SDKs still
 to come: **if a client draws the past, it has to say so.**

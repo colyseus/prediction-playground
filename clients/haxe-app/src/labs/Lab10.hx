@@ -90,7 +90,7 @@ class Lab10 implements Lab {
 		me = room.state.players.items.get(sid);
 		if (me == null || room.state.puck == null) return false;
 
-		predict = Predict.create(App.callbacks(room), room.clock);
+		predict = Predict.forRoom(room);
 		// Remote paddles: damped toward the latest snapshot. They enter the sim
 		// as colliders, not as predicted parts.
 		predict.attachAll("players", ["x", "y"], { mode: "damped" });
@@ -103,7 +103,7 @@ class Lab10 implements Lab {
 	}
 
 	function build(): Void {
-		sim = predict.makeSimReconciler({
+		sim = predict.sim({
 			input: input,
 			smoothing: smoothing,
 			world: new HockeyWorld(me, room.state.puck),

@@ -74,7 +74,7 @@ namespace Playground
 
             Room.OnMessage<Dictionary<string, object>>("shot", OnShot);
 
-            // RenderDelay is bound for us: MakeReconciler pushes this Predict's
+            // RenderDelay is bound for us: Reconciler(...) pushes this Predict's
             // lerp delay onto the handle, so the server rewinds to exactly the
             // instant we drew. Passing it here would only override that.
             _cmd = new Lab.RangeInput();
@@ -89,7 +89,7 @@ namespace Playground
 
         private void Build()
         {
-            _recon = _predict.MakeReconciler(_me, new ReconcilerOptions<Lab.RangePlayer, Lab.RangeInput>
+            _recon = _predict.Reconciler(_me, new ReconcilerOptions<Lab.RangePlayer, Lab.RangeInput>
             {
                 Input = _input,
                 Fields = new[] { "x", "y", "vx", "vy" },

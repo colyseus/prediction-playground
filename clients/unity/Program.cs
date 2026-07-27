@@ -137,7 +137,7 @@ public static class Program
 		Check("input handle created", input != null);
 
 		var predict = new Predict(new PredictCallbacks<Lab.MoveState>(Callbacks.Get(room)), room.Clock);
-		var recon = predict.MakeReconciler(me, new ReconcilerOptions<Lab.Player, Lab.MoveInput>
+		var recon = predict.Reconciler(me, new ReconcilerOptions<Lab.Player, Lab.MoveInput>
 		{
 			Input = input,
 			Fields = new[] { "x", "y", "vx", "vy" },
@@ -303,7 +303,7 @@ public static class Program
 		var input = room.Input(command);
 
 		int n = 0;
-		var recon = predict.MakeReconciler(me, new ReconcilerOptions<Lab.GoalPlayer, Lab.MoveInput>
+		var recon = predict.Reconciler(me, new ReconcilerOptions<Lab.GoalPlayer, Lab.MoveInput>
 		{
 			Input = input,
 			Fields = new[] { "x", "y", "vx", "vy", "scoreTicks" },

@@ -1,7 +1,4 @@
 import io.colyseus.Client;
-import io.colyseus.Room;
-import io.colyseus.serializer.SchemaSerializer;
-import io.colyseus.serializer.schema.Callbacks.SchemaCallbacks;
 
 /**
  * Shell contract + the services every lab shares.
@@ -23,20 +20,6 @@ class App {
 	public function new(client: Client, private_: Bool = false) {
 		this.client = client;
 		this.private_ = private_;
-	}
-
-	/**
-	 * The callbacks flavour every lab uses.
-	 *
-	 * Deliberately the IMMEDIATE one (`new SchemaCallbacks(decoder)`) rather than
-	 * `Callbacks.get(room)`: that one queues onto Heaps' MainLoop, which never
-	 * drains on a headless sys target — so the acceptance harness would silently
-	 * see no callbacks at all. The shell already calls everything from its own
-	 * loop, so deferring buys nothing and costs the headless build.
-	 */
-	public static function callbacks<T>(room: Room<T>): SchemaCallbacks<T> {
-		var serializer: SchemaSerializer<T> = cast room.serializer;
-		return new SchemaCallbacks<T>(serializer.decoder);
 	}
 
 	/** Ask the shell for a latency preset on mount — labs 00/06/07 need one. */

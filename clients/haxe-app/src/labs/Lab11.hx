@@ -82,7 +82,7 @@ class Lab11 implements Lab {
 		bot = room.state.bots.items.get("bot1");
 		if (me == null || bot == null) return false;
 
-		predict = Predict.create(App.callbacks(room), room.clock);
+		predict = Predict.forRoom(room);
 		// Bots ride the lerp timeline — the one the server rewinds to.
 		predict.attachAll("bots", ["x", "y"], { mode: "lerp", delay: Sim.REMOTE_INTERP_MS });
 		predict.attachAll("players", ["x", "y"], { mode: "damped" });
@@ -96,7 +96,7 @@ class Lab11 implements Lab {
 	}
 
 	function build(): Void {
-		recon = predict.makeReconciler(me, {
+		recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy"],
 			smoothing: 15,

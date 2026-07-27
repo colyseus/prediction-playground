@@ -82,7 +82,7 @@ class Lab07 implements Lab {
 		bot = room.state.bots.items.get("bot1");
 		if (me == null || bot == null) return false;
 
-		predict = Predict.create(App.callbacks(room), room.clock);
+		predict = Predict.forRoom(room);
 		// Bots are DEAD-RECKONED through the shared step — the timeline the
 		// collision test below reads at ctx.reckonTime.
 		predict.attachAllReckon("bots", {
@@ -126,7 +126,7 @@ class Lab07 implements Lab {
 	}
 
 	function build(): Void {
-		recon = predict.makeReconciler(me, {
+		recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy", "bumpTicks"],
 			smoothing: 15,

@@ -163,7 +163,7 @@ class PredictProbe {
 		var cmd: lab.MoveInput = cast input.data;
 
 		var predict = Predict.create(callbacksOf(room), room.clock);
-		var recon = predict.makeReconciler(me, {
+		var recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy"],
 			smoothing: 15,
@@ -337,7 +337,7 @@ class PredictProbe {
 		var cmd: lab.MoveInput = cast input.data;
 
 		var n = 0;
-		var recon = predict.makeReconciler(me, {
+		var recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy", "scoreTicks"],
 			smoothing: 15,

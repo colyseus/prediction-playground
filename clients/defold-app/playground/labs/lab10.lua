@@ -68,7 +68,7 @@ end
 
 function Lab:build()
   local lab = self
-  self.sim = self.predict:sim_reconciler({
+  self.sim = self.predict:sim({
     input = self.input,
     smoothing = self.smoothing,
     -- Both entries are decoded instances, so both are auto-bound and replaced

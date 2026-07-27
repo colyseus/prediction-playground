@@ -69,7 +69,7 @@ class Lab08 implements Lab {
 		if (me == null) return false;
 		denyRate = room.state.denyRate;
 
-		predict = Predict.create(App.callbacks(room), room.clock);
+		predict = Predict.forRoom(room);
 		predict.attachAll("players", ["x", "y"], { mode: "damped" });
 
 		goals = predict.defineEvent({
@@ -91,7 +91,7 @@ class Lab08 implements Lab {
 	/** stepEntity + the shared score gate, with the sim-born optimistic event. */
 	function build(): Void {
 		var channel = goals;
-		recon = predict.makeReconciler(me, {
+		recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy", "scoreTicks"],
 			smoothing: 15,

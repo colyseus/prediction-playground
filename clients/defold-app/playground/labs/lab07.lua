@@ -103,7 +103,7 @@ function Lab:test_bots(px, py, gate, when)
 end
 
 function Lab:build()
-  self.recon = self.predict:make_reconciler(self.me, {
+  self.recon = self.predict:reconciler(self.me, {
     input = self.input,
     fields = { "x", "y", "vx", "vy", "bumpTicks" },
     smoothing = 15,

@@ -75,7 +75,7 @@ end
 --- step_entity + the shared score gate, with the sim-born optimistic event.
 function Lab:build()
   local goals = self.goals
-  self.recon = self.predict:make_reconciler(self.me, {
+  self.recon = self.predict:reconciler(self.me, {
     input = self.input,
     fields = { "x", "y", "vx", "vy", "scoreTicks" },
     smoothing = 15,

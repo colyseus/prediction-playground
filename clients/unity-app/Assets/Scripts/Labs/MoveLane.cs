@@ -62,7 +62,7 @@ namespace Playground
         public void Build(double smoothing)
         {
             Smoothing = smoothing;
-            Recon = Predict.MakeReconciler(Me, new ReconcilerOptions<Lab.Player, Lab.MoveInput>
+            Recon = Predict.Reconciler(Me, new ReconcilerOptions<Lab.Player, Lab.MoveInput>
             {
                 Input = _input,
                 Fields = new[] { "x", "y", "vx", "vy" },

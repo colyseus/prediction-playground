@@ -52,7 +52,7 @@ class MoveLane {
 
 		this.input = room.input({ type: lab.MoveInput });
 		this.cmd = input.data;
-		this.predict = Predict.create(App.callbacks(room), room.clock);
+		this.predict = Predict.forRoom(room);
 		// Remote squares: damped toward the latest snapshot. Their inputs are not
 		// ours to predict — lab 04 explores the modes.
 		predict.attachAll("players", ["x", "y"], { mode: "damped" });
@@ -63,7 +63,7 @@ class MoveLane {
 	/** Rebuild the reconciler — smoothing is taken at construction. */
 	public function build(smoothing: Float): Void {
 		this.smoothing = smoothing;
-		this.recon = predict.makeReconciler(me, {
+		this.recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy"],
 			smoothing: smoothing,

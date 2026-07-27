@@ -68,7 +68,7 @@ function Lab:mount(context, room)
 end
 
 function Lab:build()
-  self.recon = self.predict:make_reconciler(self.me, {
+  self.recon = self.predict:reconciler(self.me, {
     input = self.input,
     fields = { "x", "y", "vx", "vy" },
     smoothing = 15,

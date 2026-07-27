@@ -48,7 +48,7 @@ end
 --- Rebuild the reconciler — smoothing is taken at construction.
 function MoveLane:build(smoothing)
   self.smoothing = smoothing
-  self.recon = self.predict:make_reconciler(self.me, {
+  self.recon = self.predict:reconciler(self.me, {
     input = self.input,
     fields = { "x", "y", "vx", "vy" },
     smoothing = smoothing,

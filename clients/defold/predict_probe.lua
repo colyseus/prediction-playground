@@ -141,7 +141,7 @@ local function scenario_move(client)
   local cmd = input.data
 
   local predict = Predict.new(get_callbacks(room), room.clock)
-  local recon = predict:make_reconciler(me, {
+  local recon = predict:reconciler(me, {
     input = input,
     fields = { "x", "y", "vx", "vy" },
     smoothing = 15,
@@ -293,7 +293,7 @@ local function scenario_goal(client)
   local cmd = input.data
 
   local n = 0
-  local recon = predict:make_reconciler(me, {
+  local recon = predict:reconciler(me, {
     input = input,
     fields = { "x", "y", "vx", "vy", "scoreTicks" },
     smoothing = 15,

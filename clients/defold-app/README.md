@@ -99,6 +99,6 @@ moves in y.
 **Four DX gaps, closed to match the C and C# SDKs** (`colyseus-defold@31dbb45`):
 `predict:dispose()` (there was no teardown at all, so anything outliving its
 screen kept firing callbacks into freed state), `render_delay` bound from the
-attached lerp delay inside `make_reconciler` (without it every rewound read lands
+attached lerp delay inside `:reconciler()` (without it every rewound read lands
 one full render-delay early and shots miss by exactly that much),
 `Predict.for_room(room)`, and `attach_all_reckon`.

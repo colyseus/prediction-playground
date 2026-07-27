@@ -92,7 +92,7 @@ namespace Playground
 
         private void Build()
         {
-            _recon = _predict.MakeReconciler(_me, new ReconcilerOptions<Lab.BumpPlayer, Lab.MoveInput>
+            _recon = _predict.Reconciler(_me, new ReconcilerOptions<Lab.BumpPlayer, Lab.MoveInput>
             {
                 Input = _input,
                 Fields = new[] { "x", "y", "vx", "vy", "bumpTicks" },

@@ -72,14 +72,14 @@ class Lab06 implements Lab {
 		bot = room.state.bots.items.get("bot1");
 		if (me == null || bot == null) return false;
 
-		predict = Predict.create(App.callbacks(room), room.clock);
+		predict = Predict.forRoom(room);
 		// Bots ride the lerp timeline — the one the server rewinds to.
 		predict.attachAll("bots", ["x", "y"], { mode: "lerp", delay: Sim.REMOTE_INTERP_MS });
 		predict.attachAll("players", ["x", "y"], { mode: "damped" });
 
 		room.onMessage("shot", function(m: Dynamic) onShot(m));
 
-		// renderDelay is bound for us: makeReconciler pushes this Predict's lerp
+		// renderDelay is bound for us: reconciler() pushes this Predict's lerp
 		// delay onto the handle, so the server rewinds to exactly the instant we
 		// drew. Passing it here would only override that.
 		input = room.input({ type: lab.RangeInput, allowRewind: (d: Dynamic) -> d.fire });
@@ -90,7 +90,7 @@ class Lab06 implements Lab {
 	}
 
 	function build(): Void {
-		recon = predict.makeReconciler(me, {
+		recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy"],
 			smoothing: 15,

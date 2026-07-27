@@ -99,7 +99,7 @@ namespace Playground
 
         private void Build()
         {
-            _sim = _predict.MakeSimReconciler(new SimReconcilerOptions<HockeyWorld, Lab.MoveInput>
+            _sim = _predict.Sim(new SimReconcilerOptions<HockeyWorld, Lab.MoveInput>
             {
                 Input = _input,
                 Smoothing = _smoothing,
