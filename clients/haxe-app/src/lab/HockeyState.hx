@@ -9,8 +9,14 @@ package lab;
 import io.colyseus.serializer.schema.Schema;
 import io.colyseus.serializer.schema.types.*;
 
-class MoveState extends Schema {
+class HockeyState extends Schema {
 	@:type("map", Player)
 	public var players: MapSchema<Player> = new MapSchema<Player>();
+
+	@:type("ref", Puck)
+	public var puck: Puck = new Puck();
+
+	@:type("boolean")
+	public var botEnabled: Bool = false;
 
 }

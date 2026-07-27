@@ -9,7 +9,7 @@ package lab;
 import io.colyseus.serializer.schema.Schema;
 import io.colyseus.serializer.schema.types.*;
 
-class Bot extends Schema {
+class BumpPlayer extends Schema {
 	@:type("number")
 	public var x: Dynamic = 0;
 
@@ -22,25 +22,13 @@ class Bot extends Schema {
 	@:type("number")
 	public var vy: Dynamic = 0;
 
-	@:type("string")
-	public var kind: String = "";
+	@:type("uint8")
+	public var hue: UInt = 0;
 
-	@:type("number")
-	public var minX: Dynamic = 0;
+	@:type("uint8")
+	public var bumpTicks: UInt = 0;
 
-	@:type("number")
-	public var maxX: Dynamic = 0;
-
-	@:type("number")
-	public var baseY: Dynamic = 0;
-
-	@:type("number")
-	public var phaseMs: Dynamic = 0;
-
-	@:type("number")
-	public var speed: Dynamic = 0;
-
-	@:type("number")
-	public var lastTeleport: Dynamic = 0;
+	@:type("uint16")
+	public var bumps: UInt = 0;
 
 }

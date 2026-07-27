@@ -1,8 +1,11 @@
 import App.Kb;
 import Gfx.GfxNull;
 import io.colyseus.Client;
+import labs.Lab00;
 import labs.Lab01;
+import labs.Lab02;
 import labs.Lab03;
+import labs.Lab05;
 
 /**
  * The haxe-app's acceptance harness — the twin of the native app's `--demo`, the
@@ -136,6 +139,67 @@ class Acceptance {
 			drive(lab, app, 5000, 1);
 			check("lab03 corrections converge again", recon.lastCorrectionMag < 0.05,
 				'settled to ${recon.lastCorrectionMag}');
+
+			leave(lab, room);
+		}
+
+		{ // lab 02: every clock readout responds to the injected link
+			var lab = new Lab02();
+			NetDelay.reset();
+			NetDelay.setLatency(200, 0);
+			var room = mount(lab, app);
+
+			drive(lab, app, 4000, 1);
+			var clock: Dynamic = lab.roomRef().clock;
+			check("lab02 smoothed rtt sees the injected latency", clock.smoothedRtt() > 350,
+				'${Math.round(clock.smoothedRtt())} ms');
+			check("lab02 clock synced from the TIMED prefix", clock.lastServerTime() > 0);
+			check("lab02 patch cadence advertised", clock.patchInterval() > 0,
+				'${Math.round(clock.patchInterval())} ms');
+			check("lab02 saw patch arrivals", lab.arrivals.length > 10,
+				'${lab.arrivals.length} buffered');
+
+			leave(lab, room);
+		}
+
+		{ // lab 00: the predicted lane leads the server echo by ~RTT
+			var lab = new Lab00();
+			NetDelay.reset();
+			var room = mount(lab, app);        // mount picks its own latency preset
+
+			drive(lab, app, 6000);             // its autopilot drives itself
+			check("lab00 lanes separate under latency", lab.peakGap > 2.0,
+				'peak ${Math.round(lab.peakGap * 100) / 100} u');
+			check("lab00 autopilot ran without a hand on the keyboard", !lab.userDrove);
+
+			leave(lab, room);
+		}
+
+		{ // lab 05: reckon renders the present, and honours the bot's real pattern
+			var lab = new Lab05();
+			NetDelay.reset();
+			NetDelay.setLatency(200, 0);
+			var room = mount(lab, app);
+
+			lab.setPattern("patrol");
+			drive(lab, app, 5000);
+			check("lab05 reckon leads the lerp view", lab.peakGap > 1.0,
+				'peak ${Math.round(lab.peakGap * 100) / 100} u');
+
+			// The circle is the check that matters: it is the one pattern whose y
+			// moves. If the reckon step cannot see `kind` it falls through to
+			// patrol, which pins y to baseY — a flat y means the scratch lost it.
+			lab.setPattern("circle");
+			drive(lab, app, 2000);
+			var minY = 1e9, maxY = -1e9;
+			for (_ in 0...40) {
+				drive(lab, app, 100);
+				var ry = lab.reckon.value(lab.bot, "y");
+				if (ry < minY) minY = ry;
+				if (ry > maxY) maxY = ry;
+			}
+			check("lab05 reckon follows the circle pattern, not a patrol fallback",
+				maxY - minY > 4, 'y swept ${Math.round((maxY - minY) * 100) / 100} u');
 
 			leave(lab, room);
 		}
