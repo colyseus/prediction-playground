@@ -82,3 +82,36 @@ the assertions tolerate (and count) the resulting rare one-tick race blips.
   callbacks with too few args — "Invalid call" on neko when wiring collections.
 - **native-sdk**: no `SO_NOSIGPIPE`/`SIGPIPE` handling — headless clients must
   `signal(SIGPIPE, SIG_IGN)` themselves (pinned in `predict_probe.c`).
+- **colyseus-unity-sdk**: `Connection.Send` lost its `virtual` when the four
+  `Raise*` hooks collapsed into one `Dispatch`/`Transmit` seam, so three test
+  stubs that override it stopped compiling (`CS0506` ×3). Unnoticed because the
+  Unity batch compile only covers `Assets/` — `nuget/tests` needs
+  `dotnet test`. The stubs now drive the seam instead of subclassing.
+- **all four ports**: no `dispose()` before respawning a controller on a
+  smoothing change, where `10-composite-sim/index.ts` does exactly that. The
+  old controller kept ticking against the same input handle. Invisible until
+  the bound overlay made two controllers contend for the same slots.
+
+## What lab 10's acceptance check taught us
+
+`drift.ema < 0.05` looked like a determinism guarantee and was satisfied only by
+a DEAD simulation. The EMA decays toward zero when the world stops moving, so an
+autopilot that pinned the puck against a wall — where the contact re-ejects it
+out of bounds every tick and nothing moves again — scored 1e-9 and passed, while
+honest play failed. Three of the four ports had it (native asserts the
+prediction LEADS its ghost, which a frozen world cannot do).
+
+Three habits came out of it, and they generalise past this lab:
+
+- **Near-zero error is a symptom, not a result.** Three separate times a
+  reassuring number turned out to mean the sim had stopped. Check liveness
+  alongside accuracy, or the accuracy figure is unfalsifiable.
+- **Pick the statistic to match the claim.** A contested touch mispredicts BY
+  DESIGN here, so the honest claim is about the typical reconcile: the MEDIAN
+  ignores that tail while still catching a trend. An end-of-run EMA answers a
+  question nobody asked.
+- **Mutation-test a threshold before trusting it.** 0.5 is measured — honest
+  play 0.0000-0.1527, wrong puck friction (0.900 vs 0.985) 1.7751. The same
+  exercise showed the check CANNOT see a 0.1 % constant slip (0.0593), which is
+  the startup canary's job. Knowing what a check misses is half of knowing what
+  it proves.

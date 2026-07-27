@@ -176,8 +176,15 @@ per SDK, fixture test per SDK mirroring scenario C. Design notes per SDK:
   to: C = struct of user pointers + a bound-entry descriptor array; C#/Haxe =
   `Dictionary<string, object>`/`Dynamic` world with per-binding field lists;
   Lua = table world. Keep pose keys `"part.field"` strings everywhere.
-- Skip (per manifest): custom `interpolate` can ship later; `boundRegistrations`
-  overlay into Predict.value is optional — apps read `sim.value("puck.kx")`.
+- Skip (per manifest): custom `interpolate` can ship later.
+- ~~`boundRegistrations` overlay into Predict.value is optional — apps read
+  `sim.value("puck.kx")`.~~ **Shipped in all four.** Treating it as optional was
+  a mistake: it left every app reading controller-predicted poses by composite
+  string while reading everything else in the same draw call as
+  `predict.value(instance, field)`. Two idioms for one question, and the string
+  one is unchecked. Bound parts now register into `predict.value`; the
+  `"part.field"` key survives only as the escape hatch for OPAQUE parts, which
+  have no decoded instance to key on.
 
 If timeboxing bites: ship lab 10 last, or compose paddle-prediction-only via
 the flat Reconciler (puck rendered damped) with an honest "partial" label.
