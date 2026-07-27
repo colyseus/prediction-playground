@@ -4,11 +4,8 @@ The playground rebuilt against `colyseus-unity-sdk`, driven by the same server a
 the web build. One scene, one MonoBehaviour: `Update()` advances the netcode,
 `OnGUI()` draws the arena and the panel.
 
-Status: **M1–M3 complete** — eleven labs (00–09, 11) with a PlayMode acceptance
-suite that replays APPS_PLAN §7's exit criteria against a live server.
-
-Lab 10 (composite sim) is not here: the C# SDK has no `SimReconciler`, so the
-lab has no API to bind to. That port is the one piece of remaining work.
+Status: **complete — all twelve labs (00–11)**, with a PlayMode acceptance suite
+that replays APPS_PLAN §7's exit criteria against a live server.
 
 ## Running it
 
@@ -34,7 +31,7 @@ reload with no copy step.
 
 | key | |
 |---|---|
-| `0`–`9` | switch lab |
+| `0`–`9` | switch lab (10 and 11 via the shell list) |
 | `WASD` / arrows | drive |
 | `L` | cycle the injected-latency preset |
 | `D` | drop the socket (tests auto-reconnect) |

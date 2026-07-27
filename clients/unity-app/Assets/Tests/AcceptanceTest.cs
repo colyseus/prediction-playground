@@ -485,6 +485,35 @@ public class AcceptanceTest
     }
 
     [UnityTest, Timeout(TestTimeoutMs)]
+    public IEnumerator Lab10_predicts_the_puck_through_your_own_inputs()
+    {
+        var app = new App { Client = MakeClient(), PrivateRoom = true };
+        var lab = new Lab10();
+        yield return Mount(lab, app);      // mount picks its own latency preset
+
+        // Drive back and forth across the puck. The lead is transient — largest
+        // just after a strike — so this tracks the PEAK rather than sampling.
+        // The lab steers itself toward the puck under autopilot; a plain
+        // left-right sweep never reaches it.
+        yield return Drive(lab, app, 12000);
+
+        Assert.Greater(lab.Recon.PendingCount, 0,
+            "nothing in flight — inputs are not being predicted");
+        // The whole point of the composite face: the puck is predicted THROUGH
+        // our inputs, so it must run ahead of the authoritative one.
+        Assert.Greater(lab.MaxPuckLead, 0.5,
+            $"predicted puck never led the server's (peak {lab.MaxPuckLead:F2} u, " +
+            $"{lab.Touches} touches, {lab.DescribePuck()}) — " +
+            "the puck is not being predicted through our inputs");
+        Assert.AreNotEqual(DriftStatus.Diverging, DriftClassifier.Classify(lab.Recon.Drift, 0.01),
+            $"drift ema {lab.Recon.Drift.Ema:E2} — the composite step disagrees with the server's");
+        Debug.Log($"OK lab10: peak puck lead {lab.MaxPuckLead:F2} u, {lab.Touches} touches, " +
+                  $"drift ema {lab.Recon.Drift.Ema:E2}, {lab.Recon.PendingCount} in flight");
+
+        yield return Teardown(lab);
+    }
+
+    [UnityTest, Timeout(TestTimeoutMs)]
     public IEnumerator Lab11_client_and_server_roll_identical_pellets()
     {
         var app = new App { Client = MakeClient(), PrivateRoom = true };
