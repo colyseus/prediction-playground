@@ -44,7 +44,9 @@ local function check(name, ok, detail)
 end
 
 --- Pump the injector + a lab for `ms`, exactly like the engine's update() does.
-local function drive(lab, context, ms, auto_x, auto_y)
+--- `on_frame(elapsed_ms)`, when given, runs after each frame — for checks that
+--- need the shape of a run rather than one end-of-run reading.
+local function drive(lab, context, ms, auto_x, auto_y, on_frame)
   kb.autopilot = true
   kb.auto_x, kb.auto_y = auto_x or 0, auto_y or 0
   local start = app.now_ms()
@@ -56,8 +58,16 @@ local function drive(lab, context, ms, auto_x, auto_y)
     lab:frame(context, now, now - last)
     lab:render(gfx)          -- no-op visually, but it exercises the draw path
     last = now
+    if on_frame ~= nil then on_frame(now - start) end
     net.sleep_ms(8)
   end
+end
+
+--- Median of a numeric list (sorts in place).
+local function median(values)
+  if #values == 0 then return -1 end
+  table.sort(values)
+  return values[math.ceil(#values / 2)]
 end
 
 --- Join and wait for the lab's own readiness predicate. Fails loudly.
@@ -363,15 +373,54 @@ do -- lab 10: the puck is predicted THROUGH our own inputs
 
   -- The lab steers itself toward the puck under autopilot; a plain sweep never
   -- reaches it, and a puck nobody touches proves nothing.
-  drive(lab, context, 12000)
+  --
+  -- Sample every reconcile as it happens, and how far the puck travels late in
+  -- the run. Reading drift.ema once at the end measures the wrong thing twice
+  -- over: it decays toward zero when the world stops moving, so a puck pinned
+  -- against a wall scores BETTER than honest play.
+  local mags, seq = {}, lab.sim.reconcile_seq
+  local late_path, px, py = 0, nil, nil
+  drive(lab, context, 12000, nil, nil, function(elapsed)
+    if lab.sim.reconcile_seq ~= seq then
+      seq = lab.sim.reconcile_seq
+      table.insert(mags, lab.sim.last_correction_mag or 0)
+    end
+    local puck = lab.room.state.puck
+    if elapsed > 9000 then
+      if px ~= nil then
+        late_path = late_path + math.sqrt((puck.x - px) ^ 2 + (puck.y - py) ^ 2)
+      end
+      px, py = puck.x, puck.y
+    end
+  end)
 
   check("lab10 predicts with inputs still in flight", lab.sim:pending_count() > 0,
     lab.sim:pending_count() .. " unacked")
   check("lab10 the predicted puck leads the authoritative one",
     lab.max_puck_lead > 0.5,
     string.format("peak %.2f u over %d touches", lab.max_puck_lead, lab.touches))
+
+  -- The MEDIAN reconcile, not the worst or the last. Remote paddles enter the
+  -- prediction at their last snapshot, so a contested touch mispredicts by
+  -- design — lab 10 exists to show that. What must hold is that the shared step
+  -- agrees the rest of the time: a typical reconcile costs nothing, and the
+  -- spikes are a tail rather than a trend.
+  --
+  -- 0.5 is measured, not guessed: honest play lands at 0.0000-0.1527 across
+  -- runs, and a client stepping the puck with the wrong friction constant
+  -- (0.900 vs 0.985) lands at 1.7751. This catches GROSS divergence only — a
+  -- 0.1 % constant slip reads 0.0593 and sails through. Bit-exactness is the
+  -- startup canary's job (it fails that same slip on a pinned vector, with no
+  -- dependence on how one 12-second rally happened to go).
+  local mid = median(mags)
   check("lab10 the composite step agrees with the server's",
-    lab.sim.drift.ema < 0.05, string.format("drift ema %.3e", lab.sim.drift.ema))
+    mid >= 0 and mid < 0.5,
+    string.format("median correction %.4f over %d reconciles", mid, #mags))
+
+  -- Guards the check above: a frozen world agrees with itself perfectly.
+  check("lab10 the puck is still live at the end",
+    late_path > 5,
+    string.format("%.1f u travelled in the last 3s", late_path))
 
   leave(lab, room)
 end

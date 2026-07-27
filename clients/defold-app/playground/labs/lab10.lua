@@ -21,6 +21,9 @@ local Predict = require 'colyseus.predict.predict'
 
 local kb = app.kb
 
+-- Fixed steps the autopilot spends heading home after a strike (20 Hz -> ~0.6s).
+local RETREAT_TICKS = 12
+
 local Lab = {
   id = "10-composite-sim",
   num = 10,
@@ -36,6 +39,7 @@ function Lab.new()
     show_ghosts = true,
     touches = 0,
     touched_last_step = false,
+    retreat_ticks = 0,
     -- PEAK, not instantaneous: the lead is largest right after a strike and
     -- collapses between them, so a spot reading says nothing.
     max_puck_lead = 0,
@@ -103,9 +107,22 @@ end
 --- Where the predicted puck is relative to the predicted paddle. A lab-10
 --- autopilot that just sweeps never reaches the puck, and a puck nobody touches
 --- makes the whole lab look broken while proving nothing.
+---
+--- Backs off to its own half for a beat after each strike. Chasing without
+--- release traps the puck against a wall and holds it there: contacts re-eject
+--- it out of bounds every tick (step_puck clamps, then the contact pushes it
+--- back out), so the whole world freezes with both sides in perfect agreement.
 function Lab:seek_puck()
-  local dx = self.sim:value("puck.x") - self.sim:value("paddle.x")
-  local dy = self.sim:value("puck.y") - self.sim:value("paddle.y")
+  local tx = self.sim:value("puck.x")
+  local ty = self.sim:value("puck.y")
+  -- Counted down on the fixed-step loop, not here: seek_puck runs once per
+  -- frame, which is several times faster than the tick and would burn the
+  -- retreat off almost immediately.
+  if self.retreat_ticks > 0 then
+    tx, ty = sim.ARENA_W / 2, sim.ARENA_H * 0.75
+  end
+  local dx = tx - self.sim:value("paddle.x")
+  local dy = ty - self.sim:value("paddle.y")
   local mx = dx > 0.4 and 1 or dx < -0.4 and -1 or 0
   local my = dy > 0.4 and 1 or dy < -0.4 and -1 or 0
   return mx, my
@@ -127,9 +144,11 @@ function Lab:frame(context, now, dt_ms)
     self.cmd.moveX = mx
     self.cmd.moveY = my
     self.input:send()
+    if self.retreat_ticks > 0 then self.retreat_ticks = self.retreat_ticks - 1 end
     if self.touched_last_step then
       self.touches = self.touches + 1
       self.touched_last_step = false
+      self.retreat_ticks = RETREAT_TICKS
     end
   end
 
