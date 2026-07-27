@@ -51,7 +51,7 @@ function Lab:mount(context, room)
   self.deny_rate = room.state.denyRate or 0
 
   self.predict = Predict.for_room(room)
-  self.predict:attach_all("players", { "x", "y" }, { mode = "damped" })
+  self.predict:attach_all("players", { x = "damped", y = "damped" })
 
   self.goals = self.predict:define_event({
     on_predict = function()

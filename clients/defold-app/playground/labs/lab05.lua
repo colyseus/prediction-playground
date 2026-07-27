@@ -61,8 +61,7 @@ function Lab:mount(context, room)
   -- The delayed baseline to compare against.
   self.lerp = Predict.for_room(room)
   local lerp_opts = { mode = "lerp", delay = sim.REMOTE_INTERP_MS }
-  self.lerp:track(self.bot, "x", lerp_opts)
-  self.lerp:track(self.bot, "y", lerp_opts)
+  self.lerp:attach(self.bot, { x = lerp_opts, y = lerp_opts })
 
   self:attach_reckon()
 
@@ -80,7 +79,8 @@ end
 --- instant — the same property the server relies on.
 function Lab:attach_reckon()
   self.reckon = Predict.for_room(self.room)
-  self.reckon:track_reckon(self.bot, {
+  self.reckon:attach(self.bot, {
+    mode = "reckon",
     fields = { "x", "y" },
     smoothing = self.smoothing,
     snap = self.snap,

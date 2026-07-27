@@ -89,8 +89,7 @@ function Lab:mount(context, room)
   -- One Predict per mode — same entity, same fields, different smoothing.
   local function attach(name, color_key, opts)
     local predict = Predict.for_room(room)
-    predict:track(self.bot, "x", opts)
-    predict:track(self.bot, "y", opts)
+    predict:attach(self.bot, { x = opts, y = opts })
     return { name = name, color_key = color_key, predict = predict,
              visible = true, smooth = Smoothness.new() }
   end

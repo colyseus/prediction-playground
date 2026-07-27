@@ -55,9 +55,11 @@ function Lab:mount(context, room)
 
   self.predict = Predict.for_room(room)
   -- Bots ride the lerp timeline — the one the server rewinds to.
-  self.predict:attach_all("bots", { "x", "y" },
-    { mode = "lerp", delay = sim.REMOTE_INTERP_MS })
-  self.predict:attach_all("players", { "x", "y" }, { mode = "damped" })
+  self.predict:attach_all("bots", {
+    x = { mode = "lerp", delay = sim.REMOTE_INTERP_MS },
+    y = { mode = "lerp", delay = sim.REMOTE_INTERP_MS },
+  })
+  self.predict:attach_all("players", { x = "damped", y = "damped" })
 
   room:on_message("spread", function(m) self:on_spread(m) end)
 

@@ -66,7 +66,7 @@ function Lab:mount(context, room)
   self.predict = Predict.for_room(room)
   -- Remote paddles: damped toward the latest snapshot. They enter the sim as
   -- colliders, not as predicted parts.
-  self.predict:attach_all("players", { "x", "y" }, { mode = "damped" })
+  self.predict:attach_all("players", { x = "damped", y = "damped" })
 
   self.input = room:input()
   self.cmd = self.input.data

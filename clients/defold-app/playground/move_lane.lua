@@ -40,7 +40,7 @@ function MoveLane:attach(room)
   self.predict = Predict.for_room(room)
   -- Remote squares: damped toward the latest snapshot. Their inputs are not
   -- ours to predict — lab 04 explores the modes.
-  self.predict:attach_all("players", { "x", "y" }, { mode = "damped" })
+  self.predict:attach_all("players", { x = "damped", y = "damped" })
   self:build(self.smoothing)
   return true
 end

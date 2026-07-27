@@ -63,7 +63,8 @@ function Lab:mount(context, room)
   self.predict = Predict.for_room(room)
   -- Bots are DEAD-RECKONED through the shared step — the timeline the collision
   -- test below reads at ctx.reckon_time.
-  self.predict:attach_all_reckon("bots", {
+  self.predict:attach_all("bots", {
+    mode = "reckon",
     fields = { "x", "y" },
     smoothing = 25,
     step = function(b, dt, elapsed_ms)
@@ -77,7 +78,7 @@ function Lab:mount(context, room)
       b.lastTeleport = s.last_teleport
     end,
   })
-  self.predict:attach_all("players", { "x", "y" }, { mode = "damped" })
+  self.predict:attach_all("players", { x = "damped", y = "damped" })
 
   self.input = room:input()
   self.cmd = self.input.data
