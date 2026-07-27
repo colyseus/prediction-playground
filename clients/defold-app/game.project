@@ -1,0 +1,21 @@
+[project]
+title = Prediction Playground
+version = 0.1
+dependencies#0 = https://github.com/defold/extension-websocket/archive/refs/tags/4.2.1.zip
+
+[bootstrap]
+main_collection = /main/main.collectionc
+
+[display]
+width = 1280
+height = 720
+high_dpi = 1
+
+[script]
+shared_state = 1
+
+[input]
+game_binding = /input/game.input_bindingc
+
+[websocket]
+max_connections = 4

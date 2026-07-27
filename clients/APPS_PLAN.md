@@ -243,7 +243,7 @@ jitter), `D` = drop transport, `P` = private-room toggle (rejoin).
 |---|---|
 | **native-app** (C / raylib) | **DONE** — all 12 labs, `--demo` autopilot 18/18 |
 | **unity-app** (C# / Unity 6000.3) | **DONE except lab 10** — 11 labs (00-09, 11); PlayMode suite 14/14 green vs a live server |
-| **defold-app** (Lua / Defold) | foundation only — `sim.lua` verified bit-exact, `net_delay.lua` unit-checked; no labs yet |
+| **defold-app** (Lua / Defold) | **DONE except lab 10** — 11 labs (00-09, 11); headless suite 31 checks green vs a live server; `bob resolve build` clean |
 | **haxe-app** (Haxe / Heaps + hl) | not started |
 
 Lab 10 is blocked on the SimReconciler port in every SDK but C (§5).

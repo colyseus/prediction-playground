@@ -1,0 +1,148 @@
+--
+-- The shell: one game object, one script. update() drives the active lab's
+-- netcode and then its draw pass; on_input() only ever fills the shared `kb`
+-- table, so a lab reads input the same way whether a human or the acceptance
+-- harness is playing.
+--
+-- Port of src/client/main.ts minus the web-only chrome (sidebar, docs panel,
+-- deep links).
+--
+local sim = require 'playground.sim'
+local app = require 'playground.app'
+local net_delay = require 'playground.net_delay'
+local gfx = require 'playground.gfx_defold'
+local Client = require 'colyseus.client'
+
+local ENDPOINT = "ws://localhost:5173"
+local PANEL_W = 340
+
+local LABS = {
+  require 'playground.labs.lab00',
+  require 'playground.labs.lab01',
+  require 'playground.labs.lab02',
+  require 'playground.labs.lab03',
+  require 'playground.labs.lab04',
+  require 'playground.labs.lab05',
+  require 'playground.labs.lab06',
+  require 'playground.labs.lab07',
+  require 'playground.labs.lab08',
+  require 'playground.labs.lab09',
+  require 'playground.labs.lab11',
+}
+
+local kb = app.kb
+
+local function switch_to(self, index)
+  if self.pending ~= nil then return end          -- a join is already in flight
+  local previous = self.active
+  self.active = nil
+  self.error = nil
+  if previous ~= nil then
+    previous:unmount()
+    if previous.room ~= nil then previous.room:leave() end
+  end
+  self.lab_index = index
+  local lab = LABS[index].new()
+  self.mounting = lab
+  self.pending = app.join(self.context, lab.room_name,
+    function(room) return lab:ready(room) end)
+end
+
+function init(self)
+  msg.post(".", "acquire_input_focus")
+
+  if sim.selfcheck() ~= 0 then
+    print("[playground] shared-sim port mismatch — see sim.selfcheck()")
+  end
+
+  self.context = { client = Client(ENDPOINT), private = false }
+  self.lab_index = 1
+  self.last_now = nil
+  switch_to(self, 1)
+end
+
+local function poll_join(self)
+  local ok, room_or_err = pcall(app.poll_join, self.pending)
+  if not ok then
+    self.error = tostring(room_or_err)
+    self.pending, self.mounting = nil, nil
+    return
+  end
+  local room = room_or_err
+  if room == nil then return end                  -- still decoding
+
+  local lab = self.mounting
+  self.pending, self.mounting = nil, nil
+  if lab:mount(self.context, room) then
+    self.active = lab
+  else
+    self.error = "state never arrived for " .. lab.id
+  end
+end
+
+function update(self, _dt)
+  -- Deliver due packets first: the injector queues both directions and only
+  -- drains here, on the main thread.
+  net_delay.pump(app.now_ms())
+
+  if self.pending ~= nil then poll_join(self) end
+
+  local now = app.now_ms()
+  local dt_ms = self.last_now and (now - self.last_now) or 0
+  self.last_now = now
+
+  if kb.key("l") then net_delay.next_preset() end
+  if kb.key("p") then
+    self.context.private = not self.context.private
+    switch_to(self, self.lab_index)
+  end
+  for i, LabClass in ipairs(LABS) do
+    if kb.key("lab" .. LabClass.num) then switch_to(self, i) end
+  end
+
+  if self.active ~= nil then self.active:frame(self.context, now, dt_ms) end
+
+  -- Draw. The lab paints the arena unless it owns the background itself.
+  local w, h = window.get_size()
+  local stage_w = w - PANEL_W
+  gfx.begin_frame(0, 46, stage_w, h - 46 - 40, stage_w + 20, h - 70, PANEL_W - 40)
+  gfx.hud_begin()
+
+  local lab_def = LABS[self.lab_index]
+  if self.active ~= nil then
+    if not lab_def.own_arena then gfx.arena() end
+    self.active:render(gfx)
+  else
+    gfx.caption(self.error or "connecting...",
+      self.error and gfx.PALETTE.bad or gfx.PALETTE.text_dim)
+  end
+
+  gfx.hud_section(string.format("%02d  %s", lab_def.num, lab_def.title))
+  gfx.hud_note(lab_def.blurb)
+  gfx.hud_section("SHELL")
+  gfx.hud_key("0-9", "switch lab")
+  gfx.hud_key("L", "injected latency: " .. net_delay.preset_label())
+  gfx.hud_key("P", self.context.private and "room: private" or "room: shared")
+  gfx.hud_row("in flight", net_delay.in_flight() .. " pkt", gfx.PALETTE.text_dim)
+
+  -- Key edges last exactly one frame, like the web build's keydown handler.
+  kb._pressed = {}
+end
+
+function on_input(_self, action_id, action)
+  if action_id == nil then return end
+  local name = tostring(action_id)
+  if action.pressed then
+    kb._pressed[name] = true
+    kb._down[name] = true
+  elseif action.released then
+    kb._down[name] = nil
+  end
+end
+
+function final(self)
+  if self.active ~= nil then
+    self.active:unmount()
+    if self.active.room ~= nil then self.active.room:leave() end
+  end
+end
