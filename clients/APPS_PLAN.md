@@ -146,7 +146,7 @@ debug panel does the same).
 | 06 lag-comp | allowRewind fire-gate, lerp-delayed bots, hit/miss markers (server broadcasts) | ✅ ready; needs hitscan port for the client-side aim ray |
 | 07 wysiwyg | `valueAt(ctx.reckonTime)` + `ctx.memo` frozen verdicts | ✅ ready; **C memo stores doubles only** — encode the verdict as a number |
 | 11 deterministic-rng | random+spread ports; overlay client fan vs server fan | ✅ engine-free; watch integer width (§2) |
-| 10 composite-sim | SimReconciler (`predict.sim`) | ✅ native (ported, §5); ⬜ Unity/Defold/Haxe |
+| 10 composite-sim | SimReconciler (`predict.sim`) | ✅ native (ported, §5); ⬜ Unity/Defold/Haxe — the one lab missing from unity-app |
 
 ## 5. SimReconciler port (prerequisite for lab 10)
 
@@ -236,6 +236,37 @@ jitter), `D` = drop transport, `P` = private-room toggle (rejoin).
   loop (main thread). ~20 lines, kills the race, and is the pattern to later
   upstream into the SDK.
 - Schemas: reuse `clients/haxe/lab/*.hx`.
+
+## 6a. Port status (updated as each app lands)
+
+| app | state |
+|---|---|
+| **native-app** (C / raylib) | **DONE** — all 12 labs, `--demo` autopilot 18/18 |
+| **unity-app** (C# / Unity 6000.3) | **DONE except lab 10** — 11 labs (00-09, 11); PlayMode suite 14/14 green vs a live server |
+| **defold-app** (Lua / Defold) | foundation only — `sim.lua` verified bit-exact, `net_delay.lua` unit-checked; no labs yet |
+| **haxe-app** (Haxe / Heaps + hl) | not started |
+
+Lab 10 is blocked on the SimReconciler port in every SDK but C (§5).
+
+### Verification invocations
+
+```sh
+pnpm dev --host 0.0.0.0          # required by every acceptance run
+
+# unity: compile gate, then the acceptance suite
+UNITY=/Applications/Unity/Hub/Editor/6000.3.6f1/Unity.app/Contents/MacOS/Unity
+$UNITY -batchmode -quit     -projectPath clients/unity-app -logFile build.log
+$UNITY -batchmode -runTests -testPlatform PlayMode \
+       -projectPath clients/unity-app -testResults results.xml -logFile test.log
+
+# defold: bob needs the editor's bundled JDK **25** (the 21 beside it is too old)
+JDK=/Applications/Defold.app/Contents/Resources/packages/jdk-25+36/bin/java
+$JDK -cp /Applications/Defold.app/Contents/Resources/packages/defold-*.jar com.dynamo.bob.Bob
+
+# defold: the pure-Lua half runs headless under luajit
+cd clients/defold-app/playground && luajit -e "package.path='./?.lua;'..package.path; \
+  os.exit(require('sim').selfcheck(print) == 0 and 0 or 1)"
+```
 
 ## 7. Milestones (per SDK, in order native → Unity → Defold → Haxe)
 
