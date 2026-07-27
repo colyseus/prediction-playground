@@ -3,9 +3,9 @@
 The playground rebuilt against `colyseus-haxe`, driven by the same server as the
 web build. Heaps for the window; the netcode is verified headless.
 
-Status: **11 labs (00–09, 11)**, 32 of 33 acceptance checks green against a live
+Status: **11 labs (00–09, 11)**, all 34 acceptance checks green against a live
 server. Lab 10 (composite sim) is not here: the Haxe SDK has no `SimReconciler`,
-so the lab has no API to bind to. One known open finding is recorded below.
+so the lab has no API to bind to.
 
 ## The one structural decision
 
@@ -74,40 +74,45 @@ OK  lab11 an unshared RNG visibly disagrees — divergence 2.9e-01 rad
 the way from the schema through `stepEntity` and back. Only the C# client shows a
 residual (~1e-8), because its schema `number` fields are float32.
 
-## Open: lab 11's seeded fan disagrees on some shots
+## The lab 11 seed bug, and why the canary missed it
 
-`lab11 seeded from (seq, salt), both sides derive the same fan` **fails
-intermittently** — typically one or two fans in four.
+Lab 11's seeded fan disagreed with the server on roughly one shot in three. The
+assertion was right and the client was wrong; the cause was in this port's own
+`Sim`, not the SDK.
 
-What the evidence says, from logging every fan's inputs:
+`splitmix32` returned the seed as an *unsigned* value in a `Float`, and
+`spreadAngles` then did `new Rng(Std.int(shotSeed(...)))`. Half of all seeds
+exceed 2³¹, and `Std.int` cannot represent those on a 32-bit-`Int` target — it
+collapses them, so unrelated shots silently shared one RNG stream. Against the
+TypeScript reference for salt 3004265928:
 
 ```
-[fan] seq=50  salt=3004265928  worst=2.06e-01     <- disagrees
-[fan] seq=65  salt=3004265928  worst=1.11e-08     <- agrees
-[fan] seq=79  salt=3004265928  worst=8.90e-10     <- agrees
-[fan] seq=93  salt=3004265928  worst=1.24e-01     <- disagrees
+seq  JS reference          Haxe (before)         Haxe (after)
+50   0.5586675314931199    0.473057273640297     0.55866753149312
+51   0.5097583230119198    0.473057273640297     0.50975832301192
+52   0.3740800889488309    0.374080088948831     0.374080088948831
+53   0.5387157244700930    0.473057273640297     0.538715724470094
 ```
 
-The salt is identical throughout (it is rolled once per room), the seqs are
-evenly spaced one shot apart, and the disagreement magnitude matches what two
-*unrelated* seeds produce. So client and server disagree about the **sequence
-number** of some fire inputs — and it is transient, not cumulative, since the
-shots either side of a bad one agree to 1e-9.
+The repeated constant is the collapse: every seed ≥ 2³¹ became the same number.
+Seeds that happened to land under 2³¹ (seq 52 here) were fine, which is exactly
+why it looked intermittent — roughly half of shots.
 
-Ruled out along the way:
+`splitmix32` and `shotSeed` now return the raw 32-bit **pattern** as an `Int`,
+which may be negative, and the unsigned conversion happens only where a
+magnitude is actually wanted (`Rng.next`'s division, and the canary's
+comparisons).
 
-- **The RNG.** neko and the eval target produce identical streams for full 32-bit
-  salts (`0x85ebca6b`, `0xB0B0B0B0`, `0xFFFFFFF0`), so `APPS_PLAN` §2's 31-bit
-  warning does not bite here. The canary only pinned `shotSeed(7, 12345)`, which
-  was too weak to settle this on its own.
-- **The salt racing the first patch.** Same value on every fan.
-- **Firing before the input channel warms up.** Extending the warm-up to 2.5 s and
-  resetting the divergence window did not change the pattern.
+**The canary missed it because both its vectors were too small.** `splitmix32(1)`
+= 1580013426 and `shotSeed(7, 12345)` = 1994071465 are both under 2³¹, so they
+exercised the one half of the input space that worked. It now also pins a real
+`(seq, salt)` pair whose seed exceeds 2³¹ — `spreadAngles(0.5, 50, salt)` for the
+salt above — which fails loudly against the old code.
 
-The assertion is left strict, because red is the correct signal here: either the
-client is recording the wrong seq for a shot, or the server's `consumedCount` and
-the client's send index diverge on frames that send more than one input. That is
-worth its own investigation rather than a weakened check.
+The wider lesson for the other ports: a reference vector that never crosses a
+representation boundary does not test the boundary. The C, C# and Lua canaries
+carry the same two small vectors, and while their languages make this particular
+mistake harder, none of them proves the wide-seed case either.
 
 ## Found while building this
 

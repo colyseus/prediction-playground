@@ -33,6 +33,14 @@ class Lab11 implements Lab {
 	public var maxDivergence(default, null) = Math.NaN;
 	/** Worst divergence over the whole volley, not just the last answered fan. */
 	public var worstDivergence(default, null) = Math.NaN;
+	/**
+	 * What a disagreement looked like, which is the whole diagnosis:
+	 * "base" = every pellet off by the SAME amount, so the two sides derived the
+	 * same pellet pattern from a different shot origin/aim — a prediction
+	 * difference, not an RNG one. "seed" = the pellets differ independently, so
+	 * (seq, salt) genuinely disagreed. "" = nothing has disagreed.
+	 */
+	public var disagreement(default, null) = "";
 	public var cheat = false;
 
 	static inline var FAN_LEN = 40.0;
@@ -123,6 +131,20 @@ class Lab11 implements Lab {
 				var d = Math.abs(f.client[i] - f.server[i]);
 				if (d > worst) worst = d;
 			}
+			if (worst > 1e-6) {
+				// Uniform deltas mean the pattern matched and only the base angle
+				// differed; independent deltas mean the streams themselves differ.
+				var d0 = f.client[0] - f.server[0];
+				var uniform = true;
+				for (i in 1...Sim.PELLETS) {
+					if (Math.abs((f.client[i] - f.server[i]) - d0) > 1e-9) { uniform = false; break; }
+				}
+				disagreement = uniform ? "base" : "seed";
+				if (Sys.getEnv("DEBUG_FAN") != null) {
+					Sys.println('[fan] seq=$seq worst=$worst kind=$disagreement'
+						+ ' origin client=(${f.ox},${f.oy}) server=(${m.ox},${m.oy})');
+				}
+			}
 			f.hits = (m.hits != null) ? m.hits : 0;
 			f.answered = true;
 			maxDivergence = worst;
@@ -137,6 +159,7 @@ class Lab11 implements Lab {
 	public function resetDivergence(): Void {
 		maxDivergence = Math.NaN;
 		worstDivergence = Math.NaN;
+		disagreement = "";
 	}
 
 	public function answeredFans(): Int {

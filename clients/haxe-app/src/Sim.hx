@@ -225,22 +225,30 @@ class Sim {
 	// --------------------------------------------------- shared/random.ts
 
 	/** The unsigned value of a 32-bit pattern, as an f64 — JS's `>>> 0`. */
-	static inline function u32(v: Int): Float {
+	public static inline function u32(v: Int): Float {
 		return v < 0 ? v + 4294967296.0 : v;
 	}
 
-	/** splitmix32 — one-shot avalanche of a 32-bit seed into a well-mixed word. */
-	public static function splitmix32(a: Int): Float {
+	/**
+	 * splitmix32 — one-shot avalanche of a 32-bit seed into a well-mixed word.
+	 *
+	 * Returns the raw 32-bit PATTERN as an Int, which may be negative. It must
+	 * not return the unsigned value as a Float: half of all seeds exceed 2^31,
+	 * and `Std.int()` cannot represent those on any 32-bit-Int target — it
+	 * collapses them to one value, so unrelated shots silently share a stream.
+	 * Convert to unsigned only where a magnitude is actually wanted.
+	 */
+	public static function splitmix32(a: Int): Int {
 		a = a + 0x9e3779b9;
 		var t = a ^ (a >>> 16);
 		t = t * 0x21f0aaad;
 		t = t ^ (t >>> 15);
 		t = t * 0x735a2d97;
-		return u32(t ^ (t >>> 15));
+		return t ^ (t >>> 15);
 	}
 
 	/** Per-shot seed from the input sequence + a synced per-round salt. */
-	public static function shotSeed(seq: Int, salt: Int): Float {
+	public static function shotSeed(seq: Int, salt: Int): Int {
 		return splitmix32(seq ^ (salt * 0x85ebca6b));
 	}
 
@@ -255,7 +263,7 @@ class Sim {
 	 * server roll identical pellets for the same shot.
 	 */
 	public static function spreadAngles(baseAngle: Float, seq: Int, salt: Int): Array<Float> {
-		var rng = new Rng(Std.int(shotSeed(seq, salt)));
+		var rng = new Rng(shotSeed(seq, salt));
 		var out = [];
 		for (i in 0...PELLETS) out.push(baseAngle + (rng.next() - 0.5) * SPREAD_RAD);
 		return out;
@@ -362,14 +370,22 @@ class Sim {
 		check(Math.abs(r0 - 0.00975770130753517150879) < 1e-18
 			&& Math.abs(r1 - 0.220020313980057835579) < 1e-15
 			&& Math.abs(r2 - 0.457878412213176488876) < 1e-15
-			&& splitmix32(1) == 1580013426.0
-			&& shotSeed(7, 12345) == 1994071465.0,
-			'  sim: mulberry  -> $r0 $r1 $r2 / splitmix32(1)=${splitmix32(1)} shotSeed=${shotSeed(7, 12345)}');
+			&& u32(splitmix32(1)) == 1580013426.0
+			&& u32(shotSeed(7, 12345)) == 1994071465.0,
+			'  sim: mulberry  -> $r0 $r1 $r2 / splitmix32(1)=${u32(splitmix32(1))} shotSeed=${u32(shotSeed(7, 12345))}');
 
 		var fan = spreadAngles(0.5, 7, 12345);
 		check(Math.abs(fan[0] - 0.599485442587174510720) < 1e-15
 			&& Math.abs(fan[1] - 0.672593814930878552971) < 1e-15,
 			'  sim: spread    -> ${fan[0]} ${fan[1]}');
+
+		// A real (seq, salt) pair whose seed exceeds 2^31 — the case the two
+		// vectors above cannot reach, and the one that silently collapsed when
+		// the seed was carried as an unsigned Float. Salt 3004265928 written as
+		// its signed 32-bit pattern; reference from the TypeScript original.
+		var wide = spreadAngles(0.5, 50, -1290701368);
+		check(Math.abs(wide[0] - 0.5586675314931199) < 1e-15,
+			'  sim: wide seed -> ${wide[0]} (want 0.5586675314931199)');
 
 		var tHit = rayCircle(0, 0, 1, 0, 10, 0, 2, 100);
 		var tMiss = rayCircle(0, 0, 1, 0, 10, 5, 2, 100);

@@ -347,12 +347,13 @@ class Acceptance {
 			drive(lab, app, 2500);
 			lab.resetDivergence();
 
-			for (_ in 0...4) { lab.fire(); drive(lab, app, 700); }
+			for (_ in 0...10) { lab.fire(); drive(lab, app, 700); }
 			check("lab11 the server reported a fan", lab.answeredFans() > 0,
 				'${lab.answeredFans()} answered');
 			check("lab11 seeded from (seq, salt), both sides derive the same fan",
 				!Math.isNaN(lab.worstDivergence) && lab.worstDivergence < 1e-6,
-				'worst divergence ${lab.worstDivergence} rad over ${lab.answeredFans()} fans');
+				'worst divergence ${lab.worstDivergence} rad over ${lab.answeredFans()} fans'
+					+ (lab.disagreement == "" ? "" : ' — disagreement is ${lab.disagreement}-shaped'));
 
 			// Swap in an unshared RNG and the SAME comparison must fail — otherwise
 			// the check above proves nothing.
