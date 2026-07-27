@@ -170,7 +170,7 @@ static bool lab07_attach(app_t* app, colyseus_room_t* room) {
     colyseus_predict_attach_all_reckon(l07.predict, (colyseus_schema_t*)state, "bots",
         &bot_vtable, SMOOTHED_XY, 2, l07_reckon_step, 25, 0, 0, NULL);
     colyseus_predict_attach_all(l07.predict, (colyseus_schema_t*)state, "players",
-        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
+        ATTACH_XY_DAMPED, 2, sid, NULL);
 
     l07.input = colyseus_room_input(room, &move_input_vtable, NULL);
     if (!l07.input) { return false; }

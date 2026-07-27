@@ -16,6 +16,9 @@
 #include "colyseus/client.h"
 #include "colyseus/room.h"
 #include "colyseus/schema.h"
+#include "colyseus/predict/predict.h"
+
+#include "sim.h"
 
 #include "hud.h"
 #include "sim.h"
@@ -74,6 +77,22 @@ static void app_set_latency_preset(int index);
 
 /* The field pair every lab smooths on entities it does not control. */
 static const char* const SMOOTHED_XY[] = { "x", "y" };
+
+/* Shared attach configs. The per-field array is what the reference expresses as
+ * a map literal; C has no such literal, so the common homogeneous cases live
+ * here rather than being retyped at every mount. */
+static const colyseus_predict_field_options_t OPT_DAMPED = {
+    .mode = COLYSEUS_PREDICT_DAMPED,
+};
+static const colyseus_predict_field_options_t OPT_LERP_REMOTE = {
+    .mode = COLYSEUS_PREDICT_LERP, .delay = REMOTE_INTERP_MS,
+};
+static const colyseus_attach_field_t ATTACH_XY_DAMPED[] = {
+    { "x", &OPT_DAMPED }, { "y", &OPT_DAMPED },
+};
+static const colyseus_attach_field_t ATTACH_XY_LERP_REMOTE[] = {
+    { "x", &OPT_LERP_REMOTE }, { "y", &OPT_LERP_REMOTE },
+};
 
 /* ---------------------------------------------------------- keyboard */
 

@@ -142,8 +142,8 @@ static bool lab04_attach(app_t* app, colyseus_room_t* room) {
         opts.delay = spec[i].delay;
         opts.damping = spec[i].damping;
         opts.max_extrapolate = spec[i].max_extrapolate;
-        colyseus_predict_track(m->predict, (colyseus_schema_t*)bot, "x", &opts);
-        colyseus_predict_track(m->predict, (colyseus_schema_t*)bot, "y", &opts);
+        const colyseus_attach_field_t cfg[] = { { "x", &opts }, { "y", &opts } };
+        colyseus_predict_attach(m->predict, (colyseus_schema_t*)bot, cfg, 2);
     }
     (void)app;
     return true;

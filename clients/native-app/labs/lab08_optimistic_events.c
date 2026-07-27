@@ -147,7 +147,7 @@ static bool lab08_attach(app_t* app, colyseus_room_t* room) {
 
     l08.predict = colyseus_predict_for_room(room);
     colyseus_predict_attach_all(l08.predict, (colyseus_schema_t*)state, "players",
-        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
+        ATTACH_XY_DAMPED, 2, sid, NULL);
 
     colyseus_event_channel_options_t ch = { 0 };
     ch.on_predict = l08_on_predict;

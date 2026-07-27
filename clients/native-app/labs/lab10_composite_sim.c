@@ -129,7 +129,7 @@ static bool lab10_attach(app_t* app, colyseus_room_t* room) {
 
     l10.predict = colyseus_predict_for_room(room);
     colyseus_predict_attach_all(l10.predict, (colyseus_schema_t*)state, "players",
-        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
+        ATTACH_XY_DAMPED, 2, sid, NULL);
 
     l10.input = colyseus_room_input(room, &move_input_vtable, NULL);
     if (!l10.input) { return false; }

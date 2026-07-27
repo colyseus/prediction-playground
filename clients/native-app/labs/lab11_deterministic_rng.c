@@ -153,11 +153,9 @@ static bool lab11_attach(app_t* app, colyseus_room_t* room) {
     l11.predict = colyseus_predict_for_room(room);
     /* Bots ride the lerp timeline — the one the server rewinds to. */
     colyseus_predict_attach_all(l11.predict, (colyseus_schema_t*)state, "bots",
-        SMOOTHED_XY, 2, NULL,
-        &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_LERP,
-                                             .delay = REMOTE_INTERP_MS });
+        ATTACH_XY_LERP_REMOTE, 2, NULL, NULL);
     colyseus_predict_attach_all(l11.predict, (colyseus_schema_t*)state, "players",
-        SMOOTHED_XY, 2, sid, &(colyseus_predict_field_options_t){ .mode = COLYSEUS_PREDICT_DAMPED });
+        ATTACH_XY_DAMPED, 2, sid, NULL);
     colyseus_room_on_message(room, "spread", l11_on_spread, NULL);
 
     colyseus_input_options_t in_opts = { 0 };

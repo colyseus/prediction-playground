@@ -64,7 +64,7 @@ static void l05_reckon_step(colyseus_schema_t* state, double dt, double elapsed_
 static bool l05_attach_reckon(void) {
     static const char* const FIELDS[] = { "x", "y" };
     l05.reckon = colyseus_predict_create(l05.callbacks, l05.clock);
-    return colyseus_predict_track_reckon(l05.reckon, (colyseus_schema_t*)l05.bot, &bot_vtable,
+    return colyseus_predict_attach_reckon(l05.reckon, (colyseus_schema_t*)l05.bot, &bot_vtable,
         FIELDS, 2, l05_reckon_step, l05.smoothing, 0, l05.snap, NULL) == 0;
 }
 
@@ -101,8 +101,8 @@ static bool lab05_attach(app_t* app, colyseus_room_t* room) {
     colyseus_predict_field_options_t lerp_opts = { 0 };
     lerp_opts.mode = COLYSEUS_PREDICT_LERP;
     lerp_opts.delay = REMOTE_INTERP_MS;
-    colyseus_predict_track(l05.lerp, (colyseus_schema_t*)bot, "x", &lerp_opts);
-    colyseus_predict_track(l05.lerp, (colyseus_schema_t*)bot, "y", &lerp_opts);
+    const colyseus_attach_field_t lerp_cfg[] = { { "x", &lerp_opts }, { "y", &lerp_opts } };
+    colyseus_predict_attach(l05.lerp, (colyseus_schema_t*)bot, lerp_cfg, 2);
 
     if (!l05_attach_reckon()) { return false; }
 
