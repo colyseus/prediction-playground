@@ -32,7 +32,7 @@ pnpm dev --host 0.0.0.0        # from the repo root; serves ws://localhost:5173
 ```sh
 cd clients/haxe-app
 
-# the netcode, against a live server — 33 checks across 11 labs
+# the netcode, against a live server — 34 checks across 11 labs
 haxe acceptance.hxml && neko bin/acceptance.n
 
 # the windowed client
@@ -67,7 +67,7 @@ OK  lab08 2 confirmed / 0 rejected at 0 % deny; 6 predicted / 4 rejected at 100 
 OK  lab09 a local exists the same frame it fires, lead 371 ms
 OK  lab06 6/6 hits, rewind error 0.76 u while the view lags 9.5 u
 OK  lab07 predicted 2, authoritative 2, mispredict rate 0 %
-OK  lab11 an unshared RNG visibly disagrees — divergence 2.9e-01 rad
+OK  lab11 divergence 4.07e-08 rad seeded, 2.27e-01 with an unshared RNG
 ```
 
 **Drift of exactly zero**, matching the C and Lua ports: Haxe `Float` is f64 all
