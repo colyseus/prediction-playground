@@ -33,7 +33,20 @@ namespace Playground
         public override string Blurb => "One rollback over a world of parts: paddle and puck together.";
 
         private Predict _predict;
-        private SimReconciler<Lab.MoveInput> _sim;
+        /// <summary>
+        /// The simulated world. Both fields hold decoded instances at
+        /// construction and are replaced in place by mirrors, so the step writes
+        /// `w.paddle.x` against a real typed instance and the poses come out as
+        /// "paddle.x" / "puck.x" — the same keys the JS reference and the
+        /// fixtures use.
+        /// </summary>
+        public class HockeyWorld
+        {
+            public Lab.Player paddle;
+            public Lab.Puck puck;
+        }
+
+        private SimReconciler<HockeyWorld, Lab.MoveInput> _sim;
         private Lab.MoveInput _cmd;
         private InputHandle _input;
         private Lab.Player _me;
@@ -60,7 +73,7 @@ namespace Playground
             $"server=({Room.State.puck.x:F2},{Room.State.puck.y:F2}) " +
             $"paddle=({_sim.Value("paddle.x"):F2},{_sim.Value("paddle.y"):F2})";
         public int Touches => _touches;
-        public SimReconciler<Lab.MoveInput> Recon => _sim;
+        public SimReconciler<HockeyWorld, Lab.MoveInput> Recon => _sim;
 
         public override async Task<bool> Mount(App app)
         {
@@ -86,24 +99,20 @@ namespace Playground
 
         private void Build()
         {
-            _sim = _predict.MakeSimReconciler(new SimReconcilerOptions<Lab.MoveInput>
+            _sim = _predict.MakeSimReconciler(new SimReconcilerOptions<HockeyWorld, Lab.MoveInput>
             {
                 Input = _input,
                 Smoothing = _smoothing,
-                Parts = new[]
-                {
-                    new SimPart { Name = "paddle", Source = _me },
-                    new SimPart { Name = "puck", Source = Room.State.puck },
-                },
+                World = new HockeyWorld { paddle = _me, puck = Room.State.puck },
                 Step = Step,
             });
         }
 
         /// <summary>The server's step order, reproduced: my paddle → puck → contacts.</summary>
-        private void Step(StepContext ctx, SimWorld world, Lab.MoveInput cmd)
+        private void Step(StepContext ctx, HockeyWorld w, Lab.MoveInput cmd)
         {
-            var paddle = world.Part<Lab.Player>("paddle");
-            var puck = world.Part<Lab.Puck>("puck");
+            var paddle = w.paddle;
+            var puck = w.puck;
 
             var pad = new Sim.Entity { x = paddle.x, y = paddle.y, vx = paddle.vx, vy = paddle.vy };
             Sim.StepEntity(ref pad, cmd.moveX, cmd.moveY, ctx.Dt);
