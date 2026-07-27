@@ -276,6 +276,85 @@ do -- lab 09: an optimistic spawn hands off to the authoritative entity
   leave(lab, room)
 end
 
+do -- lab 06: lag comp lands the shot where the shooter aimed
+  local Lab06 = require 'playground.labs.lab06'
+  local lab = Lab06.new()
+  net_delay.reset()
+  local room = mount(lab, context)     -- mount picks its own latency preset
+  drive(lab, context, 1500)
+
+  lab:set_lag_comp(true)
+  drive(lab, context, 800)
+  for _ = 1, 6 do
+    lab:fire()
+    drive(lab, context, 700)
+  end
+  check("lab06 the server reported the shots", lab.shots_on > 0,
+    lab.shots_on .. " with comp on")
+  check("lab06 lag comp hits what the shooter saw",
+    lab.hits_on * 10 > lab.shots_on * 6,
+    string.format("%d/%d hits", lab.hits_on, lab.shots_on))
+  -- The assertion that catches an unbound render_delay: the rewound read has to
+  -- coincide with our view, while the view itself lags well behind live.
+  check("lab06 the rewound read coincides with our view",
+    lab:rewind_error() >= 0 and lab:rewind_error() < 3.0,
+    string.format("rewind error %.2f u, view lag %.1f u", lab:rewind_error(), lab:view_lag()))
+
+  leave(lab, room)
+end
+
+do -- lab 07: a frozen verdict agrees with the server's
+  local Lab07 = require 'playground.labs.lab07'
+  local lab = Lab07.new()
+  net_delay.reset()
+  local room = mount(lab, context)     -- mount picks its own latency preset
+
+  -- The autopilot seeks the bot's lane and lets the patrol sweep hit it.
+  drive(lab, context, 14000, 1)
+  check("lab07 bumped the bot at all", lab.bumps_predicted > 0,
+    lab.bumps_predicted .. " predicted")
+  -- The server's own counter is the only verdict that settles it: with
+  -- value_at + memo the client's count must TRACK it, not merely be close.
+  check("lab07 the client's verdict matches the server's",
+    math.abs(lab.bumps_predicted - lab.me.bumps) <= 1,
+    string.format("predicted %d, authoritative %d, mispredict rate %.0f %%",
+      lab.bumps_predicted, lab.me.bumps, lab:mispredict_rate()))
+
+  leave(lab, room)
+end
+
+do -- lab 11: client and server roll identical pellets from (seq, salt)
+  local Lab11 = require 'playground.labs.lab11'
+  local lab = Lab11.new()
+  net_delay.reset()
+  net_delay.set_latency(200, 0)
+  local room = mount(lab, context)
+  drive(lab, context, 1200)
+
+  for _ = 1, 3 do
+    lab:fire()
+    drive(lab, context, 700)
+  end
+  check("lab11 the server reported a fan", lab:answered_fans() > 0,
+    lab:answered_fans() .. " answered")
+  check("lab11 seeded from (seq, salt), both sides derive the same fan",
+    lab.max_divergence ~= nil and lab.max_divergence < 1e-6,
+    string.format("divergence %.3e rad", lab.max_divergence or -1))
+
+  -- Swap in an unshared RNG and the SAME comparison must fail — otherwise the
+  -- check above proves nothing.
+  lab.cheat = true
+  for _ = 1, 3 do
+    lab:fire()
+    drive(lab, context, 700)
+  end
+  check("lab11 an unshared RNG visibly disagrees",
+    lab.max_divergence ~= nil and lab.max_divergence > 1e-6,
+    string.format("divergence %.3e rad", lab.max_divergence or -1))
+
+  leave(lab, room)
+end
+
 print()
 if failed == 0 then
   print("all checks passed")
