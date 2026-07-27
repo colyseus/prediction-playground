@@ -92,6 +92,15 @@ function Lab:build()
   })
 end
 
+--- Switch the server's AI paddle on/off. The acceptance run turns it OFF: a
+--- contested touch mispredicts BY DESIGN (remote paddles enter the prediction at
+--- their last snapshot), so leaving the AI in makes the determinism check measure
+--- how often the bot happened to engage. The native demo has always done this;
+--- the interactive build keeps its AI.
+function Lab:set_bot(on)
+  self.room:send("bot", { on = on })
+end
+
 --- The server's step order, reproduced: my paddle -> puck -> contacts.
 function Lab:step(ctx, w, inp)
   local pad = { x = w.paddle.x, y = w.paddle.y, vx = w.paddle.vx, vy = w.paddle.vy }

@@ -370,6 +370,7 @@ do -- lab 10: the puck is predicted THROUGH our own inputs
   local lab = Lab10.new()
   net_delay.reset()
   local room = mount(lab, context)   -- mount picks its own latency preset
+  lab:set_bot(false)                 -- isolate OUR step from a contested touch
 
   -- The lab steers itself toward the puck under autopilot; a plain sweep never
   -- reaches it, and a puck nobody touches proves nothing.
