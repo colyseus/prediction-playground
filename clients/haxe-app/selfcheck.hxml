@@ -1,0 +1,5 @@
+# The shared-sim canary alone — no server, no window, no SDK.
+-main SimCheck
+-cp src
+-dce full
+-hl bin/selfcheck.hl
