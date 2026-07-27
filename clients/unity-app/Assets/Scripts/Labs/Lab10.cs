@@ -50,6 +50,12 @@ namespace Playground
         private Lab.MoveInput _cmd;
         private InputHandle _input;
         private Lab.Player _me;
+        /// <summary>
+        /// The DECODED puck, kept as the read handle. The sim swaps a mirror into
+        /// the world, but this stays the SOURCE — which is what the bound overlay
+        /// keys on, so Value(_puck, "x") resolves without anyone naming "puck.x".
+        /// </summary>
+        private Lab.Puck _puck;
         private string _sid;
 
         private double _smoothing = 15;
@@ -59,6 +65,10 @@ namespace Playground
         private double _sparkGate;
         private int _touches;
         private bool _touchedLastStep;
+        private int _retreatTicks;
+
+        /// <summary>Fixed steps the autopilot spends heading home after a strike (20Hz -> ~0.6s).</summary>
+        private const int RetreatTicks = 12;
 
         /// <summary>
         /// PEAK, not instantaneous. The predicted puck leads the server's by the
@@ -69,11 +79,16 @@ namespace Playground
         public double MaxPuckLead { get; private set; }
         /// <summary>Raw values behind the lead, so a failure can explain itself.</summary>
         public string DescribePuck() =>
-            $"predicted=({_sim.Value("puck.x"):F2},{_sim.Value("puck.y"):F2}) " +
+            $"predicted=({_predict.Value(_puck, "x"):F2},{_predict.Value(_puck, "y"):F2}) " +
             $"server=({Room.State.puck.x:F2},{Room.State.puck.y:F2}) " +
-            $"paddle=({_sim.Value("paddle.x"):F2},{_sim.Value("paddle.y"):F2})";
+            $"paddle=({_predict.Value(_me, "x"):F2},{_predict.Value(_me, "y"):F2})";
         public int Touches => _touches;
         public SimReconciler<HockeyWorld, Lab.MoveInput> Recon => _sim;
+        /// <summary>
+        /// Server-authoritative puck position — the harness's liveness probe.
+        /// Exposed here because <c>Room</c> is protected on <see cref="LabBase{T}" />.
+        /// </summary>
+        public (double x, double y) ServerPuck() => (Room.State.puck.x, Room.State.puck.y);
 
         public override async Task<bool> Mount(App app)
         {
@@ -82,7 +97,8 @@ namespace Playground
                      && r.State.puck != null);
             _sid = Room.SessionId;
             if (Room.State.players == null || !Room.State.players.TryGetValue(_sid, out _me)) return false;
-            if (Room.State.puck == null) return false;
+            _puck = Room.State.puck;
+            if (_puck == null) return false;
 
             _predict = Predict.For(Room);
             // Remote paddles: damped toward the latest snapshot. They enter the
@@ -106,7 +122,7 @@ namespace Playground
             {
                 Input = _input,
                 Smoothing = _smoothing,
-                World = new HockeyWorld { paddle = _me, puck = Room.State.puck },
+                World = new HockeyWorld { paddle = _me, puck = _puck },
                 Step = Step,
             });
         }
@@ -147,10 +163,19 @@ namespace Playground
         /// whole lab look broken while proving nothing (the native port hit this
         /// first).
         /// </summary>
+        /// <remarks>
+        /// Backs off to its own half for a beat after each strike. Chasing without
+        /// release traps the puck against a wall and holds it there: contacts
+        /// re-eject it out of bounds every tick (StepPuck clamps, then the contact
+        /// pushes it back out), so the world freezes with both sides in perfect
+        /// agreement — and a drift check reads that as success.
+        /// </remarks>
         private void SeekPuck(out int moveX, out int moveY)
         {
-            double dx = _sim.Value("puck.x") - _sim.Value("paddle.x");
-            double dy = _sim.Value("puck.y") - _sim.Value("paddle.y");
+            double tx = _predict.Value(_puck, "x"), ty = _predict.Value(_puck, "y");
+            if (_retreatTicks > 0) { tx = Sim.ArenaW / 2; ty = Sim.ArenaH * 0.75; }
+            double dx = tx - _predict.Value(_me, "x");
+            double dy = ty - _predict.Value(_me, "y");
             moveX = dx > 0.4 ? 1 : dx < -0.4 ? -1 : 0;
             moveY = dy > 0.4 ? 1 : dy < -0.4 ? -1 : 0;
         }
@@ -174,16 +199,17 @@ namespace Playground
                 _cmd.moveX = (sbyte)moveX;
                 _cmd.moveY = (sbyte)moveY;
                 _input.Send();
-                if (_touchedLastStep) { _touches++; _touchedLastStep = false; }
+                if (_retreatTicks > 0) _retreatTicks--;
+                if (_touchedLastStep) { _touches++; _touchedLastStep = false; _retreatTicks = RetreatTicks; }
             }
 
             // How far the predicted puck leads the authoritative one.
-            double dx = _sim.Value("puck.x") - Room.State.puck.x;
-            double dy = _sim.Value("puck.y") - Room.State.puck.y;
+            double dx = _predict.Value(_puck, "x") - Room.State.puck.x;
+            double dy = _predict.Value(_puck, "y") - Room.State.puck.y;
             double lead = System.Math.Sqrt(dx * dx + dy * dy);
             if (lead > MaxPuckLead) MaxPuckLead = lead;
 
-            _puckTrail.Push(_sim.Value("puck.x"), _sim.Value("puck.y"));
+            _puckTrail.Push(_predict.Value(_puck, "x"), _predict.Value(_puck, "y"));
             _sparkGate += dtMs;
             if (_sparkGate >= 100) { _sparkGate = 0; _driftSpark.Push(_sim.Drift.Ema); }
         }
@@ -216,12 +242,12 @@ namespace Playground
 
             _puckTrail.Render(v, Palette.Accent, 1.5f, 0.4f);
 
-            double px = _sim.Value("paddle.x"), py = _sim.Value("paddle.y");
+            double px = _predict.Value(_me, "x"), py = _predict.Value(_me, "y");
             Draw.Circle(v, px, py, Sim.PaddleRadius, Palette.Hue(_me.hue, 0.5f));
             Draw.CircleOutline(v, px, py, Sim.PaddleRadius, Palette.Text);
             Draw.Label(v, px, py, "you (predicted)", Palette.Text, 11, -v.S(Sim.PaddleRadius) - 16);
 
-            double kx = _sim.Value("puck.x"), ky = _sim.Value("puck.y");
+            double kx = _predict.Value(_puck, "x"), ky = _predict.Value(_puck, "y");
             Draw.Circle(v, kx, ky, Sim.PuckRadius, Palette.A(Palette.Accent, 0.9f));
             Draw.CircleOutline(v, kx, ky, Sim.PuckRadius, Palette.Accent);
             Draw.Label(v, kx, ky, "puck (predicted)", Palette.Accent, 10, -v.S(Sim.PuckRadius) - 14);

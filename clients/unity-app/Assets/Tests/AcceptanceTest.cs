@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Colyseus;
 using Colyseus.Predict;
@@ -38,7 +39,12 @@ public class AcceptanceTest
     private static Client MakeClient() => new Client(Endpoint);
 
     /// <summary>Pump the injector + a lab for `ms`, exactly like Update() does.</summary>
-    private static IEnumerator Drive(ILab lab, App app, double ms, int autoX = 0, int autoY = 0)
+    /// <param name="onFrame">
+    ///     Runs after each frame with the elapsed ms — for checks that need the
+    ///     shape of a run rather than one end-of-run reading.
+    /// </param>
+    private static IEnumerator Drive(ILab lab, App app, double ms, int autoX = 0, int autoY = 0,
+        System.Action<double> onFrame = null)
     {
         Kb.Autopilot = true;
         Kb.AutoX = autoX;
@@ -51,6 +57,7 @@ public class AcceptanceTest
             lab?.Frame(app, now, now - last);
             last = now;
             DrivenFrames++;
+            onFrame?.Invoke(now - start);
             yield return null;
         }
     }
@@ -495,7 +502,32 @@ public class AcceptanceTest
         // just after a strike — so this tracks the PEAK rather than sampling.
         // The lab steers itself toward the puck under autopilot; a plain
         // left-right sweep never reaches it.
-        yield return Drive(lab, app, 12000);
+        // Sample every reconcile as it happens, and how far the puck travels late
+        // in the run. Reading drift.Ema once at the end measures the wrong thing
+        // twice over: it decays toward zero when the world stops moving, so a puck
+        // pinned against a wall scores BETTER than honest play.
+        var mags = new List<double>();
+        int seq = lab.Recon.ReconcileSeq;
+        double latePath = 0, px = double.NaN, py = double.NaN;
+        yield return Drive(lab, app, 12000, 0, 0, elapsed =>
+        {
+            if (lab.Recon.ReconcileSeq != seq)
+            {
+                seq = lab.Recon.ReconcileSeq;
+                mags.Add(lab.Recon.LastCorrectionMag);
+            }
+            if (elapsed > 9000)
+            {
+                var puck = lab.ServerPuck();
+                if (!double.IsNaN(px))
+                {
+                    latePath += System.Math.Sqrt((puck.x - px) * (puck.x - px)
+                                               + (puck.y - py) * (puck.y - py));
+                }
+                px = puck.x;
+                py = puck.y;
+            }
+        });
 
         Assert.Greater(lab.Recon.PendingCount, 0,
             "nothing in flight — inputs are not being predicted");
@@ -505,10 +537,24 @@ public class AcceptanceTest
             $"predicted puck never led the server's (peak {lab.MaxPuckLead:F2} u, " +
             $"{lab.Touches} touches, {lab.DescribePuck()}) — " +
             "the puck is not being predicted through our inputs");
-        Assert.AreNotEqual(DriftStatus.Diverging, DriftClassifier.Classify(lab.Recon.Drift, 0.01),
-            $"drift ema {lab.Recon.Drift.Ema:E2} — the composite step disagrees with the server's");
+        // The MEDIAN reconcile, not the worst or the last. Remote paddles enter the
+        // prediction at their last snapshot, so a contested touch mispredicts BY
+        // DESIGN — lab 10 exists to show that. 0.5 is measured: honest play lands
+        // at 0.0000-0.1527, a client stepping the puck with the wrong friction
+        // (0.900 vs 0.985) lands at 1.7751. Catches GROSS divergence only;
+        // bit-exactness is Sim.SelfCheck()'s job.
+        mags.Sort();
+        double median = mags.Count == 0 ? -1 : mags[(mags.Count - 1) / 2];
+        Assert.That(median, Is.GreaterThanOrEqualTo(0).And.LessThan(0.5),
+            $"median correction {median:F4} over {mags.Count} reconciles — " +
+            "the composite step disagrees with the server's");
+        // Guards the check above: a frozen world agrees with itself perfectly.
+        Assert.Greater(latePath, 5,
+            $"puck travelled {latePath:F1} u in the last 3s — the world froze, so the " +
+            "median above proves nothing (a pinned puck reads as perfect agreement)");
         Debug.Log($"OK lab10: peak puck lead {lab.MaxPuckLead:F2} u, {lab.Touches} touches, " +
-                  $"drift ema {lab.Recon.Drift.Ema:E2}, {lab.Recon.PendingCount} in flight");
+                  $"median correction {median:F4} over {mags.Count} reconciles, " +
+                  $"{latePath:F1} u late travel, {lab.Recon.PendingCount} in flight");
 
         yield return Teardown(lab);
     }
