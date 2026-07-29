@@ -267,8 +267,7 @@ class PredictProbe {
 		if (bot == null) { return; }
 
 		var predict = Predict.create(callbacksOf(room), room.clock);
-		predict.track(bot, "x", { mode: "lerp" });
-		predict.track(bot, "y", { mode: "lerp" });
+		predict.attach(bot, { x: "lerp", y: "lerp" });
 		check("track bot1.x/y (lerp)", true);
 		sleepMs(300);   // ring warmup — with < 2 samples value() reads raw
 

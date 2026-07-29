@@ -242,8 +242,7 @@ public static class Program
 		Check("bot1 present", bot != null);
 
 		var predict = new Predict(new PredictCallbacks<Lab.BotsState>(Callbacks.Get(room)), room.Clock);
-		predict.Track(bot, "x", new PredictFieldOptions { Mode = PredictMode.Lerp });
-		predict.Track(bot, "y", new PredictFieldOptions { Mode = PredictMode.Lerp });
+		predict.Attach(bot, new AttachConfig { ["x"] = PredictMode.Lerp, ["y"] = PredictMode.Lerp });
 		Check("track bot1.x/y (lerp)", true);
 
 		double first = double.NaN, lastV = double.NaN, minV = 1e9, maxV = -1e9;

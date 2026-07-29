@@ -345,8 +345,8 @@ static void scenario_bots(colyseus_client_t* client) {
     colyseus_predict_field_options_t lerp = { 0 };
     lerp.mode = COLYSEUS_PREDICT_LERP;
     check("track bot1.x/y (lerp)",
-        colyseus_predict_track(predict, (colyseus_schema_t*)bot, "x", &lerp) == 0
-        && colyseus_predict_track(predict, (colyseus_schema_t*)bot, "y", &lerp) == 0, NULL);
+        colyseus_predict_attach(predict, (colyseus_schema_t*)bot,
+            (const colyseus_attach_field_t[]){ { "x", &lerp }, { "y", &lerp } }, 2) == 0, NULL);
 
     /* watch ~1.6s of patrol motion (speed 18 u/s) */
     double first = NAN, last_v = NAN, min_v = 1e9, max_v = -1e9;

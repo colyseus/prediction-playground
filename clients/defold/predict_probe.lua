@@ -237,8 +237,7 @@ local function scenario_bots(client)
   if bot == nil then leave_room(room); return end
 
   local predict = Predict.new(get_callbacks(room), room.clock)
-  predict:track(bot, "x", { mode = "lerp" })
-  predict:track(bot, "y", { mode = "lerp" })
+  predict:attach(bot, { x = "lerp", y = "lerp" })
   check("track bot1.x/y (lerp)", true)
 
   local first, last_v, min_v, max_v = nil, nil, 1e9, -1e9
