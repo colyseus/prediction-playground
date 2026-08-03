@@ -58,6 +58,9 @@ export function stepPuck(puck: CircleBody, dt: number): void {
 /**
  * Paddle↔puck contact: push the puck out of penetration along the contact
  * normal and give it the paddle's velocity plus a minimum separation speed.
+ * The push-out then resolves against the arena walls (same rule as
+ * {@link stepPuck}), so a puck squeezed between a paddle and a wall stays
+ * inside the arena instead of being ejected past it.
  * Deterministic (sqrt/mul/add only) and order-dependent — BOTH sides must
  * resolve paddles in the same order (the players-map iteration order).
  */
@@ -76,5 +79,10 @@ export function collidePaddlePuck(paddle: CircleBody, puck: CircleBody): boolean
   const speed = paddleAlong > PUCK_PUSH_MIN ? paddleAlong : PUCK_PUSH_MIN;
   puck.vx = nx * speed + paddle.vx * 0.35;
   puck.vy = ny * speed + paddle.vy * 0.35;
+  const min = PUCK_RADIUS, maxX = ARENA_W - PUCK_RADIUS, maxY = ARENA_H - PUCK_RADIUS;
+  if (puck.x < min) { puck.x = min; puck.vx = Math.abs(puck.vx) * PUCK_RESTITUTION; }
+  else if (puck.x > maxX) { puck.x = maxX; puck.vx = -Math.abs(puck.vx) * PUCK_RESTITUTION; }
+  if (puck.y < min) { puck.y = min; puck.vy = Math.abs(puck.vy) * PUCK_RESTITUTION; }
+  else if (puck.y > maxY) { puck.y = maxY; puck.vy = -Math.abs(puck.vy) * PUCK_RESTITUTION; }
   return true;
 }

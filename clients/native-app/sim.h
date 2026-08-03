@@ -309,6 +309,9 @@ static inline void step_puck(entity_state_t* p, double dt) {
 /*
  * Paddle<->puck contact: push the puck out of penetration along the contact
  * normal and give it the paddle's velocity plus a minimum separation speed.
+ * The push-out then resolves against the arena walls (same rule as
+ * step_puck), so a puck squeezed between a paddle and a wall stays inside
+ * the arena instead of being ejected past it.
  * Deterministic (sqrt/mul/add only) and ORDER-DEPENDENT — both sides must
  * resolve paddles in the same order (the players-map iteration order).
  */
@@ -327,6 +330,11 @@ static inline bool collide_paddle_puck(double paddle_x, double paddle_y,
     double speed = paddle_along > PUCK_PUSH_MIN ? paddle_along : PUCK_PUSH_MIN;
     puck->vx = nx * speed + paddle_vx * 0.35;
     puck->vy = ny * speed + paddle_vy * 0.35;
+    double min = PUCK_RADIUS, max_x = ARENA_W - PUCK_RADIUS, max_y = ARENA_H - PUCK_RADIUS;
+    if (puck->x < min) { puck->x = min; puck->vx = fabs(puck->vx) * PUCK_RESTITUTION; }
+    else if (puck->x > max_x) { puck->x = max_x; puck->vx = -fabs(puck->vx) * PUCK_RESTITUTION; }
+    if (puck->y < min) { puck->y = min; puck->vy = fabs(puck->vy) * PUCK_RESTITUTION; }
+    else if (puck->y > max_y) { puck->y = max_y; puck->vy = -fabs(puck->vy) * PUCK_RESTITUTION; }
     return true;
 }
 
@@ -488,6 +496,14 @@ static inline int sim_selfcheck(int verbose) {
     int ok_contact = touched && fabs(contact.x - 53.6) < 1e-12 && contact.vx == 17.5;
     if (verbose) { printf("  sim: contact   -> hit=%d x=%.15f vx=%.15f\n", touched, contact.x, contact.vx); }
     if (!ok_contact) { failed++; }
+
+    /* A paddle squeezing the puck against a wall keeps it INSIDE the arena. */
+    entity_state_t pinch = { 50, 59, 0, 0 };
+    bool pinched = collide_paddle_puck(50, 58, 0, 20, &pinch);
+    int ok_pinch = pinched && fabs(pinch.y - (ARENA_H - PUCK_RADIUS)) < 1e-12
+        && fabs(pinch.vy + 24.84) < 1e-12;
+    if (verbose) { printf("  sim: wall pinch-> y=%.15f vy=%.15f\n", pinch.y, pinch.vy); }
+    if (!ok_pinch) { failed++; }
 
     /* Score gate: edge-triggered, then locked out for the cooldown. */
     int ticks = 0;

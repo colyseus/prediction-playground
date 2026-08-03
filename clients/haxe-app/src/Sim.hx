@@ -294,6 +294,9 @@ class Sim {
 	/**
 	 * Paddle-puck contact: push the puck out of penetration along the contact
 	 * normal and give it the paddle's velocity plus a minimum separation speed.
+	 * The push-out then resolves against the arena walls (same rule as
+	 * `stepPuck`), so a puck squeezed between a paddle and a wall stays inside
+	 * the arena instead of being ejected past it.
 	 * Deterministic (sqrt/mul/add only) and ORDER-DEPENDENT — both sides must
 	 * resolve paddles in the same order, which is the players-map iteration order.
 	 */
@@ -312,6 +315,11 @@ class Sim {
 		var speed = along > PUCK_PUSH_MIN ? along : PUCK_PUSH_MIN;
 		puck.vx = nx * speed + paddleVx * 0.35;
 		puck.vy = ny * speed + paddleVy * 0.35;
+		var lo = PUCK_RADIUS, hiX = ARENA_W - PUCK_RADIUS, hiY = ARENA_H - PUCK_RADIUS;
+		if (puck.x < lo) { puck.x = lo; puck.vx = Math.abs(puck.vx) * PUCK_RESTITUTION; }
+		else if (puck.x > hiX) { puck.x = hiX; puck.vx = -Math.abs(puck.vx) * PUCK_RESTITUTION; }
+		if (puck.y < lo) { puck.y = lo; puck.vy = Math.abs(puck.vy) * PUCK_RESTITUTION; }
+		else if (puck.y > hiY) { puck.y = hiY; puck.vy = -Math.abs(puck.vy) * PUCK_RESTITUTION; }
 		return true;
 	}
 
@@ -421,6 +429,13 @@ class Sim {
 		var touched = collidePaddlePuck(50, 30, 10, 0, contact);
 		check(touched && Math.abs(contact.x - 53.6) < 1e-12 && contact.vx == 17.5,
 			'  sim: contact   -> hit=$touched x=${contact.x} vx=${contact.vx}');
+
+		// A paddle squeezing the puck against a wall keeps it INSIDE the arena.
+		var pinch: Entity = { x: 50, y: 59, vx: 0, vy: 0 };
+		var pinched = collidePaddlePuck(50, 58, 0, 20, pinch);
+		check(pinched && Math.abs(pinch.y - (ARENA_H - PUCK_RADIUS)) < 1e-12
+			&& Math.abs(pinch.vy + 24.84) < 1e-12,
+			'  sim: wall pinch-> y=${pinch.y} vy=${pinch.vy} (want 58.6 / -24.84)');
 
 		var g1 = stepScoreGate(GOAL_ZONE_X + 1, ARENA_H / 2, 0);
 		var g2 = stepScoreGate(GOAL_ZONE_X + 1, ARENA_H / 2, g1.ticks);

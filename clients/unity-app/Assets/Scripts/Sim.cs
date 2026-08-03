@@ -354,7 +354,10 @@ namespace Playground
         /// <summary>
         /// Paddle↔puck contact: push the puck out of penetration along the contact
         /// normal and give it the paddle's velocity plus a minimum separation
-        /// speed. Deterministic (sqrt/mul/add only) and ORDER-DEPENDENT — both
+        /// speed. The push-out then resolves against the arena walls (same rule
+        /// as StepPuck), so a puck squeezed between a paddle and a wall stays
+        /// inside the arena instead of being ejected past it.
+        /// Deterministic (sqrt/mul/add only) and ORDER-DEPENDENT — both
         /// sides must resolve paddles in the same order, which is the players-map
         /// iteration order.
         /// </summary>
@@ -374,6 +377,11 @@ namespace Playground
             double speed = paddleAlong > PuckPushMin ? paddleAlong : PuckPushMin;
             puck.vx = nx * speed + paddleVx * 0.35;
             puck.vy = ny * speed + paddleVy * 0.35;
+            double min = PuckRadius, maxX = ArenaW - PuckRadius, maxY = ArenaH - PuckRadius;
+            if (puck.x < min) { puck.x = min; puck.vx = Math.Abs(puck.vx) * PuckRestitution; }
+            else if (puck.x > maxX) { puck.x = maxX; puck.vx = -Math.Abs(puck.vx) * PuckRestitution; }
+            if (puck.y < min) { puck.y = min; puck.vy = Math.Abs(puck.vy) * PuckRestitution; }
+            else if (puck.y > maxY) { puck.y = maxY; puck.vy = -Math.Abs(puck.vy) * PuckRestitution; }
             return true;
         }
 
@@ -517,6 +525,14 @@ namespace Playground
             bool touched = CollidePaddlePuck(50, 30, 10, 0, ref contact);
             ok = touched && Math.Abs(contact.x - 53.6) < 1e-12 && contact.vx == 17.5;
             log?.Invoke($"  sim: contact   -> hit={touched} x={contact.x:R} vx={contact.vx:R}");
+            if (!ok) failed++;
+
+            // A paddle squeezing the puck against a wall keeps it INSIDE the arena.
+            var pinch = new Entity { x = 50, y = 59 };
+            bool pinched = CollidePaddlePuck(50, 58, 0, 20, ref pinch);
+            ok = pinched && Math.Abs(pinch.y - (ArenaH - PuckRadius)) < 1e-12
+                && Math.Abs(pinch.vy + 24.84) < 1e-12;
+            log?.Invoke($"  sim: wall pinch-> y={pinch.y:R} vy={pinch.vy:R}");
             if (!ok) failed++;
 
             // The score gate is edge-triggered, then locked out for the cooldown.

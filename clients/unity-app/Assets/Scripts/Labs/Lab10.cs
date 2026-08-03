@@ -199,9 +199,9 @@ namespace Playground
         /// </summary>
         /// <remarks>
         /// Backs off to its own half for a beat after each strike. Chasing without
-        /// release traps the puck against a wall and holds it there: contacts
-        /// re-eject it out of bounds every tick (StepPuck clamps, then the contact
-        /// pushes it back out), so the world freezes with both sides in perfect
+        /// release pins the puck against a wall and holds it there: the contact
+        /// re-fires every tick (the wall-aware push-out keeps it inside the arena,
+        /// but nothing moves), so the world freezes with both sides in perfect
         /// agreement — and a drift check reads that as success.
         /// </remarks>
         private void SeekPuck(out int moveX, out int moveY)

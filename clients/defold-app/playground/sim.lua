@@ -299,6 +299,9 @@ end
 
 --- Paddle-puck contact: push the puck out of penetration along the contact
 --- normal and give it the paddle's velocity plus a minimum separation speed.
+--- The push-out then resolves against the arena walls (same rule as
+--- step_puck), so a puck squeezed between a paddle and a wall stays inside
+--- the arena instead of being ejected past it.
 --- Deterministic (sqrt/mul/add only) and ORDER-DEPENDENT — both sides must
 --- resolve paddles in the same order, which is the players-map iteration order.
 function M.collide_paddle_puck(paddle_x, paddle_y, paddle_vx, paddle_vy, puck)
@@ -315,6 +318,11 @@ function M.collide_paddle_puck(paddle_x, paddle_y, paddle_vx, paddle_vy, puck)
   local speed = along > M.PUCK_PUSH_MIN and along or M.PUCK_PUSH_MIN
   puck.vx = nx * speed + paddle_vx * 0.35
   puck.vy = ny * speed + paddle_vy * 0.35
+  local lo, hi_x, hi_y = M.PUCK_RADIUS, M.ARENA_W - M.PUCK_RADIUS, M.ARENA_H - M.PUCK_RADIUS
+  if puck.x < lo then puck.x = lo; puck.vx = abs(puck.vx) * M.PUCK_RESTITUTION
+  elseif puck.x > hi_x then puck.x = hi_x; puck.vx = -abs(puck.vx) * M.PUCK_RESTITUTION end
+  if puck.y < lo then puck.y = lo; puck.vy = abs(puck.vy) * M.PUCK_RESTITUTION
+  elseif puck.y > hi_y then puck.y = hi_y; puck.vy = -abs(puck.vy) * M.PUCK_RESTITUTION end
   return true
 end
 
@@ -426,6 +434,13 @@ function M.selfcheck(log)
   check(touched and abs(contact.x - 53.6) < 1e-12 and contact.vx == 17.5,
     string.format("  sim: contact   -> hit=%s x=%.15f vx=%.15f",
       tostring(touched), contact.x, contact.vx))
+
+  -- A paddle squeezing the puck against a wall keeps it INSIDE the arena.
+  local pinch = { x = 50, y = 59, vx = 0, vy = 0 }
+  local pinched = M.collide_paddle_puck(50, 58, 0, 20, pinch)
+  check(pinched and abs(pinch.y - (M.ARENA_H - M.PUCK_RADIUS)) < 1e-12
+      and abs(pinch.vy + 24.84) < 1e-12,
+    string.format("  sim: wall pinch-> y=%.15f vy=%.15f", pinch.y, pinch.vy))
 
   local first, ticks = M.step_score_gate(M.GOAL_ZONE_X + 1, M.ARENA_H / 2, 0)
   local second, ticks2 = M.step_score_gate(M.GOAL_ZONE_X + 1, M.ARENA_H / 2, ticks)

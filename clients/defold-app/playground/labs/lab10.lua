@@ -142,9 +142,10 @@ end
 --- makes the whole lab look broken while proving nothing.
 ---
 --- Backs off to its own half for a beat after each strike. Chasing without
---- release traps the puck against a wall and holds it there: contacts re-eject
---- it out of bounds every tick (step_puck clamps, then the contact pushes it
---- back out), so the whole world freezes with both sides in perfect agreement.
+--- release pins the puck against a wall and holds it there: the contact
+--- re-fires every tick (the wall-aware push-out keeps it inside the arena, but
+--- nothing moves), so the whole world freezes with both sides in perfect
+--- agreement.
 function Lab:seek_puck()
   local tx = self.predict:value(self.puck, "x")
   local ty = self.predict:value(self.puck, "y")

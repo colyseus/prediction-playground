@@ -195,9 +195,9 @@ class Lab10 implements Lab {
 	 * the lab look broken while proving nothing.
 	 *
 	 * Backs off to its own half for a beat after each strike. Chasing without
-	 * release traps the puck against a wall and holds it there: contacts
-	 * re-eject it out of bounds every tick (stepPuck clamps, then the contact
-	 * pushes it back out), so the whole world freezes with both sides in
+	 * release pins the puck against a wall and holds it there: the contact
+	 * re-fires every tick (the wall-aware push-out keeps it inside the arena,
+	 * but nothing moves), so the whole world freezes with both sides in
 	 * perfect agreement. `retreatTicks` counts down on the fixed-step loop —
 	 * this runs per frame, which is far faster than the tick.
 	 */
