@@ -9,6 +9,39 @@ export const PUCK_PUSH_MIN = 14;
 
 export interface CircleBody { x: number; y: number; vx: number; vy: number; }
 
+/** Session id of the server-driven paddle. Shared so the client can single it
+ *  out of the players map and predict it (see {@link botTarget}). */
+export const BOT_ID = "bot";
+
+/**
+ * The bot's steering target. A DECISION the server owns, but a pure function of
+ * synced state — the puck it chases and `botEnabled` — so a predicting client
+ * can derive it exactly.
+ *
+ * That is what makes the bot predictable and a human opponent not: a human's
+ * next input is unknowable until it arrives, whereas this is just arithmetic
+ * both sides can run. Freezing the bot at its last snapshot inside the
+ * predicted step is what makes every bot-puck contact mispredict, and the bot
+ * is in contact often because chasing the puck is its whole policy.
+ */
+export function botTarget(puck: CircleBody, botEnabled: boolean): { x: number; y: number } {
+  const chase = botEnabled && puck.y < ARENA_H / 2;
+  return chase
+    ? { x: puck.x, y: puck.y }
+    : { x: ARENA_W / 2, y: ARENA_H * 0.2 };
+}
+
+/** Quantize the bot's steering target into the same -1/0/1 move input a human
+ *  sends, so both sides drive it through the identical `stepEntity`. */
+export function botInput(
+  bot: CircleBody, puck: CircleBody, botEnabled: boolean,
+  out: { moveX: number; moveY: number },
+): void {
+  const t = botTarget(puck, botEnabled);
+  out.moveX = t.x - bot.x > 1 ? 1 : t.x - bot.x < -1 ? -1 : 0;
+  out.moveY = t.y - bot.y > 1 ? 1 : t.y - bot.y < -1 ? -1 : 0;
+}
+
 /** Puck free flight: integrate, bounce off the arena walls, bleed speed. */
 export function stepPuck(puck: CircleBody, dt: number): void {
   puck.vx *= PUCK_FRICTION_K;

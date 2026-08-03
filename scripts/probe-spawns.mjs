@@ -89,6 +89,39 @@ if (puckMovedAt) {
     `driftEma=${settled.driftEma.toFixed(4)} gap=${Math.abs(settled.puckX - settled.serverPuckX).toFixed(2)}u`);
 }
 
+// ---- Lab 10, BOT ON ---------------------------------------------------------
+// The checks above disable the bot to isolate our own step — which for a long
+// time meant NOTHING covered the configuration the lab actually ships in. The
+// bot chases the puck, so it contests nearly every touch; while it was frozen
+// at its last snapshot inside the predicted step, each contest mispredicted and
+// drift sat around 2.0 (measured) even though every test was green.
+await page.evaluate(() => window.__lab.room.send("bot", { on: true }));
+await page.evaluate(() => window.__lab.room.send("resetPuck"));
+await new Promise((r) => setTimeout(r, 1500));
+{
+  let peak = 0, sum = 0, n = 0;
+  const start = Date.now();
+  while (Date.now() - start < 12000) {
+    const t = await telemetry();
+    const dx = t.puckX - t.paddleX, dy = t.puckY - t.paddleY;
+    if (dy < -0.5) { await page.keyboard.up("KeyS"); await page.keyboard.down("KeyW"); }
+    else if (dy > 0.5) { await page.keyboard.up("KeyW"); await page.keyboard.down("KeyS"); }
+    if (dx < -0.5) { await page.keyboard.up("KeyD"); await page.keyboard.down("KeyA"); }
+    else if (dx > 0.5) { await page.keyboard.up("KeyA"); await page.keyboard.down("KeyD"); }
+    if (typeof t.driftEma === "number") { peak = Math.max(peak, t.driftEma); sum += t.driftEma; n++; }
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  for (const k of ["KeyW", "KeyA", "KeyS", "KeyD"]) await page.keyboard.up(k);
+  // MEAN, not peak: a single contested bounce swings the peak (0.46 and 0.98 on
+  // two runs of the fixed build), while the mean separated cleanly — 2.06 with
+  // the bot frozen vs 0.05 predicted, measured back to back on this harness.
+  // 0.5 sits an order of magnitude above the good case and 4x below the bad.
+  const mean = n ? sum / n : Infinity;
+  check("lab10: contesting the BOT still agrees with the server",
+    mean < 0.5,
+    `driftEma mean=${mean.toFixed(4)} peak=${peak.toFixed(4)} while the bot contested every touch`);
+}
+
 check("no page errors", errors.length === 0, errors[0]);
 
 await browser.close();

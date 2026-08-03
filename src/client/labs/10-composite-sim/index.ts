@@ -70,15 +70,19 @@ export const lab: LabDescriptor = {
         const g = ctx.g, v = ctx.view;
         const pose = sim.pose();
 
-        // Remote paddles (damped).
+        // Remote paddles. The bot draws at its PREDICTED pose — it is part of
+        // the predicted world, so drawing it lerped would show it lagging the
+        // contacts it is actually making. Humans stay lerp (see net.ts).
         for (const [sid, p] of room.state.players) {
           if (sid === room.sessionId) continue;
           const isBot = sid === "bot";
-          drawCircle(g, v, predict.value(p, "x"), predict.value(p, "y"), PADDLE_RADIUS, {
+          const bx = isBot ? pose.bx : predict.value(p, "x");
+          const by = isBot ? pose.by : predict.value(p, "y");
+          drawCircle(g, v, bx, by, PADDLE_RADIUS, {
             fill: hueColor(p.hue, isBot ? 0.7 : 0.4),
             stroke: isBot ? "#6db3ff" : undefined,
           });
-          if (isBot) drawLabel(g, v, predict.value(p, "x"), predict.value(p, "y"), "bot", { dy: -v.s(PADDLE_RADIUS) - 5, size: 10, color: "#6db3ff" });
+          if (isBot) drawLabel(g, v, bx, by, "bot", { dy: -v.s(PADDLE_RADIUS) - 5, size: 10, color: "#6db3ff" });
         }
 
         // Server ghost puck (raw truth — trails by ~RTT) + predicted puck.
