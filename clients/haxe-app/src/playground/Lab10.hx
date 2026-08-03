@@ -1,4 +1,4 @@
-package labs;
+package playground;
 
 import App.Kb;
 import Gfx.Palette;
@@ -20,10 +20,12 @@ import lab.HockeyState;
 class HockeyWorld {
 	public var paddle: lab.Player;
 	public var puck: lab.Puck;
+	public var bot: lab.Player;
 
-	public function new(paddle: lab.Player, puck: lab.Puck) {
+	public function new(paddle: lab.Player, puck: lab.Puck, bot: lab.Player) {
 		this.paddle = paddle;
 		this.puck = puck;
+		this.bot = bot;
 	}
 }
 
@@ -37,9 +39,11 @@ class HockeyWorld {
  * mirrors are re-seeded from authoritative state and the unacked inputs replay
  * on top, so a predicted shot is re-derived from truth every reconcile.
  *
- * Remote paddles enter the prediction as COLLIDERS at their latest snapshot
- * (their inputs aren't ours to predict), so a contested touch is the honest
- * misprediction to watch for.
+ * Remote HUMAN paddles enter the prediction as COLLIDERS at their latest
+ * snapshot — their next input is unknowable until it arrives — so a contested
+ * touch is the honest misprediction to watch for. The AI paddle is different
+ * and is predicted in full: its steering is a pure function of synced state
+ * (`Sim.botInput`), so the client runs the server's own decision.
  *
  * Port of src/client/labs/10-composite-sim/.
  */
@@ -64,12 +68,11 @@ class Lab10 implements Lab {
 	 * to null on a sys target.
 	 */
 	/**
-	 * Switch the server's AI paddle on/off. The acceptance run turns it OFF: a
-	 * contested touch mispredicts BY DESIGN (remote paddles enter the prediction
-	 * at their last snapshot), so leaving the AI in makes the determinism check
-	 * measure how often the bot happened to engage — measured 0.0013 to 0.72
-	 * across five runs, straddling the threshold. The native demo has always
-	 * done this; the interactive build keeps its AI.
+	 * Switch the server's AI paddle on/off. The acceptance run turns it OFF so
+	 * the determinism check measures OUR step alone, independent of the
+	 * bot-prediction path (the bot is predicted now — see `step` — but off, the
+	 * check cannot be flattered or flustered by it). The interactive build
+	 * keeps its AI.
 	 */
 	public function setBot(on: Bool): Void {
 		room.send("bot", { on: on });
@@ -90,6 +93,8 @@ class Lab10 implements Lab {
 	 * so `predict.value(puck, "x")` resolves without anyone naming "puck.x".
 	 */
 	var puck: lab.Puck;
+	/** The DECODED AI paddle — a bound world part, predicted like the puck. */
+	var bot: lab.Player;
 	var predict: Predict;
 	var input: Dynamic;
 	var cmd: Dynamic;
@@ -113,7 +118,8 @@ class Lab10 implements Lab {
 		var r: Room<HockeyState> = cast raw;
 		var state = r.state;
 		return state != null && state.players != null && state.puck != null
-			&& state.players.items.get(r.sessionId) != null;
+			&& state.players.items.get(r.sessionId) != null
+			&& state.players.items.get(Sim.BOT_ID) != null;
 	}
 
 	public function mount(app: App, raw: Dynamic): Bool {
@@ -121,7 +127,8 @@ class Lab10 implements Lab {
 		sid = room.sessionId;
 		me = room.state.players.items.get(sid);
 		puck = room.state.puck;
-		if (me == null || puck == null) return false;
+		bot = room.state.players.items.get(Sim.BOT_ID);
+		if (me == null || puck == null || bot == null) return false;
 
 		predict = Predict.forRoom(room);
 		// Remote paddles: damped toward the latest snapshot. They enter the sim
@@ -142,28 +149,40 @@ class Lab10 implements Lab {
 		sim = predict.sim({
 			input: input,
 			smoothing: smoothing,
-			world: new HockeyWorld(me, puck),
+			world: new HockeyWorld(me, puck, bot),
 			step: step,
 		});
 	}
 
-	/** The server's step order, reproduced: my paddle → puck → contacts. */
+	/** The server's step order, reproduced: paddles (mine AND the bot's) → puck → contacts. */
 	function step(ctx: io.colyseus.predict.RollbackController.StepContext, w: HockeyWorld, inp: lab.MoveInput): Void {
 		var pad: Sim.Entity = { x: w.paddle.x, y: w.paddle.y, vx: w.paddle.vx, vy: w.paddle.vy };
 		Sim.stepEntity(pad, inp.moveX, inp.moveY, ctx.dt);
 		w.paddle.x = pad.x; w.paddle.y = pad.y; w.paddle.vx = pad.vx; w.paddle.vy = pad.vy;
 
+		// The bot steps from the PRE-step puck, exactly as the server does — its
+		// paddle loop runs before stepPuck.
+		var bt: Sim.Entity = { x: w.bot.x, y: w.bot.y, vx: w.bot.vx, vy: w.bot.vy };
+		var bcmd = Sim.botInput(bt.x, bt.y, w.puck.x, w.puck.y, room.state.botEnabled);
+		Sim.stepEntity(bt, bcmd.moveX, bcmd.moveY, ctx.dt);
+		w.bot.x = bt.x; w.bot.y = bt.y; w.bot.vx = bt.vx; w.bot.vy = bt.vy;
+
 		var pk: Sim.Entity = { x: w.puck.x, y: w.puck.y, vx: w.puck.vx, vy: w.puck.vy };
 		Sim.stepPuck(pk, ctx.dt);
 
-		var touched = Sim.collidePaddlePuck(pad.x, pad.y, pad.vx, pad.vy, pk);
-		// Remote paddles (and the AI) are colliders at their last-known pose; my
-		// own paddle is resolved from the PREDICTED mirror above. The order is the
-		// players-map iteration order, which the server shares.
+		// Contacts resolve in players-map iteration order — the server's order.
+		// Mine and the bot's come from the PREDICTED mirrors; remote HUMANS are
+		// zero-delta colliders at their last-known snapshot.
+		var touched = false;
 		for (key in room.state.players.items.keys()) {
-			if (key == sid) continue;
-			var p = room.state.players.items.get(key);
-			if (Sim.collidePaddlePuck(p.x, p.y, p.vx, p.vy, pk)) touched = true;
+			if (key == sid) {
+				if (Sim.collidePaddlePuck(pad.x, pad.y, pad.vx, pad.vy, pk)) touched = true;
+			} else if (key == Sim.BOT_ID) {
+				if (Sim.collidePaddlePuck(bt.x, bt.y, bt.vx, bt.vy, pk)) touched = true;
+			} else {
+				var p = room.state.players.items.get(key);
+				if (Sim.collidePaddlePuck(p.x, p.y, p.vx, p.vy, pk)) touched = true;
+			}
 		}
 
 		w.puck.x = pk.x; w.puck.y = pk.y; w.puck.vx = pk.vx; w.puck.vy = pk.vy;
@@ -272,18 +291,20 @@ class Lab10 implements Lab {
 		g.hudKey("WASD", "drive your paddle into the puck");
 		g.hudKey("- / =", 'smoothing ${Math.round(smoothing)} /s');
 		g.hudKey("G", showGhosts ? "server ghosts: on" : "server ghosts: off");
-		g.hudNote("One rollback over TWO parts. Your paddle and the puck are "
-			+ "predicted together, in the server's order, so a strike is instant — "
-			+ "and re-derived from truth on every ack. Remote paddles are colliders "
-			+ "at their last snapshot, so a contested touch is the honest "
-			+ "misprediction.");
+		g.hudNote("One rollback over THREE parts. Your paddle, the puck AND the "
+			+ "AI paddle are predicted together, in the server's order, so a "
+			+ "strike is instant — and re-derived from truth on every ack. The AI "
+			+ "is predictable because its steering is a pure function of synced "
+			+ "state; remote HUMANS stay colliders at their last snapshot, so a "
+			+ "contested human touch is the honest misprediction.");
 	}
 
 	public function unmount(): Void predict.dispose();
 
 	public function onReconnect(): Void {
 		me = room.state.players.items.get(sid);
-		if (me == null) return;
+		bot = room.state.players.items.get(Sim.BOT_ID);
+		if (me == null || bot == null) return;
 		build();
 		trail = [];
 	}

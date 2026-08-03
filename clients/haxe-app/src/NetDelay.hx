@@ -8,8 +8,14 @@ import io.colyseus.Room;
  * Like the Lua client, this wraps a joined room's `Connection` in place rather
  * than subclassing it: a subscriber to the connection's message event would run
  * ALONGSIDE the room's own handler and so could not delay anything. Here the
- * seam is the pair of function references the connection dispatches through —
- * capture them, queue, and call them when the packet comes due.
+ * seam is the function references the connection dispatches through — capture
+ * them, queue, and call them when the packet comes due.
+ *
+ * EVERY inbound callback goes through the queue, not just `onMessage`. This
+ * connection has four (`onOpen`/`onMessage`/`onClose`/`onError`) where the Lua
+ * client has one `emit` and the C# client one `Dispatch`, so it is the one port
+ * where "wrap the seam" does not automatically cover close — and a close that
+ * overtakes its own trailing patches tears the room down mid-stream.
  *
  * Two properties are load-bearing:
  *
@@ -97,12 +103,29 @@ class NetDelay {
 		// on some targets — the original body then finds a null socket.
 		nd.innerSend = Reflect.field(conn, "send");
 		var innerOnMessage: Dynamic = Reflect.field(conn, "onMessage");
+		var innerOnClose: Dynamic = Reflect.field(conn, "onClose");
+		var innerOnError: Dynamic = Reflect.field(conn, "onError");
 
 		conn.send = function(bytes: haxe.io.Bytes) {
 			nd.enqueue(nd.outbound, nowMs(), Send(bytes));
 		};
 		conn.onMessage = function(bytes: haxe.io.Bytes) {
-			nd.enqueue(nd.inbound, nowMs(), Deliver(conn, innerOnMessage, bytes));
+			nd.enqueue(nd.inbound, nowMs(), Deliver(conn, innerOnMessage, [bytes]));
+		};
+		// CLOSE AND ERROR RIDE THE SAME QUEUE. This connection exposes four
+		// separate callbacks rather than the one dispatch seam the Lua and C#
+		// clients wrap, so intercepting only `onMessage` let a close overtake the
+		// patches it followed: the room tore down (Room.onLeave -> teardown ->
+		// decoder.refs.clear()) while ~200ms of gameplay was still queued here,
+		// and every one of those patches then decoded against an empty ref table
+		// — four "@colyseus/schema refId not found" per room leave, and a
+		// silently skipped structure behind each. The wire never reorders; nor
+		// may this.
+		conn.onClose = function(data: Dynamic) {
+			nd.enqueue(nd.inbound, nowMs(), Deliver(conn, innerOnClose, [data]));
+		};
+		conn.onError = function(message: String) {
+			nd.enqueue(nd.inbound, nowMs(), Deliver(conn, innerOnError, [message]));
 		};
 
 		live.push(nd);
@@ -136,7 +159,7 @@ class NetDelay {
 			var p = q.shift();
 			switch (p.what) {
 				case Send(bytes): Reflect.callMethod(conn, innerSend, [bytes]);
-				case Deliver(target, handler, bytes): Reflect.callMethod(target, handler, [bytes]);
+				case Deliver(target, handler, args): Reflect.callMethod(target, handler, args);
 			}
 		}
 	}
@@ -147,5 +170,7 @@ typedef Packet = { at: Float, what: Payload };
 
 enum Payload {
 	Send(bytes: haxe.io.Bytes);
-	Deliver(target: Dynamic, handler: Dynamic, bytes: haxe.io.Bytes);
+	/** `args` rather than a lone payload: one case covers onMessage(bytes),
+	    onClose(data) and onError(message). */
+	Deliver(target: Dynamic, handler: Dynamic, args: Array<Dynamic>);
 }

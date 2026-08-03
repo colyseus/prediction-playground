@@ -1,0 +1,19 @@
+# The headless acceptance run, built NATIVE via hxcpp.
+#
+# Same source as acceptance.hxml — the real lab modules with the null gfx
+# backend — on a compiled target instead of the neko VM. Useful when `hl` is
+# unavailable (the local runtime segfaults on any bytecode) and as a second
+# opinion on the shared-sim port: neko carries native 31-bit ints and relies on
+# Haxe's Int32 semantics for the uint32 RNG, while cpp has real 32-bit ints, so
+# agreement across both is stronger evidence than either alone.
+#
+# The WINDOWED client cannot come here: Heaps targets hl or js only (see
+# build.hxml). This is the netcode, not the renderer.
+#
+#   haxe acceptance-cpp.hxml && ./bin/cpp/Acceptance
+-main Acceptance
+-cp src
+-cp ../../../../colyseus-haxe/src
+-lib colyseus-websocket
+-lib tink_http
+-cpp bin/cpp

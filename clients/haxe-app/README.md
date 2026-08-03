@@ -3,9 +3,9 @@
 The playground rebuilt against `colyseus-haxe`, driven by the same server as the
 web build. Heaps for the window; the netcode is verified headless.
 
-Status: **11 labs (00–09, 11)**, all 34 acceptance checks green against a live
-server. Lab 10 (composite sim) is not here: the Haxe SDK has no `SimReconciler`,
-so the lab has no API to bind to.
+Status: **all 12 labs**, 38 acceptance checks green against a live server.
+Lab 10 (composite sim) rides the SDK's `SimReconciler` port (`predict.sim`) and
+predicts the puck AND the AI paddle through your own inputs, like the web build.
 
 ## The one structural decision
 
@@ -32,11 +32,11 @@ pnpm dev --host 0.0.0.0        # from the repo root; serves ws://localhost:5173
 ```sh
 cd clients/haxe-app
 
-# the netcode, against a live server — 34 checks across 11 labs
+# the netcode, against a live server — 38 checks across 12 labs
 haxe acceptance.hxml && neko bin/acceptance.n
 
-# the windowed client
-haxe build.hxml && hl bin/playground.hl
+# the windowed client (HL/C — see the toolchain note below)
+./build-hlc.sh && ./bin/hlc-playground
 ```
 
 **Two targets on purpose.** The harness is neko: the SDK is proven on that target
@@ -46,11 +46,13 @@ can run it. Both are compiled on every change, and the hl build is the stricter
 type-check of the two (it caught a `null` compared against an `Array<Float>`
 element, which neko accepts).
 
-> **Local toolchain note.** `~/bin/hl` segfaults on any bytecode — `hl --version`
-> works, but running a compiled `.hl` crashes, so the windowed client compiles
-> here but cannot be launched. Homebrew's `hashlink` formula installs only
-> headers and a library, no binary. Fixing the runtime is the only thing between
-> `bin/playground.hl` and a window.
+> **Toolchain note.** HashLink's JIT has no arm64 backend, so `hl
+> playground.hl` cannot run on Apple Silicon (and Homebrew's `hashlink` ships
+> headers + lib only, no JIT binary). `build-hlc.sh` sidesteps the JIT: Haxe
+> emits C (`build-hlc.hxml`), and clang links it against the arm64 `libhl` and
+> `.hdll` natives Homebrew ships — that native binary is the windowed client.
+> `haxe build.hxml` (the bytecode target) is still compiled on every change as
+> the stricter type-check.
 
 ## Verification
 
@@ -68,6 +70,7 @@ OK  lab09 a local exists the same frame it fires, lead 371 ms
 OK  lab06 6/6 hits, rewind error 0.76 u while the view lags 9.5 u
 OK  lab07 predicted 2, authoritative 2, mispredict rate 0 %
 OK  lab11 divergence 4.07e-08 rad seeded, 2.27e-01 with an unshared RNG
+OK  lab10 median correction 0 over 224 reconciles; struck puck leads its ghost by 21.31 u peak over 7 touches
 ```
 
 **Drift of exactly zero**, matching the C and Lua ports: Haxe `Float` is f64 all

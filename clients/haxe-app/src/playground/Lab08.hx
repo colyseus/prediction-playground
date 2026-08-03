@@ -1,4 +1,4 @@
-package labs;
+package playground;
 
 import App.Kb;
 import Gfx.Palette;

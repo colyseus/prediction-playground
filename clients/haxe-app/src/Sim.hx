@@ -315,6 +315,27 @@ class Sim {
 		return true;
 	}
 
+	/** Session id of the server-driven AI paddle in lab-hockey. */
+	public static inline var BOT_ID = "bot";
+
+	/**
+	 * The AI paddle's steering, quantized to the same -1/0/1 move input a human
+	 * sends. A server-owned DECISION but a pure function of synced state — the
+	 * puck it chases and `botEnabled` — so a predicting client derives it
+	 * exactly: the bot is remote but NOT unpredictable. Port of
+	 * shared/hockey.ts `botInput`.
+	 */
+	public static function botInput(botX: Float, botY: Float,
+			puckX: Float, puckY: Float, enabled: Bool): { moveX: Int, moveY: Int } {
+		var chase = enabled && puckY < ARENA_H / 2;
+		var tx = chase ? puckX : ARENA_W / 2;
+		var ty = chase ? puckY : ARENA_H * 0.2;
+		return {
+			moveX: tx - botX > 1 ? 1 : tx - botX < -1 ? -1 : 0,
+			moveY: ty - botY > 1 ? 1 : ty - botY < -1 ? -1 : 0,
+		};
+	}
+
 	// ------------------------------------------------------ startup canary
 
 	/**

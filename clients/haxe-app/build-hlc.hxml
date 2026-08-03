@@ -1,0 +1,16 @@
+# The windowed client as NATIVE arm64, via HashLink/C.
+#
+# HL's JIT has no arm64 backend, so `hl playground.hl` cannot work on Apple
+# Silicon (the community's options are Rosetta or a WIP arm64 JIT). HL/C sidesteps
+# the JIT entirely: Haxe emits C, and clang compiles it against the arm64 libhl
+# and .hdll natives Homebrew already ships.
+#
+#   haxe build-hlc.hxml && ./bin/hlc/playground
+-main Main
+-cp src
+-cp ../../../../colyseus-haxe/src
+-lib heaps
+-lib hlsdl
+-lib colyseus-websocket
+-lib tink_http
+-hl bin/hlc/main.c

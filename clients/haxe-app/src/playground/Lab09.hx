@@ -1,4 +1,4 @@
-package labs;
+package playground;
 
 import App.Kb;
 import Gfx.Palette;
@@ -51,7 +51,10 @@ class Lab09 implements Lab {
 	var aimY = 20.0;
 	var pendingFire = false;
 	// Per-entry presentation state, keyed on the STABLE entry id.
-	var slots: Map<Int, { wasPending: Bool, flashT: Float }> = new Map();
+	var slots: Map<Int, { wasPending: Bool, flashT: Float, x: Float, y: Float }> = new Map();
+
+	/** Worst distance the sprite teleported across a handoff — see sweep(). */
+	public var maxHandoffJump(default, null) = 0.0;
 
 	public function new() {}
 
@@ -81,6 +84,7 @@ class Lab09 implements Lab {
 			owned: (p) -> p.owner == mySid,
 			spawnTime: (p) -> p.bornMs,
 			step: (l, dt) -> Sim.stepProjectile(l, dt),
+			fields: ["x", "y"],            // also reckon the CONFIRMED entities
 		});
 
 		input = room.input({ type: lab.RangeInput });
@@ -136,7 +140,8 @@ class Lab09 implements Lab {
 		for (e in spawns.entries()) {
 			liveIds.set(e.id, true);
 			var slot = slots.get(e.id);
-			if (slot == null) slot = { wasPending: false, flashT: -1e9 };
+			if (slot == null) slot = { wasPending: false, flashT: -1e9, x: Math.NaN, y: Math.NaN };
+			var x = spawns.value(e, "x"), y = spawns.value(e, "y");
 
 			if (!e.confirmed) {
 				if (e.local != null) { pending++; slot.wasPending = true; }
@@ -148,8 +153,19 @@ class Lab09 implements Lab {
 					slot.wasPending = false;
 					slot.flashT = now;
 					if (e.leadMs > 0) lastLeadMs = e.leadMs;
+					// How far the sprite TELEPORTED across the handoff.
+					// Un-reckoned, the confirmed entity renders at the last
+					// decoded snapshot — (age + lead) x speed behind the
+					// prediction, which is the visible snap-back.
+					if (!Math.isNaN(slot.x) && !Math.isNaN(x)) {
+						var dx = x - slot.x, dy = y - slot.y;
+						var d = Math.sqrt(dx * dx + dy * dy);
+						if (d > maxHandoffJump) maxHandoffJump = d;
+					}
 				}
 			}
+			slot.x = x;
+			slot.y = y;
 			slots.set(e.id, slot);
 		}
 		for (id in slots.keys()) if (!liveIds.exists(id)) slots.remove(id);
@@ -197,19 +213,20 @@ class Lab09 implements Lab {
 		g.squareOutline(mx, my, Sim.PLAYER_HALF, Palette.TEXT);
 		g.circleOutline(aimX, aimY, 0.8, Palette.a(Palette.TEXT, 0.6));
 
-		// One render path across the handoff, keyed on the stable entry id.
+		// One render path across the handoff, keyed on the stable entry id:
+		// value() reads the stepped local while pending and the lead-aware
+		// reckon once confirmed, so the same two lines cover both sides.
 		for (e in spawns.entries()) {
+			var x = spawns.value(e, "x"), y = spawns.value(e, "y");
+			if (Math.isNaN(x) || Math.isNaN(y)) continue;
 			if (!e.confirmed) {
-				var loc: Dynamic = e.local;
-				if (loc != null) g.circle(loc.x, loc.y, Sim.PROJECTILE_RADIUS,
-					Palette.a(Palette.WARN, 0.9));
+				g.circle(x, y, Sim.PROJECTILE_RADIUS, Palette.a(Palette.WARN, 0.9));
 				continue;
 			}
 			var srv: Dynamic = e.server;
-			if (srv == null) continue;
 			var slot = slots.get(e.id);
 			var flashing = slot != null && (now - slot.flashT) < 350;
-			g.circle(srv.x, srv.y, Sim.PROJECTILE_RADIUS * (flashing ? 1.8 : 1.0),
+			g.circle(x, y, Sim.PROJECTILE_RADIUS * (flashing ? 1.8 : 1.0),
 				srv.owner == sid ? Palette.a(Palette.TEXT, 0.95) : Palette.a(Palette.BAD, 0.9));
 		}
 

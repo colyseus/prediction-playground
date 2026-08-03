@@ -2,7 +2,7 @@ import App.Kb;
 import Gfx.Palette;
 import hxd.Key;
 import io.colyseus.Client;
-import labs.*;
+import playground.*;
 
 /**
  * The windowed shell: one Heaps app. update() advances the active lab's netcode
@@ -124,6 +124,13 @@ class Main extends hxd.App {
 			var n = labs[i].num;
 			if (n < 10 && Key.isPressed(LAB_KEYS[n])) switchTo(i);
 		}
+		// The digits only reach labs 0-9; [ ] are the only way to a 2-digit lab.
+		if (Key.isPressed(Key.QWERTY_BRACKET_LEFT)) {
+			switchTo((labIndex + labs.length - 1) % labs.length);
+		}
+		if (Key.isPressed(Key.QWERTY_BRACKET_RIGHT)) {
+			switchTo((labIndex + 1) % labs.length);
+		}
 
 		if (active != null) active.frame(app, now, dtMs);
 
@@ -144,6 +151,7 @@ class Main extends hxd.App {
 		gfx.hudNote(def.blurb);
 		gfx.hudSection("SHELL");
 		gfx.hudKey("0-9", "switch lab");
+		gfx.hudKey("[ ]", "prev/next lab");
 		gfx.hudKey("L", 'injected latency: ${NetDelay.presetLabel()}');
 		gfx.hudKey("P", app.private_ ? "room: private" : "room: shared");
 		gfx.hudRow("in flight", '${NetDelay.inFlight()} pkt', Palette.TEXT_DIM);

@@ -34,6 +34,7 @@ class GfxHeaps implements Gfx {
 	var hudX = 0.0;
 	var hudY = 0.0;
 	var hudCursor = 0.0;
+	var captionN = 0;   // captions drawn this frame; they stack
 
 	public function new(root: h2d.Object) {
 		this.root = root;
@@ -67,6 +68,7 @@ class GfxHeaps implements Gfx {
 		hudX = hx;
 		hudY = hy;
 		hudCursor = hy;
+		captionN = 0;
 		textCursor = 0;
 	}
 
@@ -218,8 +220,16 @@ class GfxHeaps implements Gfx {
 		put(x + 16 + main.length * 8 + 14, y + 7, sub, Palette.a(Palette.TEXT_DIM, 0.75), 11);
 	}
 
+	/**
+	 * Successive captions STACK instead of landing on each other: lab 00 draws
+	 * two (the round-trip readout and the autopilot hint), and the reference
+	 * keeps them apart by putting the readout on the lane divider. One caption
+	 * still sits exactly where it always did; the second goes above it.
+	 */
 	public function caption(text: String, color: Int, size: Int = 12): Void {
-		put(stageX + stageW / 2 - text.length * 3, stageY + stageH - 22, text, color, size);
+		put(stageX + stageW / 2 - text.length * 3, stageY + stageH - 22 - captionN * 15,
+			text, color, size);
+		captionN++;
 	}
 
 	// ------------------------------------------------------------------ hud

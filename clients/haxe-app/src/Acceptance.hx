@@ -1,18 +1,18 @@
 import App.Kb;
 import Gfx.GfxNull;
 import io.colyseus.Client;
-import labs.Lab00;
-import labs.Lab01;
-import labs.Lab02;
-import labs.Lab03;
-import labs.Lab04;
-import labs.Lab05;
-import labs.Lab06;
-import labs.Lab07;
-import labs.Lab08;
-import labs.Lab09;
-import labs.Lab10;
-import labs.Lab11;
+import playground.Lab00;
+import playground.Lab01;
+import playground.Lab02;
+import playground.Lab03;
+import playground.Lab04;
+import playground.Lab05;
+import playground.Lab06;
+import playground.Lab07;
+import playground.Lab08;
+import playground.Lab09;
+import playground.Lab10;
+import playground.Lab11;
 
 /**
  * The haxe-app's acceptance harness — the twin of the native app's `--demo`, the
@@ -305,6 +305,16 @@ class Acceptance {
 				!Math.isNaN(lab.lastLeadMs) && lab.lastLeadMs > 0,
 				Math.isNaN(lab.lastLeadMs) ? "never measured" : '${Math.round(lab.lastLeadMs)} ms');
 
+			// ...and MEASURING the lead is only half of it: the confirmed entity
+			// has to be reckoned by it too. Un-reckoned it renders at the last
+			// decoded snapshot, (snapshot age + lead) x 34 u/s behind the
+			// prediction — ~8 u at this latency, which is what a player sees as
+			// the shot snapping backwards.
+			for (_ in 0...5) { lab.aimAt(50, 55); lab.fire(); drive(lab, app, 700); }
+			check("lab09 the handoff doesn't snap the projectile back",
+				lab.maxHandoffJump < 3.0,
+				'worst jump ${Math.round(lab.maxHandoffJump * 100) / 100} u');
+
 			leave(lab, room);
 		}
 
@@ -420,12 +430,15 @@ class Acceptance {
 				lab.maxPuckLead > 0.5,
 				'peak ${Math.round(lab.maxPuckLead * 100) / 100} u over ${lab.touches} touches');
 
-			// The MEDIAN reconcile, not the worst or the last. Remote paddles enter
-			// the prediction at their last snapshot, so a contested touch
-			// mispredicts by design — lab 10 exists to show that. 0.5 is measured:
-			// honest play lands at 0.0000-0.1527, a client stepping the puck with
-			// the wrong friction (0.900 vs 0.985) lands at 1.7751. Catches GROSS
-			// divergence only; bit-exactness is the startup canary's job.
+			// The MEDIAN reconcile, not the worst or the last. Remote HUMAN
+			// paddles enter the prediction at their last snapshot, so a contested
+			// human touch mispredicts by design — lab 10 exists to show that.
+			// 0.5 is a gross-divergence ceiling: a client stepping the puck with
+			// the wrong friction (0.900 vs 0.985) lands at 1.7751. Honest play
+			// measured 0.0000-0.1527 before the server paced input consumption
+			// to one per tick (2026-07-31); with pacing it sits at ~0.0000, so
+			// the margin is now much wider. Bit-exactness stays the startup
+			// canary's job.
 			var mid = median(mags);
 			check("lab10 the composite step agrees with the server's",
 				mid >= 0 && mid < 0.5,
