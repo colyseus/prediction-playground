@@ -43,8 +43,11 @@ namespace Playground
         private string _sid;
 
         // Per-entry presentation state, keyed on the STABLE entry id.
-        private readonly Dictionary<int, (bool wasPending, double flashT)> _slots
-            = new Dictionary<int, (bool, double)>();
+        private readonly Dictionary<int, (bool wasPending, double flashT, double x, double y)> _slots
+            = new Dictionary<int, (bool, double, double, double)>();
+
+        /// <summary>Worst distance the sprite teleported across a handoff — see Sweep.</summary>
+        public double MaxHandoffJump { get; private set; }
 
         private double _aimX = 50, _aimY = 20;
         private bool _pendingFire;
@@ -72,6 +75,17 @@ namespace Playground
                     Owned = p => p.owner == _sid,
                     SpawnTime = p => p.bornMs,
                     Step = (shot, dt) => Sim.StepProjectile(ref shot.E, dt),
+                    // Also reckon the CONFIRMED entities. ReckonStep is the
+                    // schema-typed twin of Step — same motion, other type.
+                    Fields = new[] { "x", "y" },
+                    ReckonStep = (p, dt, _) =>
+                    {
+                        var e = new Sim.Entity { x = p.x, y = p.y, vx = p.vx, vy = p.vy };
+                        Sim.StepProjectile(ref e, dt);
+                        p.x = (float)e.x; p.y = (float)e.y;
+                        p.vx = (float)e.vx; p.vy = (float)e.vy;
+                    },
+                    ReadLocal = (shot, f) => f == "x" ? shot.E.x : shot.E.y,
                 });
 
             _cmd = new Lab.RangeInput();
@@ -141,13 +155,14 @@ namespace Playground
             foreach (var e in _spawns.Entries())
             {
                 _live.Add(e.Id);
-                _slots.TryGetValue(e.Id, out var slot);
+                bool known = _slots.TryGetValue(e.Id, out var slot);
+                double x = _spawns.Value(e, "x"), y = _spawns.Value(e, "y");
 
                 if (!e.Confirmed)
                 {
                     if (e.Local == null) continue;
                     _pending++;
-                    _slots[e.Id] = (true, slot.flashT);
+                    _slots[e.Id] = (true, slot.flashT, x, y);
                     continue;
                 }
 
@@ -155,10 +170,20 @@ namespace Playground
                 if (e.Server != null && e.Server.owner != _sid) _foreign++;
                 if (slot.wasPending)
                 {
-                    slot = (false, now);
+                    slot = (false, now, slot.x, slot.y);
                     if (e.LeadMs > 0) _lastLeadMs = e.LeadMs;
+                    // How far the sprite TELEPORTED across the handoff.
+                    // Un-reckoned, the confirmed entity renders at the last
+                    // decoded snapshot — (age + lead) x speed behind the
+                    // prediction, which is the visible snap-back.
+                    if (known && !double.IsNaN(slot.x) && !double.IsNaN(x))
+                    {
+                        double dx = x - slot.x, dy = y - slot.y;
+                        double d = System.Math.Sqrt(dx * dx + dy * dy);
+                        if (d > MaxHandoffJump) MaxHandoffJump = d;
+                    }
                 }
-                _slots[e.Id] = slot;
+                _slots[e.Id] = (slot.wasPending, slot.flashT, x, y);
             }
             PruneSlots(_live);
         }
@@ -205,20 +230,21 @@ namespace Playground
             Draw.SquareOutline(v, mx, my, Sim.PlayerHalf, Palette.Text);
             Draw.CircleOutline(v, _aimX, _aimY, 0.8, Palette.A(Palette.Text, 0.6f));
 
-            // One render path across the handoff, keyed on the stable entry id.
+            // One render path across the handoff, keyed on the stable entry id:
+            // Value() reads the stepped local while pending and the lead-aware
+            // reckon once confirmed, so the same call covers both sides.
             foreach (var e in _spawns.Entries())
             {
+                double x = _spawns.Value(e, "x"), y = _spawns.Value(e, "y");
+                if (double.IsNaN(x) || double.IsNaN(y)) continue;
                 if (!e.Confirmed)
                 {
-                    if (e.Local == null) continue;
-                    Draw.Circle(v, e.Local.E.x, e.Local.E.y, Sim.ProjectileRadius,
-                        Palette.A(Palette.Warn, 0.9f));
+                    Draw.Circle(v, x, y, Sim.ProjectileRadius, Palette.A(Palette.Warn, 0.9f));
                     continue;
                 }
-                if (e.Server == null) continue;
                 _slots.TryGetValue(e.Id, out var slot);
                 bool flashing = now - slot.flashT < 350;
-                Draw.Circle(v, e.Server.x, e.Server.y, Sim.ProjectileRadius * (flashing ? 1.8 : 1.0),
+                Draw.Circle(v, x, y, Sim.ProjectileRadius * (flashing ? 1.8 : 1.0),
                     e.Server.owner == _sid ? Palette.A(Palette.Text, 0.95f) : Palette.A(Palette.Bad, 0.9f));
             }
 

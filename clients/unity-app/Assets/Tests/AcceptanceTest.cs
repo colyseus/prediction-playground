@@ -485,8 +485,22 @@ public class AcceptanceTest
         Assert.Greater(lab.ConfirmedSpawns, 0, "the server's projectile never correlated");
         Assert.Greater(lab.LastLeadMs, 0,
             "no input lead was measured — SpawnTime is not wired, so the handoff would jump");
+
+        // ...and MEASURING the lead is only half of it: the confirmed entity has
+        // to be reckoned by it too. Un-reckoned it renders at the last decoded
+        // snapshot, (snapshot age + lead) x 34 u/s behind the prediction — ~8 u
+        // at this latency, which is what a player sees as the shot snapping back.
+        for (int i = 0; i < 5; i++)
+        {
+            lab.AimAt(50, 55);
+            lab.Fire();
+            yield return Drive(lab, app, 700);
+        }
+        Assert.Less(lab.MaxHandoffJump, 3.0,
+            $"the projectile snapped {lab.MaxHandoffJump:F2} u at the handoff — " +
+            "the confirmed entity is not being lead-reckoned");
         Debug.Log($"OK lab09: fired {lab.Fired}, lead {lab.LastLeadMs:F0} ms, " +
-                  $"{lab.ConfirmedSpawns} confirmed");
+                  $"{lab.ConfirmedSpawns} confirmed, worst jump {lab.MaxHandoffJump:F2} u");
 
         yield return Teardown(lab);
     }
@@ -538,12 +552,14 @@ public class AcceptanceTest
             $"predicted puck never led the server's (peak {lab.MaxPuckLead:F2} u, " +
             $"{lab.Touches} touches, {lab.DescribePuck()}) — " +
             "the puck is not being predicted through our inputs");
-        // The MEDIAN reconcile, not the worst or the last. Remote paddles enter the
-        // prediction at their last snapshot, so a contested touch mispredicts BY
-        // DESIGN — lab 10 exists to show that. 0.5 is measured: honest play lands
-        // at 0.0000-0.1527, a client stepping the puck with the wrong friction
-        // (0.900 vs 0.985) lands at 1.7751. Catches GROSS divergence only;
-        // bit-exactness is Sim.SelfCheck()'s job.
+        // The MEDIAN reconcile, not the worst or the last. Remote HUMAN paddles
+        // enter the prediction at their last snapshot, so a contested human touch
+        // mispredicts BY DESIGN — lab 10 exists to show that. 0.5 is a
+        // gross-divergence ceiling: a client stepping the puck with the wrong
+        // friction (0.900 vs 0.985) lands at 1.7751. Honest play measured
+        // 0.0000-0.1527 before the server paced input consumption to one per tick
+        // (2026-07-31); with pacing it sits at ~0.0000, so the margin is now much
+        // wider. Bit-exactness is Sim.SelfCheck()'s job.
         mags.Sort();
         double median = mags.Count == 0 ? -1 : mags[(mags.Count - 1) / 2];
         Assert.That(median, Is.GreaterThanOrEqualTo(0).And.LessThan(0.5),

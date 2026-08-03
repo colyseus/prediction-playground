@@ -377,6 +377,26 @@ namespace Playground
             return true;
         }
 
+        /// <summary>Session id of the server-driven AI paddle in lab-hockey.</summary>
+        public const string BotId = "bot";
+
+        /// <summary>
+        /// The AI paddle's steering, quantized to the same -1/0/1 move input a
+        /// human sends. A server-owned DECISION but a pure function of synced
+        /// state — the puck it chases and <c>botEnabled</c> — so a predicting
+        /// client derives it exactly: the bot is remote but NOT unpredictable.
+        /// Port of shared/hockey.ts <c>botInput</c>.
+        /// </summary>
+        public static void BotInput(double botX, double botY,
+            double puckX, double puckY, bool enabled, out int moveX, out int moveY)
+        {
+            bool chase = enabled && puckY < ArenaH / 2;
+            double tx = chase ? puckX : ArenaW / 2;
+            double ty = chase ? puckY : ArenaH * 0.2;
+            moveX = tx - botX > 1 ? 1 : tx - botX < -1 ? -1 : 0;
+            moveY = ty - botY > 1 ? 1 : ty - botY < -1 ? -1 : 0;
+        }
+
         /// <summary>
         /// Cheap check that the port still reproduces the reference numbers
         /// (values pinned from running the TypeScript original). Returns the

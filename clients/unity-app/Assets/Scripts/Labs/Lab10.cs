@@ -17,11 +17,14 @@ namespace Playground
     /// unacked inputs replay on top, so a predicted shot is re-derived from truth
     /// every reconcile.
     ///
-    /// Remote paddles enter the prediction as COLLIDERS at their latest snapshot
-    /// (their inputs aren't ours to predict), so a contested touch is the honest
-    /// misprediction to watch for.
+    /// Remote HUMAN paddles enter the prediction as COLLIDERS at their latest
+    /// snapshot — their next input is unknowable until it arrives — so a
+    /// contested touch is the honest misprediction to watch for. The AI paddle
+    /// is different and is predicted in full: its steering is a pure function of
+    /// synced state (<see cref="Sim.BotInput" />), so the client runs the
+    /// server's own decision.
     ///
-    /// Port of labs/10-composite-sim/. Both parts are BOUND to their decoded
+    /// Port of labs/10-composite-sim/. The parts are BOUND to their decoded
     /// instances, so the store mirrors them and derives "paddle.x" / "puck.x"
     /// pose keys itself — the auto-binding path the fixture pins.
     /// </summary>
@@ -44,6 +47,7 @@ namespace Playground
         {
             public Lab.Player paddle;
             public Lab.Puck puck;
+            public Lab.Player bot;
         }
 
         private SimReconciler<HockeyWorld, Lab.MoveInput> _sim;
@@ -56,6 +60,8 @@ namespace Playground
         /// keys on, so Value(_puck, "x") resolves without anyone naming "puck.x".
         /// </summary>
         private Lab.Puck _puck;
+        /// <summary>The DECODED AI paddle — a bound world part, predicted like the puck.</summary>
+        private Lab.Player _bot;
         private string _sid;
 
         private double _smoothing = 15;
@@ -90,13 +96,11 @@ namespace Playground
         /// </summary>
         public (double x, double y) ServerPuck() => (Room.State.puck.x, Room.State.puck.y);
         /// <summary>
-        /// Switch the server's AI paddle on/off. The acceptance run turns it OFF:
-        /// a contested touch mispredicts BY DESIGN (remote paddles enter the
-        /// prediction at their last snapshot), so leaving the AI in makes the
-        /// determinism check measure how often the bot happened to engage — the
-        /// haxe port read 0.0013 to 0.72 across five runs, straddling the
-        /// threshold. The native demo has always done this; the interactive
-        /// build keeps its AI.
+        /// Switch the server's AI paddle on/off. The acceptance run turns it OFF
+        /// so the determinism check measures OUR step alone, independent of the
+        /// bot-prediction path (the bot is predicted now — see <see cref="Step" />
+        /// — but off, the check cannot be flattered or flustered by it). The
+        /// interactive build keeps its AI.
         /// </summary>
         public void SetBot(bool on) => Room.Send("bot", new { on });
 
@@ -104,11 +108,11 @@ namespace Playground
         {
             Room = await Shell.JoinLab<Lab.HockeyState>(app, "lab-hockey",
                 r => r.State.players != null && r.State.players.ContainsKey(r.SessionId)
-                     && r.State.puck != null);
+                     && r.State.puck != null && r.State.players.ContainsKey(Sim.BotId));
             _sid = Room.SessionId;
             if (Room.State.players == null || !Room.State.players.TryGetValue(_sid, out _me)) return false;
             _puck = Room.State.puck;
-            if (_puck == null) return false;
+            if (_puck == null || !Room.State.players.TryGetValue(Sim.BotId, out _bot)) return false;
 
             _predict = Predict.For(Room);
             // Remote paddles: damped toward the latest snapshot. They enter the
@@ -133,33 +137,52 @@ namespace Playground
             {
                 Input = _input,
                 Smoothing = _smoothing,
-                World = new HockeyWorld { paddle = _me, puck = _puck },
+                World = new HockeyWorld { paddle = _me, puck = _puck, bot = _bot },
                 Step = Step,
             });
         }
 
-        /// <summary>The server's step order, reproduced: my paddle → puck → contacts.</summary>
+        /// <summary>The server's step order, reproduced: paddles (mine AND the bot's) → puck → contacts.</summary>
         private void Step(StepContext ctx, HockeyWorld w, Lab.MoveInput cmd)
         {
             var paddle = w.paddle;
             var puck = w.puck;
+            var bot = w.bot;
 
             var pad = new Sim.Entity { x = paddle.x, y = paddle.y, vx = paddle.vx, vy = paddle.vy };
             Sim.StepEntity(ref pad, cmd.moveX, cmd.moveY, ctx.Dt);
             paddle.x = (float)pad.x; paddle.y = (float)pad.y;
             paddle.vx = (float)pad.vx; paddle.vy = (float)pad.vy;
 
+            // The bot steps from the PRE-step puck, exactly as the server does —
+            // its paddle loop runs before StepPuck.
+            var bt = new Sim.Entity { x = bot.x, y = bot.y, vx = bot.vx, vy = bot.vy };
+            Sim.BotInput(bt.x, bt.y, puck.x, puck.y, Room.State.botEnabled, out int bmx, out int bmy);
+            Sim.StepEntity(ref bt, bmx, bmy, ctx.Dt);
+            bot.x = (float)bt.x; bot.y = (float)bt.y;
+            bot.vx = (float)bt.vx; bot.vy = (float)bt.vy;
+
             var pk = new Sim.Entity { x = puck.x, y = puck.y, vx = puck.vx, vy = puck.vy };
             Sim.StepPuck(ref pk, ctx.Dt);
 
-            bool touched = Sim.CollidePaddlePuck(pad.x, pad.y, pad.vx, pad.vy, ref pk);
-            // Remote paddles (and the AI) are colliders at their last-known pose;
-            // my own paddle is resolved from the PREDICTED mirror above. The order
-            // is the players-map iteration order, which the server shares.
+            // Contacts resolve in players-map iteration order — the server's
+            // order. Mine and the bot's come from the PREDICTED mirrors; remote
+            // HUMANS are zero-delta colliders at their last-known snapshot.
+            bool touched = false;
             Room.State.players.ForEach((key, p) =>
             {
-                if (key == _sid) return;
-                if (Sim.CollidePaddlePuck(p.x, p.y, p.vx, p.vy, ref pk)) touched = true;
+                if (key == _sid)
+                {
+                    if (Sim.CollidePaddlePuck(pad.x, pad.y, pad.vx, pad.vy, ref pk)) touched = true;
+                }
+                else if (key == Sim.BotId)
+                {
+                    if (Sim.CollidePaddlePuck(bt.x, bt.y, bt.vx, bt.vy, ref pk)) touched = true;
+                }
+                else
+                {
+                    if (Sim.CollidePaddlePuck(p.x, p.y, p.vx, p.vy, ref pk)) touched = true;
+                }
             });
 
             puck.x = (float)pk.x; puck.y = (float)pk.y;
@@ -279,11 +302,12 @@ namespace Playground
             h.Key("WASD", "drive your paddle into the puck");
             h.Key("- / =", $"smoothing {_smoothing:F0} /s");
             h.Key("G", _showGhosts ? "server ghosts: on" : "server ghosts: off");
-            h.Note("One rollback over TWO parts. Your paddle and the puck are " +
-                   "predicted together, in the server's order, so a strike is " +
-                   "instant — and re-derived from truth on every ack. Remote " +
-                   "paddles are colliders at their last snapshot, so a contested " +
-                   "touch is the honest misprediction.");
+            h.Note("One rollback over THREE parts. Your paddle, the puck AND the " +
+                   "AI paddle are predicted together, in the server's order, so a " +
+                   "strike is instant — and re-derived from truth on every ack. " +
+                   "The AI is predictable because its steering is a pure function " +
+                   "of synced state; remote HUMANS stay colliders at their last " +
+                   "snapshot, so a contested human touch is the honest misprediction.");
         }
 
         public override void Unmount() => _predict?.Dispose();
@@ -291,6 +315,7 @@ namespace Playground
         public override void OnReconnect()
         {
             if (!Room.State.players.TryGetValue(_sid, out _me)) return;
+            if (!Room.State.players.TryGetValue(Sim.BotId, out _bot)) return;
             Build();
             _puckTrail.Clear();
         }
