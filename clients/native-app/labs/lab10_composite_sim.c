@@ -8,12 +8,14 @@
  * bound mirrors are re-seeded from authoritative state and the unacked inputs
  * replay on top — a predicted shot is re-derived from truth every reconcile.
  *
- * Remote paddles enter the prediction as COLLIDERS at their latest snapshot
- * (their inputs aren't ours to predict), so a contested touch is the honest
- * misprediction to watch for.
+ * Remote HUMAN paddles enter the prediction as COLLIDERS at their latest
+ * snapshot — their next input is unknowable until it arrives — so a contested
+ * touch is the honest misprediction to watch for. The AI paddle is different
+ * and is predicted in full: its steering is a pure function of synced state
+ * (`bot_input`), so the client runs the server's own decision.
  *
  * Port of src/client/labs/10-composite-sim/. Where the JS version uses opaque
- * plain objects plus a custom `pose`, the C port BINDS both parts to their
+ * plain objects plus a custom `pose`, the C port BINDS the parts to their
  * decoded instances — the store mirrors them and derives "paddle.x" / "puck.x"
  * pose keys itself, which is the auto-binding path the fixture pins.
  */
@@ -28,6 +30,7 @@ static struct {
     move_input_t* cmd;
 
     player_t* me;
+    player_t* bot;                   /* the AI paddle — a bound, PREDICTED part */
     colyseus_reconciler_t* sim;      /* the composite face */
     colyseus_sim_world_t* world;
     bool rebind;
@@ -48,9 +51,10 @@ static struct {
     /* Every reconcile's correction magnitude, for the acceptance MEDIAN. The
      * drift ema is a decaying average sampled at one instant: it falls toward
      * zero whenever the world goes quiet, which flatters exactly the runs that
-     * deserve scrutiny. The median ignores the contested-touch tail — remote
-     * paddles enter the prediction at their last snapshot, so those mispredict
-     * by design — while still catching a step that genuinely diverged. */
+     * deserve scrutiny. The median ignores the contested-HUMAN-touch tail —
+     * remote humans enter the prediction at their last snapshot, so those
+     * mispredict by design (the AI is predicted and does not) — while still
+     * catching a step that genuinely diverged. */
     double mags[1024];
     int mag_count;
     int last_recon_seq;
@@ -60,15 +64,31 @@ static struct {
 static void l10_step(const colyseus_step_ctx_t* ctx, colyseus_sim_world_t* world,
     const colyseus_schema_t* command, void* userdata);
 
-typedef struct { entity_state_t* puck; bool touched; } l10_contact_ctx_t;
+typedef struct {
+    entity_state_t* puck;
+    const entity_state_t* pad;       /* my PREDICTED paddle */
+    const entity_state_t* bot;       /* the PREDICTED AI paddle */
+    bool touched;
+} l10_contact_ctx_t;
 
+/* Contacts resolve in players-map iteration order — the server's order. Mine
+ * and the bot's come from the PREDICTED mirrors; remote HUMANS are zero-delta
+ * colliders at their last-known snapshot. */
 static void l10_collide_player(const char* sid, void* value, void* userdata) {
     l10_contact_ctx_t* c = (l10_contact_ctx_t*)userdata;
-    (void)sid;
+    if (strcmp(sid, l10.sid) == 0) {
+        if (collide_paddle_puck(c->pad->x, c->pad->y, c->pad->vx, c->pad->vy, c->puck)) {
+            c->touched = true;
+        }
+        return;
+    }
+    if (strcmp(sid, HOCKEY_BOT_ID) == 0) {
+        if (collide_paddle_puck(c->bot->x, c->bot->y, c->bot->vx, c->bot->vy, c->puck)) {
+            c->touched = true;
+        }
+        return;
+    }
     player_t* p = (player_t*)value;
-    /* Remote paddles (and the AI) are colliders at their last-known pose; my
-     * own paddle is resolved from the PREDICTED mirror, not the snapshot. */
-    if (strcmp(sid, l10.sid) == 0) { return; }
     if (collide_paddle_puck(p->x, p->y, p->vx, p->vy, c->puck)) { c->touched = true; }
 }
 
@@ -77,17 +97,25 @@ static void l10_step(const colyseus_step_ctx_t* ctx, colyseus_sim_world_t* world
     (void)userdata;
     player_t* paddle = (player_t*)colyseus_sim_world_part(world, "paddle");
     puck_t* puck = (puck_t*)colyseus_sim_world_part(world, "puck");
+    player_t* bot = (player_t*)colyseus_sim_world_part(world, "bot");
     const move_input_t* inp = (const move_input_t*)command;
 
     entity_state_t pad = { paddle->x, paddle->y, paddle->vx, paddle->vy };
     step_entity(&pad, (double)inp->moveX, (double)inp->moveY, ctx->dt);
     paddle->x = pad.x; paddle->y = pad.y; paddle->vx = pad.vx; paddle->vy = pad.vy;
 
+    /* The bot steps from the PRE-step puck, exactly as the server does — its
+     * paddle loop runs before step_puck. */
+    entity_state_t bt = { bot->x, bot->y, bot->vx, bot->vy };
+    double bmx, bmy;
+    bot_input(bt.x, bt.y, puck->x, puck->y, l10.state->botEnabled, &bmx, &bmy);
+    step_entity(&bt, bmx, bmy, ctx->dt);
+    bot->x = bt.x; bot->y = bt.y; bot->vx = bt.vx; bot->vy = bt.vy;
+
     entity_state_t pk = { puck->x, puck->y, puck->vx, puck->vy };
     step_puck(&pk, ctx->dt);
 
-    l10_contact_ctx_t c = { &pk, false };
-    if (collide_paddle_puck(pad.x, pad.y, pad.vx, pad.vy, &pk)) { c.touched = true; }
+    l10_contact_ctx_t c = { &pk, &pad, &bt, false };
     colyseus_map_schema_foreach(l10.state->players, l10_collide_player, &c);
 
     puck->x = pk.x; puck->y = pk.y; puck->vx = pk.vx; puck->vy = pk.vy;
@@ -95,13 +123,14 @@ static void l10_step(const colyseus_step_ctx_t* ctx, colyseus_sim_world_t* world
 }
 
 static bool l10_make_sim(void) {
-    colyseus_sim_part_t parts[2] = {
+    colyseus_sim_part_t parts[3] = {
         { "paddle", (colyseus_schema_t*)l10.me, &player_vtable, NULL },
         { "puck", (colyseus_schema_t*)l10.state->puck, &puck_vtable, NULL },
+        { "bot", (colyseus_schema_t*)l10.bot, &player_vtable, NULL },
     };
     colyseus_sim_reconciler_options_t opts = { 0 };
     opts.parts = parts;
-    opts.part_count = 2;
+    opts.part_count = 3;
     opts.smoothing = l10.smoothing;
     l10.sim = colyseus_predict_sim_reconciler(l10.predict, l10.input, l10_step, &opts);
     if (!l10.sim) { return false; }
@@ -114,13 +143,15 @@ static bool lab10_attach(app_t* app, colyseus_room_t* room) {
     if (!state || !state->players || !state->puck) { return false; }
     const char* sid = colyseus_room_get_session_id(room);
     player_t* me = (player_t*)colyseus_map_schema_get(state->players, sid);
-    if (!me) { return false; }
+    player_t* bot = (player_t*)colyseus_map_schema_get(state->players, HOCKEY_BOT_ID);
+    if (!me || !bot) { return false; }
 
     memset(&l10, 0, sizeof(l10));
     l10.room = room;
     l10.state = state;
     l10.sid = sid;
     l10.me = me;
+    l10.bot = bot;
     l10.smoothing = 15;
     l10.show_ghosts = true;
     l10.last_touch_t = -1e9;
@@ -151,9 +182,11 @@ static void l10_draw_remote(const char* sid, void* value, void* userdata) {
 static void lab10_frame(app_t* app, double now, double dt) {
     if (l10.rebind) {
         player_t* me = (player_t*)colyseus_map_schema_get(l10.state->players, l10.sid);
-        if (me) {
+        player_t* bot = (player_t*)colyseus_map_schema_get(l10.state->players, HOCKEY_BOT_ID);
+        if (me && bot) {
             if (l10.sim) { colyseus_reconciler_free(l10.sim); l10.sim = NULL; }
             l10.me = me;
+            l10.bot = bot;
             l10.rebind = !l10_make_sim();
             trail_clear(&l10.puck_trail);
         }
@@ -281,10 +314,11 @@ static void lab10_frame(app_t* app, double now, double dt) {
     hud_key(h, "- / =", TextFormat("smoothing  %.0f /s", l10.smoothing));
     hud_key(h, "G", l10.show_ghosts ? "server ghosts: on" : "server ghosts: off");
     hud_key(h, "B", l10.state->botEnabled ? "AI paddle: on" : "AI paddle: off");
-    hud_note(h, "The puck is predicted THROUGH your inputs: every predicted paddle step "
-        "also steps the puck and resolves contacts in the server's order. Remote paddles "
-        "enter as colliders at their last snapshot, so a contested touch is the honest "
-        "misprediction - watch the drift spike and the ghost separate.");
+    hud_note(h, "The puck AND the AI paddle are predicted THROUGH your inputs: every "
+        "predicted step also steps the bot (its steering is a pure function of synced "
+        "state) and the puck, resolving contacts in the server's order. Remote HUMANS "
+        "stay colliders at their last snapshot, so a contested human touch is the "
+        "honest misprediction - watch the drift spike and the ghost separate.");
 }
 
 static void lab10_detach(app_t* app) {

@@ -24,7 +24,7 @@
 
 #define L09_MAX_ENTRIES 128
 
-typedef struct { int id; bool was_pending; double flash_t; } l09_slot_t;
+typedef struct { int id; bool was_pending; double flash_t; double x, y; } l09_slot_t;
 
 static struct {
     colyseus_room_t* room;
@@ -48,6 +48,8 @@ static struct {
     bool pending_fire;
     bool optimistic;
     double last_lead_ms;
+    /* worst distance a sprite teleported across a handoff */
+    double max_handoff_jump;
     int fired;
 } l09;
 
@@ -58,6 +60,8 @@ static void l09_track(int id) {
     l09.slots[l09.slot_count].id = id;
     l09.slots[l09.slot_count].was_pending = false;
     l09.slots[l09.slot_count].flash_t = -1e9;
+    l09.slots[l09.slot_count].x = NAN;
+    l09.slots[l09.slot_count].y = NAN;
     l09.slot_count++;
 }
 
@@ -75,6 +79,27 @@ static double l09_spawn_time(colyseus_schema_t* server, void* userdata) {
 static void l09_local_step(void* local, double dt, void* userdata) {
     (void)userdata;
     step_projectile((entity_state_t*)local, dt);
+}
+
+/* Lets colyseus_spawns_value() reach a PENDING entry's fields, so the render
+ * loop has one call for both sides of the handoff. */
+static double l09_local_read(void* local, const char* field, void* userdata) {
+    (void)userdata;
+    const entity_state_t* e = (const entity_state_t*)local;
+    if (strcmp(field, "x") == 0) { return e->x; }
+    if (strcmp(field, "y") == 0) { return e->y; }
+    return NAN;
+}
+
+/* The CONFIRMED entity's reckon — the same flight the local was predicting,
+ * against the decoded schema. */
+static void l09_reckon_step(colyseus_schema_t* scratch, double dt, double elapsed_ms,
+    void* userdata) {
+    (void)elapsed_ms; (void)userdata;
+    projectile_t* p = (projectile_t*)scratch;
+    entity_state_t e = { p->x, p->y, p->vx, p->vy };
+    step_projectile(&e, dt);
+    p->x = e.x; p->y = e.y; p->vx = e.vx; p->vy = e.vy;
 }
 
 static void l09_step(const colyseus_step_ctx_t* ctx, colyseus_schema_t* state,
@@ -126,9 +151,20 @@ static bool lab09_attach(app_t* app, colyseus_room_t* room) {
     sp.spawn_time = l09_spawn_time;
     sp.has_spawn_time = true;
     sp.step = l09_local_step;
+    sp.local_read = l09_local_read;
     sp.local_free = free;
     l09.spawns = colyseus_spawns_create(&sp, colyseus_room_get_clock(room));
-    colyseus_predict_bind_spawns(l09.predict, l09.spawns, (colyseus_schema_t*)state, "projectiles");
+
+    /* Also reckon the CONFIRMED entities, by snapshot age + this shot's
+     * measured input lead — without it the handoff snaps the projectile back. */
+    static const char* const RECKON_FIELDS[] = { "x", "y" };
+    colyseus_spawns_reckon_t rk = { 0 };
+    rk.entry_vtable = &projectile_vtable;
+    rk.fields = RECKON_FIELDS;
+    rk.field_count = 2;
+    rk.step = l09_reckon_step;
+    colyseus_predict_bind_spawns(l09.predict, l09.spawns, (colyseus_schema_t*)state,
+        "projectiles", &rk);
 
     l09.input = colyseus_room_input(room, &range_input_vtable, NULL);
     if (!l09.input) { return false; }
@@ -225,11 +261,15 @@ static void lab09_frame(app_t* app, double now, double dt) {
             l09.slot_count--;
             continue;
         }
-        double x, y;
+        /* One call for both sides: the stepped local while pending, the
+         * lead-aware reckon once confirmed. */
+        double x = colyseus_spawns_value(l09.spawns, e, "x");
+        double y = colyseus_spawns_value(l09.spawns, e, "y");
+        if (isnan(x) || isnan(y)) { continue; }
+        double was_x = l09.slots[i].x, was_y = l09.slots[i].y;
+        l09.slots[i].x = x;
+        l09.slots[i].y = y;
         if (!e->confirmed) {
-            entity_state_t* local = (entity_state_t*)e->local;
-            if (!local) { continue; }
-            x = local->x; y = local->y;
             n_pending++;
             l09.slots[i].was_pending = true;
             draw_circle_world(v, x, y, PROJECTILE_RADIUS, with_alpha(COL_WARN, 0.9));
@@ -237,7 +277,6 @@ static void lab09_frame(app_t* app, double now, double dt) {
         }
         projectile_t* srv = (projectile_t*)e->server;
         if (!srv) { continue; }
-        x = srv->x; y = srv->y;
         n_confirmed++;
         bool mine = srv->owner != NULL && strcmp(srv->owner, l09.sid) == 0;
         if (!mine) { n_foreign++; }
@@ -245,6 +284,14 @@ static void lab09_frame(app_t* app, double now, double dt) {
             l09.slots[i].was_pending = false;
             l09.slots[i].flash_t = now;
             if (e->lead_ms > 0) { l09.last_lead_ms = e->lead_ms; }
+            /* How far the sprite TELEPORTED across the handoff. Un-reckoned,
+             * the confirmed entity renders at the last decoded snapshot —
+             * (age + lead) x speed behind the prediction. */
+            if (!isnan(was_x)) {
+                double dx = x - was_x, dy = y - was_y;
+                double d = sqrt(dx * dx + dy * dy);
+                if (d > l09.max_handoff_jump) { l09.max_handoff_jump = d; }
+            }
         }
         bool flashing = now - l09.slots[i].flash_t < 350;
         draw_circle_world(v, x, y, PROJECTILE_RADIUS * (flashing ? 1.8 : 1.0),

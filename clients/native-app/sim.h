@@ -330,6 +330,24 @@ static inline bool collide_paddle_puck(double paddle_x, double paddle_y,
     return true;
 }
 
+/* Session id of the server-driven AI paddle in lab-hockey. */
+#define HOCKEY_BOT_ID "bot"
+
+/*
+ * The AI paddle's steering, quantized to the same -1/0/1 move input a human
+ * sends. A server-owned DECISION but a pure function of synced state — the puck
+ * it chases and `botEnabled` — so a predicting client derives it exactly: the
+ * bot is remote but NOT unpredictable. Port of shared/hockey.ts `botInput`.
+ */
+static inline void bot_input(double bot_x, double bot_y,
+    double puck_x, double puck_y, bool enabled, double* move_x, double* move_y) {
+    bool chase = enabled && puck_y < ARENA_H / 2;
+    double tx = chase ? puck_x : ARENA_W / 2;
+    double ty = chase ? puck_y : ARENA_H * 0.2;
+    *move_x = tx - bot_x > 1 ? 1 : tx - bot_x < -1 ? -1 : 0;
+    *move_y = ty - bot_y > 1 ? 1 : ty - bot_y < -1 ? -1 : 0;
+}
+
 /* ---------------------------------------------------- startup canary */
 
 /*

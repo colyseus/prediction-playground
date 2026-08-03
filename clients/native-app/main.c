@@ -328,6 +328,11 @@ static const demo_step_t DEMO[] = {
     /* Lab 09 — predicted spawn, authoritative handoff. */
     { 78500, IX_09, -1, 0, 0, 0, 0, NULL, NULL },
     { 80000, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    /* More shots: the handoff-jump check below wants several crossings, not one.
+     * All of them well before 83000 — lab 06 mounts at 83500. */
+    { 80600, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 81200, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
+    { 81800, -1, -1, 0, 0, KEY_SPACE, 0, NULL, NULL },
     { 83000, -1, -1, 0, 0, 0, 0, "media/native-app/09-spawns.png", "lab09-spawn" },
 
     /* ---- M3 (labs 06 / 07 / 11; lab 10 needs the SimReconciler port) ---- */
@@ -477,9 +482,21 @@ static void demo_checkpoint(const char* name) {
             "%d rejected at deny rate %d %% — the banner went up, then retracted",
             rejected, l08.deny_rate);
     } else if (strcmp(name, "lab09-spawn") == 0) {
-        demo_check(name, l09.fired > 0 && !isnan(l09.last_lead_ms) && l09.last_lead_ms > 0,
+        /* MEASURING the lead is only half of it — the confirmed entity has to be
+         * reckoned by it too, or it renders at the last decoded snapshot,
+         * (age + lead) x 34 u/s behind the prediction, and the shot visibly
+         * snaps backwards at the handoff.
+         * Measured here: 21.79 u un-reckoned, 4.04 u with the reckon. The bound
+         * is looser than the Defold/Haxe harnesses' 3.0 because those aim down
+         * the arena from a standing start while this autopilot keeps the
+         * default aim, which puts a wall bounce inside the lead window — the
+         * one place the reckon's 16 ms substep diverges from the local's
+         * per-frame dt. It still separates the two cases by 2.7x. */
+        demo_check(name, l09.fired > 0 && !isnan(l09.last_lead_ms) && l09.last_lead_ms > 0
+            && l09.max_handoff_jump < 8.0,
             "%d fired, authoritative entity correlated in place, measured input lead "
-            "%.0f ms", l09.fired, l09.last_lead_ms);
+            "%.0f ms, worst handoff jump %.2f u", l09.fired, l09.last_lead_ms,
+            l09.max_handoff_jump);
 
     /* ---- M3 ---- */
     } else if (strcmp(name, "lab06-shot") == 0) {
