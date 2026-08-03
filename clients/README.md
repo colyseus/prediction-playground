@@ -1,11 +1,11 @@
 # Cross-SDK validation clients
 
-> Full **interactive** ports of the playground per SDK are landing alongside
-> these probes — plan in [APPS_PLAN.md](./APPS_PLAN.md).
-> First one up: [`native-app/`](./native-app) (C + raylib) — **complete**:
-> shell, latency injector, and all twelve labs (M1 + M2 + M3), with an
-> autopilot that replays the plan's exit criteria and exits non-zero on
-> failure. Unity / Defold / Haxe next.
+> Full **interactive** ports of the playground exist for every SDK — all four
+> are **complete** with all twelve labs: [`native-app/`](./native-app)
+> (C + raylib), [`unity-app/`](./unity-app), [`defold-app/`](./defold-app),
+> [`haxe-app/`](./haxe-app). How to run each is in the root README's
+> ["Run it on your engine"](../README.md#run-it-on-your-engine); the plan and
+> per-SDK verification invocations live in [APPS_PLAN.md](./APPS_PLAN.md).
 
 Headless probes that run **every Colyseus SDK's predict layer against this
 playground's live server** — the cross-language twin of `scripts/probe-*.mjs`.

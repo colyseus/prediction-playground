@@ -250,8 +250,8 @@ jitter), `D` = drop transport, `P` = private-room toggle (rejoin).
 |---|---|
 | **native-app** (C / raylib) | **DONE** — all 12 labs, `--demo` autopilot 18/18 |
 | **unity-app** (C# / Unity 6000.3) | **DONE — all 12 labs**; PlayMode suite 15/15 green vs a live server |
-| **defold-app** (Lua / Defold) | **DONE — all 12 labs**; headless suite 34 checks green vs a live server; `bob resolve build` clean |
-| **haxe-app** (Haxe / Heaps + hl) | **DONE — all 12 labs**; headless suite 37/37 green vs a live server; both `acceptance.hxml` (neko) and `build.hxml` (hl) compile |
+| **defold-app** (Lua / Defold) | **DONE — all 12 labs**; headless suite 35 checks green vs a live server; `bob resolve build` clean |
+| **haxe-app** (Haxe / Heaps + hl) | **DONE — all 12 labs**; headless suite 38/38 green vs a live server; both `acceptance.hxml` (neko) and `build.hxml` (hl) compile; windowed client runs native via `build-hlc.sh` (HL/C) |
 
 Lab 10 is done in all four SDKs. The world-handle shape differs by language, deliberately: JS/Lua take a plain object or table, C#/Haxe take a caller-declared class (neither has anonymous objects that survive to runtime safely), C takes a descriptor array.
 

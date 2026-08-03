@@ -116,6 +116,30 @@ pnpm media                        # regenerate README GIFs + media/og.png
 Media is captured from the live labs by the same probe machinery
 (`scripts/capture-media.mjs`), so the GIFs above never go stale.
 
+## Run it on your engine
+
+The playground also exists as a **full interactive app on four more SDKs** —
+same server, same twelve labs, native rendering per engine:
+
+| App | Engine / SDK | Run |
+|---|---|---|
+| [`clients/native-app`](clients/native-app) | C · raylib · `native-sdk` | `cd ../native-sdk && zig build && ./zig-out/bin/predict_playground` |
+| [`clients/unity-app`](clients/unity-app) | Unity 6000.3 · `colyseus-unity-sdk` | open the project in Unity, open `Assets/LabScene`, press Play |
+| [`clients/defold-app`](clients/defold-app) | Defold · `colyseus-defold` | open `game.project` in the Defold editor, Project ▸ Build (⌘B) |
+| [`clients/haxe-app`](clients/haxe-app) | Haxe · Heaps/HashLink · `colyseus-haxe` | `cd clients/haxe-app && ./build-hlc.sh && ./bin/hlc-playground` |
+
+> **The one prerequisite they all share:** start the server as
+> `pnpm dev --host 0.0.0.0`. A bare `pnpm dev` can leave Vite bound to the
+> IPv6 loopback only (`::1`) — the browser still works, but every non-browser
+> client here connects over **IPv4** and fails with a connection error
+> (Defold: `http result: -1`; haxe: `Failed to connect`).
+
+All four apps expect the sibling SDK checkouts next to this repo (same
+convention as the `@colyseus/*` links above). Each app's README carries its
+keyboard controls, acceptance suite, and toolchain notes;
+[`clients/README.md`](clients/README.md) covers the *headless probes* that run
+each SDK's predict layer against this server without a window.
+
 ## Conventions
 
 Same as the sibling demos: Colyseus 0.18 via `link:../../colyseus-0.18/*`,
