@@ -9,7 +9,7 @@ main_collection = /main/main.collectionc
 [display]
 width = 1280
 height = 720
-high_dpi = 1
+high_dpi = 0
 
 [script]
 shared_state = 1

@@ -2,3 +2,8 @@ node_modules
 dist
 .DS_Store
 media/.work/
+
+# Defold editor artifacts (machine-local; manifest keys must never be committed)
+clients/defold-app/.editor_settings
+clients/defold-app/manifest.private.der
+clients/defold-app/manifest.public.der

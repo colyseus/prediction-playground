@@ -16,6 +16,30 @@ local Client = require 'colyseus.client'
 local ENDPOINT = "ws://localhost:5173"
 local PANEL_W = 340
 
+--
+-- on_input() receives action_id as a HASH, and tostring() on one yields
+-- "hash: [w]" (or a hex digest in release) — never the bare "w" the labs query
+-- kb by. So the name has to come from an explicit hash -> name map; there is no
+-- runtime way to enumerate the bindings.
+--
+-- Keep in step with input/game.input_binding. A key missing here is silently
+-- dead, exactly like the whole keyboard was.
+--
+local ACTION_NAMES = {
+  "w", "a", "s", "d", "up", "down", "left", "right", "space",
+  "l", "p", "r", "b", "i", "t", "v", "g", "n", "m", "c", "o", "x",
+  "minus", "equals", "comma", "period",
+  "prev_lab", "next_lab",
+}
+for n = 0, 9 do table.insert(ACTION_NAMES, "lab" .. n) end
+
+-- Keyed by hash_to_hex, NOT by the hash itself: a hash is userdata, and Lua
+-- indexes tables by RAW equality for userdata — it never consults __eq, which
+-- is the metamethod that makes the usual `action_id == hash("w")` work. The hex
+-- digest is a plain string, so the lookup is O(1) and unambiguous.
+local NAME_OF = {}
+for _, name in ipairs(ACTION_NAMES) do NAME_OF[hash_to_hex(hash(name))] = name end
+
 local LABS = {
   require 'playground.labs.lab00',
   require 'playground.labs.lab01',
@@ -56,7 +80,19 @@ function init(self)
     print("[playground] shared-sim port mismatch — see sim.selfcheck()")
   end
 
-  self.context = { client = Client(ENDPOINT), private = false }
+  local client = Client(ENDPOINT)
+  -- Drop any persisted auth token before the first join. The SDK restores one
+  -- from the save file in Auth.new and then sends `Authorization: Bearer …` on
+  -- every matchmaking request; against a server with no auth configured, a
+  -- stale token is rejected with `onAuth failed` and nothing here ever joins.
+  -- The playground authenticates nobody, so the token is always residue —
+  -- from another Colyseus app sharing the save file, or an earlier experiment.
+  --
+  -- The headless harness cannot catch this: defold_shim stubs the save-file
+  -- APIs in memory, so a token never persists there.
+  client.auth:sign_out()
+
+  self.context = { client = client, private = false }
   self.lab_index = 1
   self.last_now = nil
   switch_to(self, 1)
@@ -100,11 +136,21 @@ function update(self, _dt)
   for i, LabClass in ipairs(LABS) do
     if kb.key("lab" .. LabClass.num) then switch_to(self, i) end
   end
+  -- The digits only reach labs 0-9; [ ] are the only way to a 2-digit lab.
+  if kb.key("prev_lab") then
+    switch_to(self, (self.lab_index - 2) % #LABS + 1)
+  end
+  if kb.key("next_lab") then
+    switch_to(self, self.lab_index % #LABS + 1)
+  end
 
   if self.active ~= nil then self.active:frame(self.context, now, dt_ms) end
 
   -- Draw. The lab paints the arena unless it owns the background itself.
-  local w, h = window.get_size()
+  -- NOT window.get_size(): that is the backing buffer, which is 2x the design
+  -- space on a high_dpi display and only matches the text camera. gfx owns the
+  -- conversion — see "THE TWO SPACES" in gfx_defold.lua.
+  local w, h = gfx.layout_size()
   local stage_w = w - PANEL_W
   gfx.begin_frame(0, 46, stage_w, h - 46 - 40, stage_w + 20, h - 70, PANEL_W - 40)
   gfx.hud_begin()
@@ -122,6 +168,7 @@ function update(self, _dt)
   gfx.hud_note(lab_def.blurb)
   gfx.hud_section("SHELL")
   gfx.hud_key("0-9", "switch lab")
+  gfx.hud_key("[ ]", "prev/next lab")
   gfx.hud_key("L", "injected latency: " .. net_delay.preset_label())
   gfx.hud_key("P", self.context.private and "room: private" or "room: shared")
   gfx.hud_row("in flight", net_delay.in_flight() .. " pkt", gfx.PALETTE.text_dim)
@@ -132,7 +179,8 @@ end
 
 function on_input(_self, action_id, action)
   if action_id == nil then return end
-  local name = tostring(action_id)
+  local name = NAME_OF[hash_to_hex(action_id)]
+  if name == nil then return end
   if action.pressed then
     kb._pressed[name] = true
     kb._down[name] = true

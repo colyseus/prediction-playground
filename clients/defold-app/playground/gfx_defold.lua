@@ -24,6 +24,34 @@ M.PALETTE, M.hue, M.a = null.PALETTE, null.hue, null.a
 local view = { scale = 1, ox = 0, oy = 0, stage = {} }
 local lane_rect = nil          -- set by M.lane(); nil = the full stage
 local hud = { x = 0, y = 0, w = 300 }
+local caption_n = 0            -- captions drawn this frame; they stack
+
+--
+-- THE TWO SPACES. The built-in render script draws through two cameras, and
+-- the primitives this backend uses do NOT share one:
+--
+--   draw_line       -> camera_world, stretch projection -> the game.project
+--                      DESIGN size (render.get_width/height)
+--   draw_debug_text -> camera_gui,   gui projection     -> raw WINDOW PIXELS
+--                      (render.get_window_width/height)
+--
+-- Those coincide only when the backing buffer happens to equal the design
+-- size. They do not on any high_dpi display (2x) and not after a resize — so
+-- feeding both from window.get_size() draws the lines at double scale and
+-- shoves the arena off the right edge while the text still lands correctly.
+--
+-- Fix: ALL layout is in design units, and text converts on the way out.
+--
+local DESIGN_W = sys.get_config_int("display.width", 1280)
+local DESIGN_H = sys.get_config_int("display.height", 720)
+local text_kx, text_ky = 1, 1  -- design -> window px, refreshed per frame
+
+--- The space every layout number in this app is expressed in. The shell asks
+--- for it instead of window.get_size(): it is resolution- and dpi-independent,
+--- which is exactly what the stretch projection gives the lines for free.
+function M.layout_size()
+  return DESIGN_W, DESIGN_H
+end
 
 local function v4(c) return vmath.vector4(c[1], c[2], c[3], c[4] or 1) end
 
@@ -44,6 +72,12 @@ function M.begin_frame(stage_x, stage_y, stage_w, stage_h, hud_x, hud_y, hud_w)
   fit(stage_x, stage_y, stage_w, stage_h)
   hud.x, hud.y, hud.w = hud_x, hud_y, hud_w
   hud.cursor = hud_y
+  caption_n = 0
+  -- Per frame, not once: the window is resizable, and the gui projection
+  -- follows it while the design space stays put.
+  local ww, wh = window.get_size()
+  text_kx = (ww > 0) and (ww / DESIGN_W) or 1
+  text_ky = (wh > 0) and (wh / DESIGN_H) or 1
 end
 
 local function sx(x) return view.ox + x * view.scale end
@@ -61,7 +95,7 @@ end
 local function text(x, y, str, color)
   msg.post("@render:", "draw_debug_text", {
     text = str,
-    position = vmath.vector3(x, y, 0),
+    position = vmath.vector3(x * text_kx, y * text_ky, 0),
     color = v4(color),
   })
 end
@@ -192,9 +226,14 @@ function M.lane_title(main, sub, color)
   text(r.x + 16 + #main * 7 + 14, r.y + r.h - 14, sub, M.a(M.PALETTE.text_dim, 0.75))
 end
 
+--- Successive captions STACK instead of landing on each other: lab 00 draws two
+--- (the round-trip readout and the autopilot hint), and the reference keeps them
+--- apart by putting the readout on the lane divider. One caption still sits
+--- exactly where it always did; the second goes above it.
 function M.caption(str, color, _size)
   local st = view.stage
-  text(st.x + st.w / 2 - #str * 3, st.y + 16, str, color)
+  text(st.x + st.w / 2 - #str * 3, st.y + 16 + caption_n * 14, str, color)
+  caption_n = caption_n + 1
 end
 
 -- ------------------------------------------------------------------ hud --

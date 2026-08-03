@@ -37,8 +37,9 @@ function Lab.new()
     optimistic = true,
     fired = 0,
     last_lead_ms = nil,
-    slots = {},                       -- entry id -> { was_pending, flash_t }
+    slots = {},                       -- entry id -> { was_pending, flash_t, x, y }
     pending = 0, confirmed = 0, foreign = 0,
+    max_handoff_jump = 0,
   }, Lab)
 end
 
@@ -59,6 +60,7 @@ function Lab:mount(context, room)
     owned = function(p) return p.owner == self.sid end,
     spawn_time = function(p) return p.bornMs end,
     step = function(l, dt) sim.step_projectile(l, dt) end,
+    fields = { "x", "y" },            -- also reckon the CONFIRMED entities
   })
 
   self.input = room:input()
@@ -102,6 +104,7 @@ function Lab:sweep(now)
   for _, e in ipairs(self.spawns:entries()) do
     live[e.id] = true
     local slot = self.slots[e.id] or { was_pending = false, flash_t = -1e9 }
+    local x, y = self.spawns:value(e, "x"), self.spawns:value(e, "y")
     if not e.confirmed then
       if e.local_state ~= nil then
         self.pending = self.pending + 1
@@ -116,8 +119,16 @@ function Lab:sweep(now)
         slot.was_pending = false
         slot.flash_t = now
         if (e.lead_ms or 0) > 0 then self.last_lead_ms = e.lead_ms end
+        -- How far the sprite TELEPORTED across the handoff. Un-reckoned, the
+        -- confirmed entity renders at the last decoded snapshot — (age + lead)
+        -- x speed behind the prediction, which is the visible snap-back.
+        if slot.x ~= nil and x ~= nil then
+          local d = math.sqrt((x - slot.x) ^ 2 + (y - slot.y) ^ 2)
+          if d > self.max_handoff_jump then self.max_handoff_jump = d end
+        end
       end
     end
+    slot.x, slot.y = x, y
     self.slots[e.id] = slot
   end
   for id in pairs(self.slots) do
@@ -166,20 +177,24 @@ function Lab:render(gfx)
   gfx.square_outline(mx, my, sim.PLAYER_HALF, gfx.PALETTE.text, 1)
   gfx.circle_outline(self.aim_x, self.aim_y, 0.8, gfx.a(gfx.PALETTE.text, 0.6))
 
-  -- One render path across the handoff, keyed on the stable entry id.
+  -- One render path across the handoff, keyed on the stable entry id: :value()
+  -- reads the stepped local while pending and the lead-aware reckon once
+  -- confirmed, so the same two lines cover both sides of the seam.
   for _, e in ipairs(self.spawns:entries()) do
-    if not e.confirmed then
-      if e.local_state ~= nil then
-        gfx.circle(e.local_state.x, e.local_state.y, sim.PROJECTILE_RADIUS,
-          gfx.a(gfx.PALETTE.warn, 0.9))
+    local x, y = self.spawns:value(e, "x"), self.spawns:value(e, "y")
+    -- Plain guard, no goto: the Defold editor validates against Lua 5.1
+    -- grammar, where goto/labels don't exist (LuaJIT-only would pass the
+    -- headless gate and still fail the editor build).
+    if x ~= nil and y ~= nil then
+      if not e.confirmed then
+        gfx.circle(x, y, sim.PROJECTILE_RADIUS, gfx.a(gfx.PALETTE.warn, 0.9))
+      else
+        local slot = self.slots[e.id]
+        local flashing = slot ~= nil and (now - slot.flash_t) < 350
+        gfx.circle(x, y, sim.PROJECTILE_RADIUS * (flashing and 1.8 or 1.0),
+          e.server.owner == self.sid and gfx.a(gfx.PALETTE.text, 0.95)
+            or gfx.a(gfx.PALETTE.bad, 0.9))
       end
-    elseif e.server ~= nil then
-      local slot = self.slots[e.id]
-      local flashing = slot ~= nil and (now - slot.flash_t) < 350
-      gfx.circle(e.server.x, e.server.y,
-        sim.PROJECTILE_RADIUS * (flashing and 1.8 or 1.0),
-        e.server.owner == self.sid and gfx.a(gfx.PALETTE.text, 0.95)
-          or gfx.a(gfx.PALETTE.bad, 0.9))
     end
   end
 

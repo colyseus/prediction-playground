@@ -22,6 +22,11 @@ Then open `clients/defold-app` in the Defold editor and press play.
 runs against the working copy of the SDK with no copy step. The websocket native
 extension comes from `game.project`'s dependency list.
 
+> **Write Lua 5.1 only.** The headless gates run under `luajit`, which accepts
+> LuaJIT-only grammar (`goto` / `::labels::`) — but the Defold editor validates
+> scripts as plain Lua 5.1 and rejects it as a build error. The gate that
+> mirrors the editor is the bob build below.
+
 ## The one structural decision
 
 **Labs touch no Defold API.** They draw through the `gfx` table the shell hands
@@ -41,7 +46,7 @@ port) while Defold's screen y points *up*.
 ## Verification
 
 ```sh
-# the netcode, against a live server — 31 checks across 11 labs
+# the netcode, against a live server — 35 checks across 12 labs
 cd clients/defold-app && luajit headless/acceptance.lua
 
 # the engine build (bob needs the Defold editor's bundled JDK 25 — the 21

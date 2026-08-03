@@ -318,6 +318,23 @@ function M.collide_paddle_puck(paddle_x, paddle_y, paddle_vx, paddle_vy, puck)
   return true
 end
 
+--- Session id of the server-driven AI paddle in lab-hockey.
+M.BOT_ID = "bot"
+
+--- The AI paddle's steering, quantized to the same -1/0/1 move input a human
+--- sends. A server-owned DECISION but a pure function of synced state — the
+--- puck it chases and `botEnabled` — so a predicting client derives it exactly:
+--- the bot is remote but NOT unpredictable. Port of shared/hockey.ts
+--- `botInput`. Returns moveX, moveY.
+function M.bot_input(bot_x, bot_y, puck_x, puck_y, enabled)
+  local chase = enabled and puck_y < M.ARENA_H / 2
+  local tx = chase and puck_x or M.ARENA_W / 2
+  local ty = chase and puck_y or M.ARENA_H * 0.2
+  local mx = tx - bot_x > 1 and 1 or tx - bot_x < -1 and -1 or 0
+  local my = ty - bot_y > 1 and 1 or ty - bot_y < -1 and -1 or 0
+  return mx, my
+end
+
 -- ------------------------------------------------------ startup canary
 
 --- Cheap check that the port still reproduces the reference numbers (pinned from

@@ -8,9 +8,11 @@
 -- mirrors are re-seeded from authoritative state and the unacked inputs replay
 -- on top, so a predicted shot is re-derived from truth every reconcile.
 --
--- Remote paddles enter the prediction as COLLIDERS at their latest snapshot
--- (their inputs aren't ours to predict), so a contested touch is the honest
--- misprediction to watch for.
+-- Remote HUMAN paddles enter the prediction as COLLIDERS at their latest
+-- snapshot — their next input is unknowable until it arrives — so a contested
+-- touch is the honest misprediction to watch for. The AI paddle is different
+-- and is predicted in full: its steering is a pure function of synced state
+-- (`sim.bot_input`), so the client runs the server's own decision.
 --
 -- Port of src/client/labs/10-composite-sim/.
 --
@@ -49,7 +51,7 @@ end
 
 function Lab:ready(room)
   return room.state.players ~= nil and room.state.players[room.session_id] ~= nil
-     and room.state.puck ~= nil
+     and room.state.puck ~= nil and room.state.players[sim.BOT_ID] ~= nil
 end
 
 function Lab:mount(context, room)
@@ -61,7 +63,8 @@ function Lab:mount(context, room)
   -- overlay keys on, so `predict:value(self.puck, "x")` resolves to the
   -- controller's pose without anyone naming "puck.x".
   self.puck = room.state.puck
-  if self.me == nil or self.puck == nil then return false end
+  self.bot = room.state.players[sim.BOT_ID]
+  if self.me == nil or self.puck == nil or self.bot == nil then return false end
 
   self.predict = Predict.for_room(room)
   -- Remote paddles: damped toward the latest snapshot. They enter the sim as
@@ -84,39 +87,50 @@ function Lab:build()
   self.sim = self.predict:sim({
     input = self.input,
     smoothing = self.smoothing,
-    -- Both entries are decoded instances, so both are auto-bound and replaced
-    -- in place by mirrors. The pose keys they derive stay internal: reads go
-    -- through predict:value(instance, field).
-    world = { paddle = self.me, puck = self.puck },
+    -- All three entries are decoded instances, so all are auto-bound and
+    -- replaced in place by mirrors. The pose keys they derive stay internal:
+    -- reads go through predict:value(instance, field).
+    world = { paddle = self.me, puck = self.puck, bot = self.bot },
     step = function(ctx, w, inp) lab:step(ctx, w, inp) end,
   })
 end
 
---- Switch the server's AI paddle on/off. The acceptance run turns it OFF: a
---- contested touch mispredicts BY DESIGN (remote paddles enter the prediction at
---- their last snapshot), so leaving the AI in makes the determinism check measure
---- how often the bot happened to engage. The native demo has always done this;
---- the interactive build keeps its AI.
+--- Switch the server's AI paddle on/off. The acceptance run turns it OFF so the
+--- determinism check measures OUR step alone, independent of the bot-prediction
+--- path (the bot is predicted now — see `step` — but off, the check cannot be
+--- flattered or flustered by it). The interactive build keeps its AI.
 function Lab:set_bot(on)
   self.room:send("bot", { on = on })
 end
 
---- The server's step order, reproduced: my paddle -> puck -> contacts.
+--- The server's step order, reproduced: paddles (mine AND the bot's) -> puck -> contacts.
 function Lab:step(ctx, w, inp)
   local pad = { x = w.paddle.x, y = w.paddle.y, vx = w.paddle.vx, vy = w.paddle.vy }
   sim.step_entity(pad, inp.moveX, inp.moveY, ctx.dt)
   w.paddle.x, w.paddle.y, w.paddle.vx, w.paddle.vy = pad.x, pad.y, pad.vx, pad.vy
 
+  -- The bot steps from the PRE-step puck, exactly as the server does — its
+  -- paddle loop runs before step_puck.
+  local bt = { x = w.bot.x, y = w.bot.y, vx = w.bot.vx, vy = w.bot.vy }
+  local bmx, bmy = sim.bot_input(bt.x, bt.y, w.puck.x, w.puck.y, self.room.state.botEnabled)
+  sim.step_entity(bt, bmx, bmy, ctx.dt)
+  w.bot.x, w.bot.y, w.bot.vx, w.bot.vy = bt.x, bt.y, bt.vx, bt.vy
+
   local pk = { x = w.puck.x, y = w.puck.y, vx = w.puck.vx, vy = w.puck.vy }
   sim.step_puck(pk, ctx.dt)
 
-  local touched = sim.collide_paddle_puck(pad.x, pad.y, pad.vx, pad.vy, pk)
-  -- Remote paddles (and the AI) are colliders at their last-known pose; my own
-  -- paddle is resolved from the PREDICTED mirror above. The order is the
-  -- players-map iteration order, which the server shares.
+  -- Contacts resolve in players-map iteration order — the server's order. Mine
+  -- and the bot's come from the PREDICTED mirrors; remote HUMANS are zero-delta
+  -- colliders at their last-known snapshot.
+  local touched = false
   self.room.state.players:each(function(p, key)
-    if key == self.sid then return end
-    if sim.collide_paddle_puck(p.x, p.y, p.vx, p.vy, pk) then touched = true end
+    if key == self.sid then
+      if sim.collide_paddle_puck(pad.x, pad.y, pad.vx, pad.vy, pk) then touched = true end
+    elseif key == sim.BOT_ID then
+      if sim.collide_paddle_puck(bt.x, bt.y, bt.vx, bt.vy, pk) then touched = true end
+    else
+      if sim.collide_paddle_puck(p.x, p.y, p.vx, p.vy, pk) then touched = true end
+    end
   end)
 
   w.puck.x, w.puck.y, w.puck.vx, w.puck.vy = pk.x, pk.y, pk.vx, pk.vy
@@ -227,17 +241,20 @@ function Lab:render(gfx)
   gfx.hud_key("WASD", "drive your paddle into the puck")
   gfx.hud_key("- / =", string.format("smoothing %.0f /s", self.smoothing))
   gfx.hud_key("G", self.show_ghosts and "server ghosts: on" or "server ghosts: off")
-  gfx.hud_note("One rollback over TWO parts. Your paddle and the puck are " ..
-    "predicted together, in the server's order, so a strike is instant — and " ..
-    "re-derived from truth on every ack. Remote paddles are colliders at their " ..
-    "last snapshot, so a contested touch is the honest misprediction.")
+  gfx.hud_note("One rollback over THREE parts. Your paddle, the puck AND the " ..
+    "AI paddle are predicted together, in the server's order, so a strike is " ..
+    "instant — and re-derived from truth on every ack. The AI is predictable " ..
+    "because its steering is a pure function of synced state; remote HUMANS " ..
+    "stay colliders at their last snapshot, so a contested human touch is the " ..
+    "honest misprediction.")
 end
 
 function Lab:unmount() self.predict:dispose() end
 
 function Lab:on_reconnect()
   self.me = self.room.state.players[self.sid]
-  if self.me == nil then return end
+  self.bot = self.room.state.players[sim.BOT_ID]
+  if self.me == nil or self.bot == nil then return end
   self:build()
   self.trail = {}
 end

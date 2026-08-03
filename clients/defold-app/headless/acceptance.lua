@@ -164,6 +164,37 @@ do -- lab 00: the predicted lane leads the server echo by ~RTT
   leave(lab, room)
 end
 
+do -- lab 04: the interpolation modes differ as advertised
+  local Lab04 = require 'playground.labs.lab04'
+  local lab = Lab04.new()
+  net_delay.reset()
+  net_delay.set_latency(120, 40)
+  local room = mount(lab, context)
+
+  -- Pin the pattern rather than inherit whatever the room defaulted to: a
+  -- stationary bot scores NaN and the comparison below would mean nothing.
+  lab:set_pattern("patrol")
+  drive(lab, context, 2000)        -- let the pattern land
+  lab:reset_meters()               -- then score a clean window
+  drive(lab, context, 6000)
+
+  check("lab04 the bot actually moved", lab.bot_travel > 10,
+    string.format("%.0f u travelled", lab.bot_travel))
+
+  local cv, scored = {}, true
+  for _, m in ipairs(lab.modes) do
+    cv[m.name] = m.smooth:cv()
+    if cv[m.name] ~= cv[m.name] then scored = false end   -- NaN
+  end
+  check("lab04 every mode scored", scored)
+  -- raw is the decoded snapshot verbatim, so it stutters at the patch rate;
+  -- lerp walks between two real samples and must be steadier.
+  check("lab04 raw stutters more than lerp", cv.raw > cv.lerp,
+    string.format("raw %.2f vs lerp %.2f", cv.raw, cv.lerp))
+
+  leave(lab, room)
+end
+
 do -- lab 05: reckon renders the present, and honours the bot's actual pattern
   local Lab05 = require 'playground.labs.lab05'
   local lab = Lab05.new()
@@ -283,6 +314,19 @@ do -- lab 09: an optimistic spawn hands off to the authoritative entity
     lab.last_lead_ms ~= nil and lab.last_lead_ms > 0,
     lab.last_lead_ms and string.format("%.0f ms", lab.last_lead_ms) or "never measured")
 
+  -- ...and MEASURING the lead is only half of it: the confirmed entity has to
+  -- be reckoned by it too. Un-reckoned it renders at the last decoded snapshot,
+  -- (snapshot age + lead) x 34 u/s behind the prediction — ~8 u at this
+  -- latency, which is what a player sees as the shot snapping backwards.
+  for _ = 1, 5 do
+    lab:aim_at(50, 55)
+    lab:fire()
+    drive(lab, context, 700)
+  end
+  check("lab09 the handoff doesn't snap the projectile back",
+    lab.max_handoff_jump < 3.0,
+    string.format("worst jump %.2f u", lab.max_handoff_jump))
+
   leave(lab, room)
 end
 
@@ -401,18 +445,18 @@ do -- lab 10: the puck is predicted THROUGH our own inputs
     lab.max_puck_lead > 0.5,
     string.format("peak %.2f u over %d touches", lab.max_puck_lead, lab.touches))
 
-  -- The MEDIAN reconcile, not the worst or the last. Remote paddles enter the
-  -- prediction at their last snapshot, so a contested touch mispredicts by
-  -- design — lab 10 exists to show that. What must hold is that the shared step
-  -- agrees the rest of the time: a typical reconcile costs nothing, and the
-  -- spikes are a tail rather than a trend.
+  -- The MEDIAN reconcile, not the worst or the last. Remote HUMAN paddles enter
+  -- the prediction at their last snapshot, so a contested human touch
+  -- mispredicts by design — lab 10 exists to show that. What must hold is that
+  -- the shared step agrees the rest of the time: a typical reconcile costs
+  -- nothing, and the spikes are a tail rather than a trend.
   --
-  -- 0.5 is measured, not guessed: honest play lands at 0.0000-0.1527 across
-  -- runs, and a client stepping the puck with the wrong friction constant
-  -- (0.900 vs 0.985) lands at 1.7751. This catches GROSS divergence only — a
-  -- 0.1 % constant slip reads 0.0593 and sails through. Bit-exactness is the
-  -- startup canary's job (it fails that same slip on a pinned vector, with no
-  -- dependence on how one 12-second rally happened to go).
+  -- 0.5 is a gross-divergence ceiling: a client stepping the puck with the
+  -- wrong friction constant (0.900 vs 0.985) lands at 1.7751, while a 0.1 %
+  -- constant slip reads 0.0593 and sails through — bit-exactness is the startup
+  -- canary's job. Honest play measured 0.0000-0.1527 before the server paced
+  -- input consumption to one per tick (2026-07-31); with pacing it sits at
+  -- ~0.0000, so the margin is now much wider.
   local mid = median(mags)
   check("lab10 the composite step agrees with the server's",
     mid >= 0 and mid < 0.5,

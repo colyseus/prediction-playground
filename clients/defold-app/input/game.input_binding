@@ -34,3 +34,5 @@ key_trigger { input: KEY_6 action: "lab6" }
 key_trigger { input: KEY_7 action: "lab7" }
 key_trigger { input: KEY_8 action: "lab8" }
 key_trigger { input: KEY_9 action: "lab9" }
+key_trigger { input: KEY_LBRACKET action: "prev_lab" }
+key_trigger { input: KEY_RBRACKET action: "next_lab" }

@@ -81,6 +81,8 @@ function M.lane(_index) end
 function M.lane_title(_main, _sub, _color) end
 
 --- A centred line under the stage — the divider readout and the hero's caption.
+--- Successive calls in one frame STACK; a backend that draws them all at one y
+--- turns lab 00's two captions into overlapping mush.
 function M.caption(_text, _color, _size) end
 
 --- A filled+outlined world rectangle: the goal zone, and anything like it.
