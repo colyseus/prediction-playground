@@ -1,0 +1,4 @@
+.godot/
+bin/
+obj/
+*.log
