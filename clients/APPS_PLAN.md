@@ -252,6 +252,7 @@ jitter), `D` = drop transport, `P` = private-room toggle (rejoin).
 | **unity-app** (C# / Unity 6000.3) | **DONE — all 12 labs**; PlayMode suite 15/15 green vs a live server |
 | **defold-app** (Lua / Defold) | **DONE — all 12 labs**; headless suite 35 checks green vs a live server; `bob resolve build` clean |
 | **haxe-app** (Haxe / Heaps + hl) | **DONE — all 12 labs**; headless suite 38/38 green vs a live server; both `acceptance.hxml` (neko) and `build.hxml` (hl) compile; windowed client runs native via `build-hlc.sh` (HL/C) |
+| **godot-app** (C# / Godot 4.6 mono) | **DONE — all 12 labs**; headless acceptance 15/15 green vs a live server (the Unity suite ported); first non-Unity consumer of the nuget SDK — Sim/NetDelay/schemas/lab logic verbatim from unity-app |
 
 Lab 10 is done in all four SDKs. The world-handle shape differs by language, deliberately: JS/Lua take a plain object or table, C#/Haxe take a caller-declared class (neither has anonymous objects that survive to runtime safely), C takes a descriptor array.
 
@@ -273,6 +274,12 @@ $JDK -cp /Applications/Defold.app/Contents/Resources/packages/defold-*.jar com.d
 # defold: the pure-Lua half runs headless under luajit
 cd clients/defold-app/playground && luajit -e "package.path='./?.lua;'..package.path; \
   os.exit(require('sim').selfcheck(print) == 0 and 0 or 1)"
+
+# godot: compile, 12-lab smoke, then the full acceptance suite (mono binary)
+GODOT=/Applications/Godot_mono.app/Contents/MacOS/Godot
+dotnet build clients/godot-app/PredictionPlayground.csproj
+$GODOT --headless --path clients/godot-app -- --smoke
+$GODOT --headless --path clients/godot-app res://Acceptance.tscn
 ```
 
 ## 7. Milestones (per SDK, in order native → Unity → Defold → Haxe)
