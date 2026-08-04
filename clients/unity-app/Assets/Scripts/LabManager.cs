@@ -50,7 +50,11 @@ namespace Playground
                 }
                 _labIndex = index;
                 var lab = _labs[index];
-                if (await lab.Mount(_app)) _active = lab;
+                if (await lab.Mount(_app))
+                {
+                    lab.BindReconnect();
+                    _active = lab;
+                }
                 else _error = $"state never arrived for {lab.Id}";
             }
             catch (Exception e) { _error = e.Message; }

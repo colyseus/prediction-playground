@@ -43,6 +43,15 @@ namespace Playground
         void OnReconnect();
 
         /// <summary>
+        /// Subscribe <see cref="OnReconnect"/> to the room's reconnect event —
+        /// what main.ts does with `room.onReconnect(...)` after mount. The
+        /// shell calls this once per successful Mount; it cannot wire the event
+        /// itself because IRoom doesn't carry it (only the concrete
+        /// Room&lt;T&gt; does, and LabBase is who knows T).
+        /// </summary>
+        void BindReconnect();
+
+        /// <summary>
         /// The joined room, type-erased. Room&lt;T&gt; is invariant, so a generic
         /// accessor can only ever hand back the lab's own exact state type —
         /// `room as Room&lt;Schema&gt;` is null. The shell needs these two to leave
@@ -76,6 +85,13 @@ namespace Playground
         IRoom ILab.Room => Room;
         public RoomClock Clock => Room?.Clock;
         public Room<T> RoomOf<T>() where T : ColyseusSchema => Room as Room<T>;
+
+        public void BindReconnect()
+        {
+            if (Room == null) return;
+            Room.OnReconnect -= OnReconnect;   // idempotent across re-mounts
+            Room.OnReconnect += OnReconnect;
+        }
 
         public abstract Task<bool> Mount(App app);
         public abstract void Frame(App app, double now, double dtMs);
