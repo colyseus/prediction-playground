@@ -132,13 +132,25 @@ namespace Playground
 
         private static readonly HashSet<Godot.Key> Frame = new HashSet<Godot.Key>();
 
+        /// <summary>Pointer position in viewport coords — set by the shell each frame.</summary>
+        public static Vector2 MousePos;
+        private static bool _mouseDown;
+
         public static void Feed(InputEventKey e)
         {
             if (e.Pressed && !e.Echo)
                 Frame.Add(e.PhysicalKeycode != Godot.Key.None ? e.PhysicalKeycode : e.Keycode);
         }
 
-        public static void EndFrame() => Frame.Clear();
+        public static void FeedMouse(InputEventMouseButton e)
+        {
+            if (e.Pressed && e.ButtonIndex == MouseButton.Left) _mouseDown = true;
+        }
+
+        /// <summary>Left button pressed this frame (edge, like GetMouseButtonDown).</summary>
+        public static bool MouseDown() => _mouseDown;
+
+        public static void EndFrame() { Frame.Clear(); _mouseDown = false; }
 
         public static bool Key(Godot.Key k)
         {

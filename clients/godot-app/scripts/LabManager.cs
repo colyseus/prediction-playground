@@ -43,7 +43,8 @@ namespace Playground
             if (Sim.SelfCheck() != 0) GD.PushError("shared-sim port mismatch");
 
             _app.Client = new Client(Endpoint);
-            _labs = new ILab[] { new Lab01(), new Lab02(), new Lab03() };
+            _labs = new ILab[] { new Lab00(), new Lab01(), new Lab02(), new Lab03(),
+                new Lab04(), new Lab05(), new Lab08(), new Lab09() };
             _ = SwitchTo(0);
         }
 
@@ -77,6 +78,7 @@ namespace Playground
         public override void _UnhandledInput(InputEvent e)
         {
             if (e is InputEventKey k) Kb.Feed(k);
+            else if (e is InputEventMouseButton m) Kb.FeedMouse(m);
         }
 
         public override void _Process(double delta)
@@ -84,6 +86,8 @@ namespace Playground
             // Deliver due packets first: the injector queues both directions and
             // only drains here, on the main thread.
             NetDelay.PumpAll();
+
+            Kb.MousePos = GetViewport().GetMousePosition();
 
             double now = RoomClock.GetNow();
             double dt = _lastNow > 0 ? now - _lastNow : 0;
