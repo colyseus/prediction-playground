@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://c0gdplayground0"]
+
+[ext_resource type="Script" path="res://scripts/lab_manager.gd" id="1_labmgr"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_labmgr")
