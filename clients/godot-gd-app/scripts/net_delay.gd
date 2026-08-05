@@ -5,8 +5,9 @@ class_name NetDelay
 ## happens after join); this class only owns the preset list and the per-frame
 ## pump every wrapped room needs or nothing delivers.
 ##
-## No transport-drop API exists on this SDK (the `D` key in other shells) —
-## the room only exposes set_latency/net_pump/net_in_flight. Noted and skipped.
+## `D` drops every wrapped room's socket uncleanly (room.drop, close 4010):
+## the SDK auto-reconnects, labs' on_reconnect rebinds, and the wrap()
+## reconnect hook re-applies the preset — the fresh transport is unwrapped.
 
 const PRESETS := [
 	{ "delay": 0.0, "jitter": 0.0, "label": "off" },
@@ -28,8 +29,16 @@ static func preset_label() -> String:
 ## Put the current preset in front of a joined room's socket. Idempotent.
 static func wrap(room) -> void:
 	if room == null: return
-	if not _rooms.has(room): _rooms.append(room)
+	if not _rooms.has(room):
+		_rooms.append(room)
+		# reconnection builds a NEW transport — re-apply the preset onto it
+		room.reconnected.connect(func(): room.set_latency(delay_ms, jitter_ms))
 	room.set_latency(delay_ms, jitter_ms)
+
+## Kill every wrapped socket uncleanly — the SDK sees a drop, not a leave.
+static func drop_all() -> void:
+	for room in _rooms:
+		room.drop()
 
 static func set_latency(delay: float, jitter: float) -> void:
 	delay_ms = maxf(0.0, delay)

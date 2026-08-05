@@ -54,6 +54,7 @@ func _run_all() -> void:
 		["lab10_predicts_the_puck_through_your_own_inputs", _t_lab10],
 		["lab11_client_and_server_roll_identical_pellets", _t_lab11],
 		["callable_overhead_at_400ms_backlog", _t_callable_overhead],
+		["drop_reconnects_and_resets_the_predict_stack", _t_drop_reconnect],
 	]
 	_total = tests.size()
 
@@ -511,4 +512,48 @@ func _t_lab03() -> void:
 		check(recon.last_correction_mag < 0.05,
 			"corrections still %.3f after 5 s — not converging" % recon.last_correction_mag)
 		print("OK lab03 impulse: peak %.3f, settled to %.4f" % [peak, recon.last_correction_mag])
+	await teardown(lab)
+
+## The `D` key's whole path, automated: an unclean drop must read as a DROP
+## (auto-reconnect, not a leave), the input handle resets (epoch bump), the
+## lab's on_reconnect rebinds the re-decoded entity, and the stack converges
+## again with NO stale pre-drop replay. First automated drop test in any lane.
+func _t_drop_reconnect() -> void:
+	var app := App.new()
+	app.client = _client()
+	app.private_room = true
+	NetDelay.set_latency(200, 0)
+	var lab := Lab03.new()
+	if await mount(lab, app):
+		lab.bind_reconnect()   # what the shell does after every mount
+		# fast reconnection for the test — defaults gate on 5 s of uptime
+		lab.room.set_reconnection_options({
+			"min_uptime_ms": 500, "min_delay_ms": 100, "max_delay_ms": 500,
+		})
+		var dropped := [false]
+		var reconnected := [false]
+		lab.room.dropped.connect(func(_c, _r): dropped[0] = true)
+		lab.room.reconnected.connect(func(): reconnected[0] = true)
+
+		await drive(lab, app, 1500, 1)
+		var epoch_before: int = lab.room.input().epoch
+
+		NetDelay.drop_all()
+		var deadline := now_ms() + 15000.0
+		while not reconnected[0] and now_ms() < deadline:
+			await drive(lab, app, 100)
+		check(dropped[0], "the injected drop never raised the dropped signal")
+		check(reconnected[0], "auto-reconnect never completed")
+		check(lab.room.input().epoch > epoch_before,
+			"input handle did not reset on reconnect (no epoch bump)")
+
+		# on_reconnect (wired above) rebound the lane; the fresh transport is
+		# re-wrapped by NetDelay's reconnect hook. Drive and re-converge.
+		await drive(lab, app, 3500, -1)
+		var recon = lab.lane.recon
+		check(recon.reconcile_seq > 5, "no reconciles after reconnect — acks not flowing")
+		check(recon.drift_ema < 0.01,
+			"post-reconnect drift %f — stale pre-drop inputs are replaying" % recon.drift_ema)
+		print("OK drop: epoch %d -> %d, drift %f after reconnect"
+			% [epoch_before, lab.room.input().epoch, recon.drift_ema])
 	await teardown(lab)
