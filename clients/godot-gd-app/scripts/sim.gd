@@ -132,8 +132,11 @@ static func _patrol(b, dt: float) -> void:
 ## shared/movers.ts stepBot — run by the server each fixed tick AND by the
 ## client's reckon mode. `elapsed_ms` is the shared server-clock timeline.
 ## Mutates x/y/vx/vy (+ lastTeleport); reads kind/minX/maxX/baseY/phaseMs/speed.
-static func step_bot(b, dt: float, elapsed_ms: float) -> void:
-	var kind = str(b.kind)
+## `kind_override`: the reckon SCRATCH carries scalar fields only — string
+## fields never reach it — so a reckon step passes the kind it read off fresh
+## decoded state instead of the scratch's empty one.
+static func step_bot(b, dt: float, elapsed_ms: float, kind_override := "") -> void:
+	var kind = kind_override if kind_override != "" else str(b.kind)
 	match kind:
 		"circle":
 			var cx = (b.minX + b.maxX) / 2.0

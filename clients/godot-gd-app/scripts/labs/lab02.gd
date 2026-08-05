@@ -74,9 +74,12 @@ func render(app: App) -> void:
 			Draw.square(v, p.get("x", 0.0), p.get("y", 0.0), Sim.PLAYER_HALF,
 				Palette.hue(int(p.get("hue", 0)), 0.9 if k == _sid else 0.4))
 
-	Draw.circle_outline(v, _bot.get("x", 0.0), _bot.get("y", 0.0), Sim.BOT_RADIUS, Palette.TEXT, true)
-	Draw.label(v, _bot.get("x", 0.0), _bot.get("y", 0.0), "raw snapshots (patch rate)",
-		Palette.a(Palette.TEXT, 0.6), 10, -v.s(Sim.BOT_RADIUS) - 18)
+	# fresh fetch: get_state() snapshots are frozen, cached refs never move
+	var bot = st.get("bots").get("bot1") if st.get("bots") is Dictionary else null
+	if bot != null:
+		Draw.circle_outline(v, bot.get("x", 0.0), bot.get("y", 0.0), Sim.BOT_RADIUS, Palette.TEXT, true)
+		Draw.label(v, bot.get("x", 0.0), bot.get("y", 0.0), "raw snapshots (patch rate)",
+			Palette.a(Palette.TEXT, 0.6), 10, -v.s(Sim.BOT_RADIUS) - 18)
 
 	# Patch-arrival strip along the bottom of the stage.
 	var x0 := app.stage.position.x + 24

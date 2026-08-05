@@ -44,6 +44,11 @@ func _run_all() -> void:
 		["lab01_input_to_motion_tracks_the_round_trip", _t_lab01],
 		["lab02_clock_readouts_respond_to_injected_latency", _t_lab02],
 		["lab03_predicts_instantly_and_absorbs_a_mispredict", _t_lab03],
+		["lab00_predicted_lane_leads_the_server_echo", _t_lab00],
+		["lab04_interpolation_modes_differ_as_advertised", _t_lab04],
+		["lab05_reckon_leads_the_lerp_view", _t_lab05],
+		["lab08_events_fire_instantly_then_settle", _t_lab08],
+		["lab09_optimistic_spawn_hands_off_to_the_server", _t_lab09],
 	]
 	_total = tests.size()
 
@@ -156,6 +161,154 @@ func _t_lab02() -> void:
 		check(clock.patch_interval() > 0, "patch cadence never advertised")
 		print("OK lab02: rtt %.0f ms, patch %.0f ms, jitter %.1f ms" % [
 			clock.smoothed_rtt(), clock.patch_interval(), clock.jitter()])
+	await teardown(lab)
+
+func _t_lab00() -> void:
+	var app := App.new()
+	app.client = _client()
+	app.private_room = true
+	var lab := Lab00.new()
+	if await mount(lab, app):   # mount sets its own latency preset
+		# Drive one long leg and watch the two lanes separate: the echo lane
+		# is the same entity, ~RTT behind. Peak, not instantaneous — the gap
+		# collapses at every direction change.
+		var peak_gap := 0.0
+		for i in 40:
+			await drive(lab, app, 120, 1)
+			var me = lab.lane.me_now()
+			var dx: float = lab.lane.x() - me.get("x", 0.0)
+			var dy: float = lab.lane.y() - me.get("y", 0.0)
+			peak_gap = maxf(peak_gap, sqrt(dx * dx + dy * dy))
+		check(peak_gap > 2.0,
+			"lanes never separated (peak %.2f u) — the echo lane is not lagging" % peak_gap)
+		print("OK lab00: peak lane separation %.2f u" % peak_gap)
+	await teardown(lab)
+
+func _t_lab04() -> void:
+	var app := App.new()
+	app.client = _client()
+	app.private_room = true
+	NetDelay.set_latency(120, 40)
+	var lab := Lab04.new()
+	if await mount(lab, app):
+		# Pin the pattern rather than inherit whatever the room defaulted to —
+		# a stationary bot scores NaN and the comparison means nothing.
+		lab.set_pattern("patrol")
+		await drive(lab, app, 2000)   # let the pattern land
+		lab.reset_meters()            # then score a clean window
+		await drive(lab, app, 6000)
+
+		check(lab.bot_travel() > 10,
+			"the bot only travelled %.1f u — nothing to measure smoothness of" % lab.bot_travel())
+		var cv := lab.smoothness_by_mode()
+		for mode_name in cv:
+			check(not is_nan(cv[mode_name]),
+				"%s never scored over %.1f u of bot travel (%s)" % [
+					mode_name, lab.bot_travel(), lab.describe_mode(mode_name)])
+		# raw is the decoded snapshot verbatim, so it stutters at the patch
+		# rate; lerp walks between two real samples and must be steadier.
+		if not is_nan(cv.get("raw", NAN)) and not is_nan(cv.get("lerp", NAN)):
+			check(cv["raw"] > cv["lerp"],
+				"raw CV %.3f was not worse than lerp %.3f — the modes are not actually rendering differently" % [cv["raw"], cv["lerp"]])
+			print("OK lab04: raw %.3f, lerp %.3f, damped %.3f, extrapolate %.3f" % [
+				cv["raw"], cv["lerp"], cv["damped"], cv["extrapolate"]])
+	await teardown(lab)
+
+func _t_lab05() -> void:
+	var app := App.new()
+	app.client = _client()
+	app.private_room = true
+	NetDelay.set_latency(200, 0)
+	var lab := Lab05.new()
+	if await mount(lab, app):
+		# On the fully-predictable patrol, reckon renders the PRESENT and lerp
+		# renders RemoteInterpMs in the past — so they must not coincide.
+		lab.set_pattern("patrol")
+		await drive(lab, app, 5000)
+		check(lab.peak_reckon_lerp_gap() > 1.0,
+			"reckon and lerp never separated (peak %.2f u) — the forward simulation is not running" % lab.peak_reckon_lerp_gap())
+
+		# The circle is the check that matters: the one pattern whose y moves.
+		# If the reckon scratch cannot see `kind` the step falls through to
+		# patrol, which pins y to baseY.
+		lab.set_pattern("circle")
+		await drive(lab, app, 2000)
+		var min_y := INF
+		var max_y := -INF
+		for i in 40:
+			await drive(lab, app, 100)
+			min_y = minf(min_y, lab.reckon_y())
+			max_y = maxf(max_y, lab.reckon_y())
+		check(max_y - min_y > 4,
+			"reckoned y only swept %.2f u on the circle pattern — the step is falling back to patrol" % (max_y - min_y))
+		print("OK lab05: peak reckon-lerp gap %.2f u, circle y sweep %.2f u" % [
+			lab.peak_reckon_lerp_gap(), max_y - min_y])
+	await teardown(lab)
+
+func _t_lab08() -> void:
+	var app := App.new()
+	app.client = _client()
+	app.private_room = true
+	var lab := Lab08.new()
+	if await mount(lab, app):
+		NetDelay.set_latency(200, 0)
+
+		# Deny nothing: every optimistic banner must be confirmed.
+		lab.set_deny_rate(0)
+		await drive(lab, app, 600)
+		await drive(lab, app, 6000, 1)
+		check(lab.predicted_count() > 0, "never entered the goal zone")
+		check(lab.confirmed_count() > 0, "no optimistic goal was ever confirmed")
+		check(lab.rejected_count() == 0,
+			"%d goals rejected at a 0 %% deny rate" % lab.rejected_count())
+		var clean_run := lab.predicted_count()
+
+		# Deny everything: the banner still fires instantly, then retracts.
+		lab.set_deny_rate(100)
+		await drive(lab, app, 600)
+		await drive(lab, app, 9000, 1)
+		check(lab.predicted_count() > clean_run,
+			"the optimistic banner stopped firing once the server started denying")
+		check(lab.rejected_count() > 0,
+			"server denied every goal but nothing was ever rejected — grace-tick auto-reject is not firing")
+		print("OK lab08: %d confirmed, %d rejected of %d predicted" % [
+			lab.confirmed_count(), lab.rejected_count(), lab.predicted_count()])
+	await teardown(lab)
+
+func _t_lab09() -> void:
+	var app := App.new()
+	app.client = _client()
+	app.private_room = true
+	var lab := Lab09.new()
+	if await mount(lab, app):
+		NetDelay.set_latency(200, 0)
+		await drive(lab, app, 800)
+
+		lab.aim_at(50, 55)
+		lab.fire()
+		# Immediately after firing there must be a local to look at — that IS
+		# the feature. Half an RTT later it must still not be confirmed.
+		await drive(lab, app, 120)
+		check(lab.pending_spawns > 0,
+			"fired but nothing was spawned locally — the shot would not appear for a full RTT")
+
+		# ...and by ~2 RTT the server's entity has arrived and correlated.
+		await drive(lab, app, 1400)
+		check(lab.confirmed_spawns > 0, "the server's projectile never correlated")
+		check(lab.last_lead_ms > 0,
+			"no input lead was measured — spawn_time is not wired, so the handoff would jump")
+
+		# ...and MEASURING the lead is only half of it: the confirmed entity
+		# has to be reckoned by it too. Un-reckoned it renders at the last
+		# decoded snapshot — ~8 u behind at this latency: the visible snap.
+		for i in 5:
+			lab.aim_at(50, 55)
+			lab.fire()
+			await drive(lab, app, 700)
+		check(lab.max_handoff_jump < 3.0,
+			"the projectile snapped %.2f u at the handoff — the confirmed entity is not being lead-reckoned" % lab.max_handoff_jump)
+		print("OK lab09: fired %d, lead %.0f ms, %d confirmed, worst jump %.2f u" % [
+			lab.fired, lab.last_lead_ms, lab.confirmed_spawns, lab.max_handoff_jump])
 	await teardown(lab)
 
 func _t_lab03() -> void:

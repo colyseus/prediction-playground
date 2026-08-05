@@ -36,11 +36,16 @@ func _ready() -> void:
 	if Sim.selfcheck() != 0:
 		push_error("shared-sim port mismatch")
 
+	if "--probe" in args:
+		_probe()
+		return
+
 	_smoke = "--smoke" in args
 	if _smoke: _smoke_deadline = now_ms() + 15000
 
 	_app.client = Colyseus.Client.new(_endpoint())
-	_labs = [Lab01.new(), Lab02.new(), Lab03.new()]
+	_labs = [Lab00.new(), Lab01.new(), Lab02.new(), Lab03.new(), Lab04.new(),
+		Lab05.new(), Lab08.new(), Lab09.new()]
 	_labs.sort_custom(func(a, b): return a.num < b.num)
 	_switch_to(0)
 
@@ -145,6 +150,35 @@ func _bottom_bar(w: float, h: float) -> void:
 	# No transport-drop API on this SDK, so no D key (see net_delay.gd).
 	Draw.text(w - 460, y + 14, 444, "0-9 lab   [ ] prev/next   L latency   P private",
 		Palette.TEXT_FAINT, 10, HORIZONTAL_ALIGNMENT_RIGHT)
+
+# ------------------------------------------------------------------ probe
+
+## --probe: is the decoded bot Dictionary live? do pattern messages land?
+func _probe() -> void:
+	var app := App.new()
+	app.client = Colyseus.Client.new(_endpoint())
+	app.private_room = true
+	var probe_room = await Shell.join_lab(app, "lab-bots", func(r):
+		var st = r.get_state()
+		return st is Dictionary and st.get("bots") is Dictionary \
+			and st.get("bots").has("bot1"))
+	if probe_room == null:
+		print("PROBE join failed")
+		get_tree().quit(1)
+		return
+	var cached = probe_room.get_state().get("bots").get("bot1")
+	probe_room.send_message("pattern", { "kind": "circle" })
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 4000:
+		for i in 30:
+			await get_tree().process_frame
+		var fresh = probe_room.get_state().get("bots").get("bot1")
+		print("cached kind=%s x=%.2f y=%.2f | fresh kind=%s x=%.2f y=%.2f | same_ref=%s" % [
+			cached.get("kind"), cached.get("x", 0.0), cached.get("y", 0.0),
+			fresh.get("kind"), fresh.get("x", 0.0), fresh.get("y", 0.0),
+			str(cached == fresh)])
+	probe_room.leave()
+	get_tree().quit(0)
 
 # ------------------------------------------------------------------ smoke
 

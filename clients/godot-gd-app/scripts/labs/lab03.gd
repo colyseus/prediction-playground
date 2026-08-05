@@ -43,7 +43,7 @@ func frame(_app: App, now: float, dt_ms: float) -> void:
 
 func render(app: App) -> void:
 	var v := app.view
-	var me = lane.me
+	var me = lane.me_now()
 	var st = state()
 	if st != null and st.get("players") is Dictionary:
 		var players = st.get("players")

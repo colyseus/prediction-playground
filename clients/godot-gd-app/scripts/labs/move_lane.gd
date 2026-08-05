@@ -93,6 +93,17 @@ func drive(now: float, move_x: int, move_y: int) -> void:
 func remote_x(p) -> float: return predict.value(p, "x")
 func remote_y(p) -> float: return predict.value(p, "y")
 
+## The LATEST decoded pose of our own player. get_state() returns a fresh
+## snapshot Dictionary per call, so the mount-time `me` freezes — raw echo
+## reads must re-fetch. `me` itself stays valid as the predict/build handle
+## (instances resolve by __ref_id, which is stable).
+func me_now():
+	var st = room.get_state()
+	if st is Dictionary and st.get("players") is Dictionary:
+		var m = st.get("players").get(sid)
+		if m != null: return m
+	return me
+
 ## After a reconnect: rebind to the fresh entity and start the buffer over.
 func rebind() -> void:
 	var st = room.get_state()
