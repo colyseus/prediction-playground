@@ -73,6 +73,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	elif e is InputEventMouseButton: Kb.feed_mouse(e)
 
 func _process(_delta: float) -> void:
+	if _labs.is_empty(): return   # selfcheck/probe modes never build the list
 	# Deliver due packets first: the injector queues both directions and only
 	# drains here, on the main thread (leave() rides it too).
 	Colyseus.poll()
@@ -105,6 +106,7 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	if _labs.is_empty(): return   # selfcheck quit still renders a frame
 	Draw.c = self
 	var size := get_viewport_rect().size
 	var w := size.x
