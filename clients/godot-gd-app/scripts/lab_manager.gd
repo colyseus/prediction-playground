@@ -151,7 +151,6 @@ func _bottom_bar(w: float, h: float) -> void:
 			clock.smoothed_rtt(), clock.jitter(), NetDelay.preset_label(),
 			NetDelay.in_flight(), "private" if _app.private_room else "shared"]
 	Draw.text(16, y + 14, w - 32, line, Palette.TEXT, 11)
-	# No transport-drop API on this SDK, so no D key (see net_delay.gd).
 	Draw.text(w - 460, y + 14, 444, "0-9 lab   [ ] prev/next   L latency   D drop   P private",
 		Palette.TEXT_FAINT, 10, HORIZONTAL_ALIGNMENT_RIGHT)
 

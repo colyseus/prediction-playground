@@ -32,7 +32,11 @@ static func wrap(room) -> void:
 	if not _rooms.has(room):
 		_rooms.append(room)
 		# reconnection builds a NEW transport — re-apply the preset onto it
-		room.reconnected.connect(func(): room.set_latency(delay_ms, jitter_ms))
+		# (and re-adopt the room: a slow reconnect window can get it evicted
+		# from pump_all, and an unpumped wrap never delivers anything)
+		room.reconnected.connect(func():
+			if not _rooms.has(room): _rooms.append(room)
+			room.set_latency(delay_ms, jitter_ms))
 	room.set_latency(delay_ms, jitter_ms)
 
 ## Kill every wrapped socket uncleanly — the SDK sees a drop, not a leave.
@@ -74,5 +78,6 @@ static func pump_all() -> void:
 	for i in range(_rooms.size() - 1, -1, -1):
 		var room = _rooms[i]
 		room.net_pump()
-		if not room.connected and room.net_in_flight == 0:
+		# a reconnecting room is between transports — that's not "left"
+		if not room.connected and not room.reconnecting and room.net_in_flight == 0:
 			_rooms.remove_at(i)

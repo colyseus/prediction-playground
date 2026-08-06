@@ -10,8 +10,6 @@
 #      (the ONE piece not produced by this repo — build instructions below)
 #   3. the playground server on :5173 (ws:// target of the exported app)
 #
-# Web caveats (by design): the SDK's auto-reconnect is a no-op on Emscripten,
-# so the D key drops the room without recovery; re-join by switching labs.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
