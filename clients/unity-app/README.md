@@ -139,9 +139,11 @@ packets are still in the injector.
 **`Room.State` is instantiated at join; its collections are not.** Generated
 schema declares `public MapSchema<Player> players = null;`, so waiting for
 `State != null` — as `Shell.JoinLab` originally did — returns a room whose maps
-are still null, and the lab mounts on nothing. The web build's `waitFor` and the
-native app's retrying `attach` both wait for the actual entry. `JoinLab` now
-takes a readiness predicate and each lab names what it needs decoded.
+are still null, and the lab mounts on nothing. This trap now has a native
+answer: `await room.WaitForFirstState()` (the SDK's analogue of the JS
+`onStateChange.once`) resolves on the first full sync, and `JoinLab` uses it.
+The readiness predicate remains only for what a lab needs BEYOND that first
+sync — e.g. the bot's entry in the players map.
 
 **`Room<T>` is invariant, so there is no generic way to hand the shell a room.**
 `room as Room<Schema>` is always null, which under `?.` fails silently: the
