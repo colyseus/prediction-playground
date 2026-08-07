@@ -23,9 +23,9 @@ pnpm dev --host 0.0.0.0        # from the repo root — the server, mandatory
 /Applications/Godot.app/Contents/MacOS/Godot --path clients/godot-gd-app
 ```
 
-Keys: `0-9` lab, `[` `]` prev/next, `L` latency preset, `P` private-room
-toggle, per-lab keys on the HUD. There is **no `D` drop key**: the GDScript
-SDK exposes no transport-drop API (set_latency/net_pump/net_in_flight only).
+Keys: `0-9` lab, `[` `]` prev/next, `L` latency preset, `K` drop the
+transport uncleanly (the SDK auto-reconnects, the lab rebinds, the latency
+preset re-applies), `P` private-room toggle, per-lab keys on the HUD.
 
 `addons/colyseus` is a symlink into `native-sdk/platforms/godot/addons/
 colyseus` — rebuild the extension with `cd native-sdk/platforms/godot &&

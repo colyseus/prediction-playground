@@ -23,7 +23,7 @@ pnpm dev --host 0.0.0.0        # from the repo root — the server, mandatory
 /Applications/Godot_mono.app/Contents/MacOS/Godot --path clients/godot-app
 ```
 
-Keys: `0-9` lab, `[` `]` prev/next, `L` latency preset, `D` drop transport,
+Keys: `0-9` lab, `[` `]` prev/next, `L` latency preset, `K` drop transport,
 `P` private-room toggle, per-lab keys on the HUD.
 
 ## Verification gates
