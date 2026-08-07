@@ -47,16 +47,16 @@ while (Date.now() - t0 < WAIT_MS) {
 }
 const connected = connectCount() >= 1;
 
-// Drop gate: D kills the socket uncleanly (close 4010) and the SDK's polled
+// Drop gate: X kills the socket uncleanly (close 4010) and the SDK's polled
 // scheduler must reconnect on its own — a second connect print proves it.
 // Default reconnection options gate on 5 s of room uptime, so wait it out.
 let reconnected = false;
 if (connected) {
   await new Promise((r) => setTimeout(r, 8000));
   await page.click('canvas').catch(() => {});
-  await page.keyboard.down('KeyD');
+  await page.keyboard.down('KeyX');
   await new Promise((r) => setTimeout(r, 120));
-  await page.keyboard.up('KeyD');
+  await page.keyboard.up('KeyX');
   const tDrop = Date.now();
   while (Date.now() - tDrop < 20000) {
     if (connectCount() >= 2) { reconnected = true; break; }

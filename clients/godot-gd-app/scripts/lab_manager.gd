@@ -93,7 +93,7 @@ func _process(_delta: float) -> void:
 	if Kb.key(KEY_BRACKETLEFT): _switch_to((_lab_index + _labs.size() - 1) % _labs.size())
 	if Kb.key(KEY_BRACKETRIGHT): _switch_to((_lab_index + 1) % _labs.size())
 	if Kb.key(KEY_L): NetDelay.next_preset()
-	if Kb.key(KEY_D): NetDelay.drop_all()
+	if Kb.key(KEY_X): NetDelay.drop_all()
 	if Kb.key(KEY_P):
 		_app.private_room = not _app.private_room
 		_switch_to(_lab_index)
@@ -151,7 +151,7 @@ func _bottom_bar(w: float, h: float) -> void:
 			clock.smoothed_rtt(), clock.jitter(), NetDelay.preset_label(),
 			NetDelay.in_flight(), "private" if _app.private_room else "shared"]
 	Draw.text(16, y + 14, w - 32, line, Palette.TEXT, 11)
-	Draw.text(w - 460, y + 14, 444, "0-9 lab   [ ] prev/next   L latency   D drop   P private",
+	Draw.text(w - 460, y + 14, 444, "0-9 lab   [ ] prev/next   L latency   X drop   P private",
 		Palette.TEXT_FAINT, 10, HORIZONTAL_ALIGNMENT_RIGHT)
 
 # ------------------------------------------------------------------ probe

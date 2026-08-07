@@ -5,7 +5,7 @@ class_name NetDelay
 ## happens after join); this class only owns the preset list and the per-frame
 ## pump every wrapped room needs or nothing delivers.
 ##
-## `D` drops every wrapped room's socket uncleanly (room.drop, close 4010):
+## `X` drops every wrapped room's socket uncleanly (room.drop, close 4010):
 ## the SDK auto-reconnects, labs' on_reconnect rebinds, and the wrap()
 ## reconnect hook re-applies the preset — the fresh transport is unwrapped.
 

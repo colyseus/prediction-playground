@@ -46,7 +46,7 @@ run-playground -- 5173` works too.
 | `WASD` / arrows | drive |
 | digits, `[` `]` | switch lab (by lab number) |
 | `L` | cycle latency preset — off / 80+10 / 200 / 200+80 / 400+60 ms |
-| `D` | drop the transport (unclean) — exercises auto-reconnect |
+| `X` | drop the transport (unclean) — exercises auto-reconnect |
 | `P` | private room ↔ shared room (rejoin) |
 | `F12` | screenshot to `media/native-app/manual.png` |
 | `I` `T` | (3) force mispredict / teleport |
