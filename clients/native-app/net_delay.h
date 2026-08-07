@@ -23,8 +23,10 @@
  *     across an SDK call would invert lock order against the worker's mutex.
  *     destroy() therefore just marks, and the main thread reaps.
  *
- * `nd_drop()` closes the socket with an abnormal code (1006) so the SDK's
- * auto-reconnect kicks in — the `D` key in the app.
+ * `nd_drop()` closes the socket uncleanly (4010, MAY_TRY_RECONNECT) so the
+ * SDK's auto-reconnect kicks in — the `D` key in the app. 4010 rather than
+ * 1006: browsers forbid script-initiated close(1006), and the web build
+ * issues the close through the page's WebSocket.
  */
 #ifndef PLAYGROUND_NET_DELAY_H
 #define PLAYGROUND_NET_DELAY_H
@@ -344,7 +346,7 @@ static void nd_pump(void) {
 }
 
 /**
- * Kill every live socket uncleanly (close code 1006) — the SDK sees a drop,
+ * Kill every live socket uncleanly (close code 4010) — the SDK sees a drop,
  * not a leave, and its reconnection worker takes over.
  */
 static void nd_drop(void) {
@@ -356,7 +358,7 @@ static void nd_drop(void) {
     }
     pthread_mutex_unlock(&nd_registry_lock);
     for (int i = 0; i < n; i++) {
-        colyseus_transport_close(inners[i], COLYSEUS_CLOSE_ABNORMAL_CLOSURE, "simulated drop");
+        colyseus_transport_close(inners[i], COLYSEUS_CLOSE_MAY_TRY_RECONNECT, "simulated drop");
     }
 }
 

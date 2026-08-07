@@ -23,6 +23,10 @@
 
 #include "raylib.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include "colyseus/client.h"
 #include "colyseus/schema.h"
 #include "colyseus/room.h"
@@ -616,6 +620,141 @@ static void app_set_latency_preset(int index) {
     nd_set_latency(PRESETS[index].delay, PRESETS[index].jitter);
 }
 
+/* Frame-loop carry-overs — the web build runs shell_frame() as an
+ * emscripten callback, so these cannot live on main()'s stack. */
+static const char* pending_shot = NULL;
+static int repeat_key = 0, repeat_left = 0;
+static double frame_last = 0;
+
+/* One shell frame. Returns false when the demo script has finished. */
+static bool shell_frame(void) {
+    /* 1. Deliver due packets — every schema decode happens right here, on
+     *    the main thread, so labs read state without a lock. */
+    nd_pump();
+    colyseus_reconnect_poll();   /* no-op on native; drives web auto-reconnect */
+    drain_pending_frees(false);
+
+    double now = shell_now();
+    double wall = nd_now();
+    S.app.dt = wall - frame_last;
+    frame_last = wall;
+    S.app.now = now;
+
+    /* 2. Demo autopilot (drives the same keys a human would). */
+    if (demo_mode) {
+        while (demo_cursor < DEMO_COUNT && wall - demo_started >= DEMO[demo_cursor].at) {
+            const demo_step_t* st = &DEMO[demo_cursor++];
+            g_auto_x = st->auto_x;
+            g_auto_y = st->auto_y;
+            if (st->preset >= 0) {
+                S.preset = st->preset;
+                nd_set_latency(PRESETS[S.preset].delay, PRESETS[S.preset].jitter);
+            }
+            if (st->lab >= 0 && st->lab != S.lab_index) { switch_lab(st->lab); }
+            if (st->synth_key) {
+                g_synth_key = st->synth_key;
+                repeat_key = st->synth_key;
+                repeat_left = st->synth_repeat;
+            }
+            if (st->checkpoint) { demo_checkpoint(st->checkpoint); }
+            pending_shot = st->shot;
+        }
+        /* A key that steps a value needs one press per frame, not per step. */
+        if (repeat_left > 0 && g_synth_key == 0) { g_synth_key = repeat_key; repeat_left--; }
+        if (demo_cursor >= DEMO_COUNT) { return false; }
+    }
+
+    /* 3. Shell keys — digits address a lab by its NUMBER, not its slot. */
+    for (int i = 0; i < LAB_COUNT; i++) {
+        int num = LABS[i]->num;
+        if (num >= 0 && num <= 9 && app_key(num == 0 ? KEY_ZERO : KEY_ONE + num - 1)) {
+            switch_lab(i);
+        }
+    }
+    if (app_key(KEY_LEFT_BRACKET)) { switch_lab((S.lab_index + LAB_COUNT - 1) % LAB_COUNT); }
+    if (app_key(KEY_RIGHT_BRACKET)) { switch_lab((S.lab_index + 1) % LAB_COUNT); }
+    if (app_key(KEY_L)) {
+        S.preset = (S.preset + 1) % PRESET_COUNT;
+        nd_set_latency(PRESETS[S.preset].delay, PRESETS[S.preset].jitter);
+    }
+    if (app_key(KEY_D)) { nd_drop(); S.dropped_at = wall; }
+    if (app_key(KEY_P)) { S.app.private_room = !S.app.private_room; switch_lab(S.lab_index); }
+    if (app_key(KEY_F12)) { TakeScreenshot("media/native-app/manual.png"); }
+
+    /* 4. Room lifecycle. */
+    if (S.status == ST_JOINING && S.join) {
+        if (S.join->errored) {
+            snprintf(S.error, sizeof(S.error), "%s", S.join->error);
+            S.status = ST_FAILED;
+        } else if (S.join->joined && colyseus_room_get_state(S.join->room)) {
+            S.app.room = S.join->room;
+            colyseus_room_on_reconnect(S.app.room, on_room_reconnect, NULL);
+            colyseus_room_on_drop(S.app.room, on_room_drop, NULL);
+            S.status = ST_ATTACHING;
+        } else if (wall - S.join_started > 8000) {
+            snprintf(S.error, sizeof(S.error), "timed out joining %s",
+                LABS[S.lab_index]->room_name);
+            S.status = ST_FAILED;
+        }
+    }
+    if (S.status == ST_ATTACHING) {
+        if (LABS[S.lab_index]->attach(&S.app, S.app.room)) {
+            S.status = ST_READY;
+        } else if (wall - S.join_started > 8000) {
+            snprintf(S.error, sizeof(S.error), "state never arrived for %s",
+                LABS[S.lab_index]->id);
+            S.status = ST_FAILED;
+        }
+    }
+    if (S.status == ST_READY && S.reconnected) {
+        S.reconnected = false;
+        if (LABS[S.lab_index]->on_reconnect) { LABS[S.lab_index]->on_reconnect(&S.app); }
+    }
+
+    /* 5. Draw. */
+    float w = (float)GetScreenWidth(), h = (float)GetScreenHeight();
+    const float panel_w = 300, panel_pad = 18;
+    S.app.stage_x = 0;
+    S.app.stage_y = 44;
+    S.app.stage_w = w - panel_w - panel_pad * 2;
+    S.app.stage_h = h - 44 - 46;
+    view_fit(&S.app.view, S.app.stage_x, S.app.stage_y, S.app.stage_w, S.app.stage_h, 28);
+    hud_begin(&S.app.hud, w - panel_w - panel_pad, 60, panel_w);
+
+    BeginDrawing();
+    ClearBackground(COL_BG);
+
+    /* Panel background first — the lab's frame() draws the arena overlay
+     * AND its HUD widgets, so nothing may be painted over it afterwards. */
+    DrawRectangle((int)(w - panel_w - panel_pad * 2), 44, (int)(panel_w + panel_pad * 2),
+        (int)(h - 44 - 46), COL_PANEL);
+    DrawLineV((Vector2){ w - panel_w - panel_pad * 2, 44 },
+              (Vector2){ w - panel_w - panel_pad * 2, h - 46 }, COL_BORDER);
+    if (!LABS[S.lab_index]->own_arena) { draw_arena(&S.app.view); }
+
+    if (S.status == ST_READY) {
+        LABS[S.lab_index]->frame(&S.app, now, S.app.dt);
+    } else if (S.status == ST_FAILED) {
+        draw_stage_message(S.error, COL_BAD);
+    } else {
+        draw_stage_message(TextFormat("connecting to %s ...", LABS[S.lab_index]->room_name),
+            COL_TEXT_DIM);
+    }
+
+    draw_top_bar(w);
+    draw_bottom_bar(w, h);
+    EndDrawing();
+
+    if (pending_shot) { TakeScreenshot(pending_shot); pending_shot = NULL; }
+    return true;
+}
+
+#ifdef __EMSCRIPTEN__
+static void em_frame(void) {
+    if (!shell_frame()) { emscripten_cancel_main_loop(); }
+}
+#endif
+
 int main(int argc, char** argv) {
     /* macOS raises SIGPIPE on socket writes after peer close and the SDK's
      * transport does not set SO_NOSIGPIPE — a desktop client must ignore it. */
@@ -669,128 +808,17 @@ int main(int argc, char** argv) {
 
     start_join();
 
-    const char* pending_shot = NULL;
-    int repeat_key = 0, repeat_left = 0;
-    double last = nd_now();
+    frame_last = nd_now();
+#ifdef __EMSCRIPTEN__
+    /* The browser owns the loop: rAF drives shell_frame and main() never
+     * returns — the shutdown below is native-only (a closing tab takes the
+     * room with it). */
+    emscripten_set_main_loop(em_frame, 0, 1);
+#else
     while (!WindowShouldClose()) {
-        /* 1. Deliver due packets — every schema decode happens right here, on
-         *    the main thread, so labs read state without a lock. */
-        nd_pump();
-        drain_pending_frees(false);
-
-        double now = shell_now();
-        double wall = nd_now();
-        S.app.dt = wall - last;
-        last = wall;
-        S.app.now = now;
-
-        /* 2. Demo autopilot (drives the same keys a human would). */
-        if (demo_mode) {
-            while (demo_cursor < DEMO_COUNT && wall - demo_started >= DEMO[demo_cursor].at) {
-                const demo_step_t* st = &DEMO[demo_cursor++];
-                g_auto_x = st->auto_x;
-                g_auto_y = st->auto_y;
-                if (st->preset >= 0) {
-                    S.preset = st->preset;
-                    nd_set_latency(PRESETS[S.preset].delay, PRESETS[S.preset].jitter);
-                }
-                if (st->lab >= 0 && st->lab != S.lab_index) { switch_lab(st->lab); }
-                if (st->synth_key) {
-                    g_synth_key = st->synth_key;
-                    repeat_key = st->synth_key;
-                    repeat_left = st->synth_repeat;
-                }
-                if (st->checkpoint) { demo_checkpoint(st->checkpoint); }
-                pending_shot = st->shot;
-            }
-            /* A key that steps a value needs one press per frame, not per step. */
-            if (repeat_left > 0 && g_synth_key == 0) { g_synth_key = repeat_key; repeat_left--; }
-            if (demo_cursor >= DEMO_COUNT) { break; }
-        }
-
-        /* 3. Shell keys — digits address a lab by its NUMBER, not its slot. */
-        for (int i = 0; i < LAB_COUNT; i++) {
-            int num = LABS[i]->num;
-            if (num >= 0 && num <= 9 && app_key(num == 0 ? KEY_ZERO : KEY_ONE + num - 1)) {
-                switch_lab(i);
-            }
-        }
-        if (app_key(KEY_LEFT_BRACKET)) { switch_lab((S.lab_index + LAB_COUNT - 1) % LAB_COUNT); }
-        if (app_key(KEY_RIGHT_BRACKET)) { switch_lab((S.lab_index + 1) % LAB_COUNT); }
-        if (app_key(KEY_L)) {
-            S.preset = (S.preset + 1) % PRESET_COUNT;
-            nd_set_latency(PRESETS[S.preset].delay, PRESETS[S.preset].jitter);
-        }
-        if (app_key(KEY_D)) { nd_drop(); S.dropped_at = wall; }
-        if (app_key(KEY_P)) { S.app.private_room = !S.app.private_room; switch_lab(S.lab_index); }
-        if (app_key(KEY_F12)) { TakeScreenshot("media/native-app/manual.png"); }
-
-        /* 4. Room lifecycle. */
-        if (S.status == ST_JOINING && S.join) {
-            if (S.join->errored) {
-                snprintf(S.error, sizeof(S.error), "%s", S.join->error);
-                S.status = ST_FAILED;
-            } else if (S.join->joined && colyseus_room_get_state(S.join->room)) {
-                S.app.room = S.join->room;
-                colyseus_room_on_reconnect(S.app.room, on_room_reconnect, NULL);
-                colyseus_room_on_drop(S.app.room, on_room_drop, NULL);
-                S.status = ST_ATTACHING;
-            } else if (wall - S.join_started > 8000) {
-                snprintf(S.error, sizeof(S.error), "timed out joining %s",
-                    LABS[S.lab_index]->room_name);
-                S.status = ST_FAILED;
-            }
-        }
-        if (S.status == ST_ATTACHING) {
-            if (LABS[S.lab_index]->attach(&S.app, S.app.room)) {
-                S.status = ST_READY;
-            } else if (wall - S.join_started > 8000) {
-                snprintf(S.error, sizeof(S.error), "state never arrived for %s",
-                    LABS[S.lab_index]->id);
-                S.status = ST_FAILED;
-            }
-        }
-        if (S.status == ST_READY && S.reconnected) {
-            S.reconnected = false;
-            if (LABS[S.lab_index]->on_reconnect) { LABS[S.lab_index]->on_reconnect(&S.app); }
-        }
-
-        /* 5. Draw. */
-        float w = (float)GetScreenWidth(), h = (float)GetScreenHeight();
-        const float panel_w = 300, panel_pad = 18;
-        S.app.stage_x = 0;
-        S.app.stage_y = 44;
-        S.app.stage_w = w - panel_w - panel_pad * 2;
-        S.app.stage_h = h - 44 - 46;
-        view_fit(&S.app.view, S.app.stage_x, S.app.stage_y, S.app.stage_w, S.app.stage_h, 28);
-        hud_begin(&S.app.hud, w - panel_w - panel_pad, 60, panel_w);
-
-        BeginDrawing();
-        ClearBackground(COL_BG);
-
-        /* Panel background first — the lab's frame() draws the arena overlay
-         * AND its HUD widgets, so nothing may be painted over it afterwards. */
-        DrawRectangle((int)(w - panel_w - panel_pad * 2), 44, (int)(panel_w + panel_pad * 2),
-            (int)(h - 44 - 46), COL_PANEL);
-        DrawLineV((Vector2){ w - panel_w - panel_pad * 2, 44 },
-                  (Vector2){ w - panel_w - panel_pad * 2, h - 46 }, COL_BORDER);
-        if (!LABS[S.lab_index]->own_arena) { draw_arena(&S.app.view); }
-
-        if (S.status == ST_READY) {
-            LABS[S.lab_index]->frame(&S.app, now, S.app.dt);
-        } else if (S.status == ST_FAILED) {
-            draw_stage_message(S.error, COL_BAD);
-        } else {
-            draw_stage_message(TextFormat("connecting to %s ...", LABS[S.lab_index]->room_name),
-                COL_TEXT_DIM);
-        }
-
-        draw_top_bar(w);
-        draw_bottom_bar(w, h);
-        EndDrawing();
-
-        if (pending_shot) { TakeScreenshot(pending_shot); pending_shot = NULL; }
+        if (!shell_frame()) { break; }
     }
+#endif
 
     if (demo_mode) {
         /* A window closed early (or a crash) must never read as a pass. */
