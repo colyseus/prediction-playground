@@ -27,7 +27,7 @@ local PANEL_W = 340
 --
 local ACTION_NAMES = {
   "w", "a", "s", "d", "up", "down", "left", "right", "space",
-  "l", "p", "r", "b", "i", "t", "v", "g", "n", "m", "c", "o", "x",
+  "l", "p", "r", "b", "i", "t", "v", "g", "n", "m", "c", "o", "x", "k",
   "minus", "equals", "comma", "period",
   "prev_lab", "next_lab",
 }
@@ -112,6 +112,11 @@ local function poll_join(self)
   self.pending, self.mounting = nil, nil
   if lab:mount(self.context, room) then
     self.active = lab
+    -- the SDK auto-reconnects a dropped transport; the lab must rebind its
+    -- re-decoded instances or it keeps stepping stale ones
+    room:on("reconnect", function()
+      if self.active == lab and lab.on_reconnect then lab:on_reconnect() end
+    end)
   else
     self.error = "state never arrived for " .. lab.id
   end
@@ -129,6 +134,7 @@ function update(self, _dt)
   self.last_now = now
 
   if kb.key("l") then net_delay.next_preset() end
+  if kb.key("k") then net_delay.drop() end
   if kb.key("p") then
     self.context.private = not self.context.private
     switch_to(self, self.lab_index)
@@ -170,6 +176,7 @@ function update(self, _dt)
   gfx.hud_key("0-9", "switch lab")
   gfx.hud_key("[ ]", "prev/next lab")
   gfx.hud_key("L", "injected latency: " .. net_delay.preset_label())
+  gfx.hud_key("K", "drop the transport (auto-reconnects)")
   gfx.hud_key("P", self.context.private and "room: private" or "room: shared")
   gfx.hud_row("in flight", net_delay.in_flight() .. " pkt", gfx.PALETTE.text_dim)
 

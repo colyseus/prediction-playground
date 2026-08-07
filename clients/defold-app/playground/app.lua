@@ -109,6 +109,11 @@ function M.join(app, name, ready)
     -- In front of the room's own listeners, but only now that it has joined:
     -- the handshake rides an undelayed link, gameplay does not.
     net_delay.wrap(room, M.now_ms)
+    -- reconnection builds a NEW connection: re-wrap it so the injected
+    -- latency survives a drop (the preset globals persist across wraps)
+    room:on("reconnect", function()
+      net_delay.wrap(room, M.now_ms)
+    end)
   end)
 
   return pending

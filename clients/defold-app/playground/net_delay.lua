@@ -75,7 +75,15 @@ function M.wrap(room, now_ms)
   local conn = room.connection
   if not conn or conn._nd then return end
 
+  -- reconnect built this room a NEW connection: wraps still pointing at the
+  -- old one would replay their queues into the room's handlers — retire them
+  for i = #M._live, 1, -1 do
+    local stale = M._live[i]
+    if stale.room == room and stale.conn ~= conn then table.remove(M._live, i) end
+  end
+
   local w = {
+    room = room,
     conn = conn,
     inbound = { last = 0 },
     outbound = { last = 0 },
@@ -115,6 +123,15 @@ function M.pump(now_ms)
     local w = M._live[i]
     drain(w, w.outbound, now_ms)
     drain(w, w.inbound, now_ms)
+  end
+end
+
+--- Kill every live socket uncleanly (close 4010, MAY_TRY_RECONNECT) — the
+--- SDK sees a drop, not a leave, and its auto-reconnect takes over. The K key.
+function M.drop()
+  for i = 1, #M._live do
+    local w = M._live[i]
+    if w.conn.state ~= "CLOSED" then w.conn:close(4010) end
   end
 end
 

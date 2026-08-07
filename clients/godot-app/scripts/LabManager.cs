@@ -105,7 +105,7 @@ namespace Playground
             if (Kb.Key(Key.Bracketleft)) _ = SwitchTo((_labIndex + _labs.Length - 1) % _labs.Length);
             if (Kb.Key(Key.Bracketright)) _ = SwitchTo((_labIndex + 1) % _labs.Length);
             if (Kb.Key(Key.L)) NetDelay.NextPreset();
-            if (Kb.Key(Key.X)) NetDelay.DropAll();
+            if (Kb.Key(Key.K)) NetDelay.DropAll();
             if (Kb.Key(Key.P)) { _app.PrivateRoom = !_app.PrivateRoom; _ = SwitchTo(_labIndex); }
 
             _active?.Frame(_app, now, dt);
@@ -161,7 +161,7 @@ namespace Playground
                   $"ROOM {(_app.PrivateRoom ? "private" : "shared")}"
                 : $"INJECTED {NetDelay.PresetLabel}    connecting...";
             PDraw.Text(16, y + 14, w - 32, line, Palette.Text, 11);
-            PDraw.Text(w - 460, y + 14, 444, "0-9 lab   [ ] prev/next   L latency   X drop   P private",
+            PDraw.Text(w - 460, y + 14, 444, "0-9 lab   [ ] prev/next   L latency   K drop   P private",
                 Palette.TextFaint, 10, HorizontalAlignment.Right);
         }
 

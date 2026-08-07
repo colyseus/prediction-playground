@@ -20,6 +20,7 @@ key_trigger { input: KEY_M action: "m" }
 key_trigger { input: KEY_C action: "c" }
 key_trigger { input: KEY_O action: "o" }
 key_trigger { input: KEY_X action: "x" }
+key_trigger { input: KEY_K action: "k" }
 key_trigger { input: KEY_MINUS action: "minus" }
 key_trigger { input: KEY_EQUALS action: "equals" }
 key_trigger { input: KEY_COMMA action: "comma" }

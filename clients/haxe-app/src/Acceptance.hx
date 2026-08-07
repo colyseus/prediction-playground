@@ -452,6 +452,52 @@ class Acceptance {
 			leave(lab, room);
 		}
 
+		{ // drop -> auto-reconnect -> the predict stack recovers (the K key's path)
+			var lab = new Lab03();
+			NetDelay.reset();
+			NetDelay.setLatency(200, 0);
+			var room = mount(lab, app);
+
+			// fast reconnection for the test — the defaults gate on 5 s of uptime
+			room.reconnection.minUptime = 500;
+			room.reconnection.minDelay = 100;
+			room.reconnection.maxDelay = 500;
+
+			var dropped = false, reconnected = false, left = false;
+			(room.onDrop : Array<Dynamic>).push((_) -> dropped = true);
+			(room.onLeave : Array<Dynamic>).push((_) -> left = true);
+			(room.onReconnect : Array<Dynamic>).push(() -> {
+				reconnected = true;
+				// what the shell does: re-wrap the fresh connection + rebind
+				NetDelay.wrap(room, nowMs);
+				lab.onReconnect();
+			});
+
+			drive(lab, app, 1500, 1);
+			var recon = lab.lane.recon;
+			check("drop-test drift is settled before the drop",
+				recon.drift.classify(0.01) != "diverging", 'drift ema ${recon.drift.ema}');
+
+			NetDelay.drop();   // the unclean kill: a DROP, not a leave
+			var deadline = nowMs() + 15000;
+			while (!reconnected && !left && nowMs() < deadline) {
+				NetDelay.pump(nowMs());
+				Sys.sleep(0.008);
+			}
+			check("drop reads as a drop, not a consented leave", dropped && !left,
+				'dropped=$dropped left=$left');
+			check("the SDK auto-reconnects on its own", reconnected);
+
+			if (reconnected) {
+				drive(lab, app, 2500, -1);
+				var recon2 = lab.lane.recon;   // the rebind rebuilt the reconciler
+				check("post-reconnect drift re-converges (no stale replay)",
+					recon2.drift.classify(0.01) != "diverging", 'drift ema ${recon2.drift.ema}');
+			}
+
+			leave(lab, room);
+		}
+
 		Sys.println("");
 		Sys.println(failed == 0 ? "all checks passed" : '$failed check(s) FAILED');
 		Sys.exit(failed == 0 ? 0 : 1);

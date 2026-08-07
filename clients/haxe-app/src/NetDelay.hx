@@ -35,6 +35,7 @@ class NetDelay {
 	static var seed: Int = 0x5EED;
 
 	var conn: Dynamic;
+	var room: Dynamic;
 	var innerSend: Dynamic;
 	var inbound: Array<Packet> = [];
 	var outbound: Array<Packet> = [];
@@ -82,6 +83,12 @@ class NetDelay {
 		presetIndex = 0;
 	}
 
+	/** Kill every live socket uncleanly (close 4010, MAY_TRY_RECONNECT) — the
+	 * SDK sees a drop, not a leave, and its auto-reconnect takes over. K key. */
+	public static function drop(): Void {
+		for (w in live) try w.conn.close(4010) catch (_: Dynamic) {}
+	}
+
 	public static function inFlight(): Int {
 		var n = 0;
 		for (w in live) n += w.inbound.length + w.outbound.length;
@@ -96,8 +103,12 @@ class NetDelay {
 		var conn: Dynamic = room.connection;
 		if (conn == null) return;
 		for (w in live) if (w.conn == conn) return;
+		// reconnect built this room a NEW connection — retire wraps still
+		// pointing at the old one so their queues can't replay into the room
+		live = live.filter(w -> w.room != room);
 
 		var nd = new NetDelay(conn);
+		nd.room = room;
 		// Reflect.field + callMethod, not a plain capture: `send` is a dynamic
 		// function on the Connection, and reading one as a value drops its `this`
 		// on some targets — the original body then finds a null socket.
@@ -158,7 +169,11 @@ class NetDelay {
 		while (q.length > 0 && q[0].at <= now) {
 			var p = q.shift();
 			switch (p.what) {
-				case Send(bytes): Reflect.callMethod(conn, innerSend, [bytes]);
+				// a drop can close the socket with sends still queued — they
+				// belong to the dead link, not the reconnected one. The catch,
+				// not an _isOpen guard: conn is Dynamic and property getters
+				// don't resolve dynamically (the read yields null = "closed").
+				case Send(bytes): try Reflect.callMethod(conn, innerSend, [bytes]) catch (_: Dynamic) {}
 				case Deliver(target, handler, args): Reflect.callMethod(target, handler, args);
 			}
 		}

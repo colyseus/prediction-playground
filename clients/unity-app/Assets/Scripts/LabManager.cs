@@ -84,7 +84,7 @@ namespace Playground
             if (Kb.Key(KeyCode.LeftBracket)) _ = SwitchTo((_labIndex + _labs.Length - 1) % _labs.Length);
             if (Kb.Key(KeyCode.RightBracket)) _ = SwitchTo((_labIndex + 1) % _labs.Length);
             if (Kb.Key(KeyCode.L)) NetDelay.NextPreset();
-            if (Kb.Key(KeyCode.X)) NetDelay.DropAll();
+            if (Kb.Key(KeyCode.K)) NetDelay.DropAll();
             if (Kb.Key(KeyCode.P)) { _app.PrivateRoom = !_app.PrivateRoom; _ = SwitchTo(_labIndex); }
 
             _active?.Frame(_app, now, dt);
@@ -148,7 +148,7 @@ namespace Playground
             stat = new GUIStyle(GUI.skin.label)
             { fontSize = 10, alignment = TextAnchor.MiddleRight, normal = { textColor = Palette.TextFaint } };
             GUI.Label(new Rect(w - 460, y + 14, 444, 18),
-                "0-9 lab   [ ] prev/next   L latency   X drop   P private", stat);
+                "0-9 lab   [ ] prev/next   L latency   K drop   P private", stat);
         }
     }
 }

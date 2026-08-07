@@ -24,7 +24,7 @@
  *     destroy() therefore just marks, and the main thread reaps.
  *
  * `nd_drop()` closes the socket uncleanly (4010, MAY_TRY_RECONNECT) so the
- * SDK's auto-reconnect kicks in — the `X` key in the app. 4010 rather than
+ * SDK's auto-reconnect kicks in — the `K` key in the app. 4010 rather than
  * 1006: browsers forbid script-initiated close(1006), and the web build
  * issues the close through the page's WebSocket.
  */

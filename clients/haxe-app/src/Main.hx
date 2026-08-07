@@ -29,6 +29,7 @@ class Main extends hxd.App {
 		{ name: "g", code: Key.G }, { name: "n", code: Key.N },
 		{ name: "m", code: Key.M }, { name: "c", code: Key.C },
 		{ name: "o", code: Key.O }, { name: "x", code: Key.X },
+		{ name: "k", code: Key.K },
 		{ name: "minus", code: Key.NUMPAD_SUB }, { name: "equals", code: Key.NUMPAD_ADD },
 		{ name: "comma", code: Key.QWERTY_COMMA }, { name: "period", code: Key.QWERTY_PERIOD },
 		{ name: "f1", code: Key.F1 }, { name: "f2", code: Key.F2 },
@@ -82,6 +83,14 @@ class Main extends hxd.App {
 			// In front of the room's own listeners, but only now that it has
 			// joined: the handshake rides an undelayed link, gameplay does not.
 			NetDelay.wrap(room, App.nowMs);
+			// The SDK auto-reconnects a dropped transport on a NEW connection:
+			// re-wrap it (the preset globals persist) and let the lab rebind
+			// its re-decoded instances. room is Dynamic and EventHandler's +=
+			// is an abstract op — at runtime the handler list IS the array.
+			(room.onReconnect : Array<Dynamic>).push(() -> {
+				NetDelay.wrap(room, App.nowMs);
+				if (active != null && active.roomRef() == room) active.onReconnect();
+			});
 		});
 	}
 
@@ -119,6 +128,7 @@ class Main extends hxd.App {
 		lastNow = now;
 
 		if (Kb.key("l")) NetDelay.nextPreset();
+		if (Kb.key("k")) NetDelay.drop();
 		if (Kb.key("p")) { app.private_ = !app.private_; switchTo(labIndex); }
 		for (i in 0...labs.length) {
 			var n = labs[i].num;
@@ -153,6 +163,7 @@ class Main extends hxd.App {
 		gfx.hudKey("0-9", "switch lab");
 		gfx.hudKey("[ ]", "prev/next lab");
 		gfx.hudKey("L", 'injected latency: ${NetDelay.presetLabel()}');
+		gfx.hudKey("K", "drop the transport (auto-reconnects)");
 		gfx.hudKey("P", app.private_ ? "room: private" : "room: shared");
 		gfx.hudRow("in flight", '${NetDelay.inFlight()} pkt', Palette.TEXT_DIM);
 		gfx.endFrame();

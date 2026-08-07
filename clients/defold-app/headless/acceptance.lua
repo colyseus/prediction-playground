@@ -470,6 +470,56 @@ do -- lab 10: the puck is predicted THROUGH our own inputs
   leave(lab, room)
 end
 
+do -- drop -> auto-reconnect -> the predict stack recovers (the K key's path)
+  local Lab03 = require 'playground.labs.lab03'
+  local drift = require 'colyseus.predict.drift'
+  local lab = Lab03.new()
+  net_delay.reset()
+  net_delay.set_latency(200, 0)
+  local room = mount(lab, context)
+
+  -- fast reconnection for the test — the defaults gate on 5 s of uptime
+  room.reconnection.min_uptime = 500
+  room.reconnection.min_delay = 100
+  room.reconnection.max_delay = 500
+
+  local dropped, reconnected, left = false, false, false
+  room:on("drop", function() dropped = true end)
+  room:on("reconnect", function()
+    reconnected = true
+    -- what the engine shell does: the lab rebinds its re-decoded instances
+    if lab.on_reconnect then lab:on_reconnect() end
+  end)
+  room:on("leave", function() left = true end)
+
+  drive(lab, context, 1500, 1)
+  local recon = lab.lane.recon
+  check("drop-test drift is settled before the drop",
+    drift.classify(recon.drift, 0.01) ~= "diverging",
+    string.format("drift ema %.3e", recon.drift.ema))
+
+  net_delay.drop()   -- the unclean kill: a DROP, not a leave
+  local deadline = app.now_ms() + 15000
+  while not reconnected and not left and app.now_ms() < deadline do
+    shim.pump()
+    net_delay.pump(app.now_ms())
+    net.sleep_ms(8)
+  end
+  check("drop reads as a drop, not a consented leave", dropped and not left,
+    string.format("dropped=%s left=%s", tostring(dropped), tostring(left)))
+  check("the SDK auto-reconnects on its own", reconnected)
+
+  if reconnected then
+    drive(lab, context, 2500, -1)
+    local recon2 = lab.lane.recon   -- the rebind rebuilt the reconciler
+    check("post-reconnect drift re-converges (no stale replay)",
+      drift.classify(recon2.drift, 0.01) ~= "diverging",
+      string.format("drift ema %.3e", recon2.drift.ema))
+  end
+
+  leave(lab, room)
+end
+
 print()
 if failed == 0 then
   print("all checks passed")

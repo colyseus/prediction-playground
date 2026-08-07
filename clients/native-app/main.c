@@ -252,7 +252,7 @@ static void draw_bottom_bar(float w, float h) {
         : S.status == ST_READY ? COL_GOOD : COL_TEXT_DIM);
     #undef STAT
 
-    const char* keys = "0-9 lab   [ ] prev/next   L latency   X drop   P private   ESC quit";
+    const char* keys = "0-9 lab   [ ] prev/next   L latency   K drop   P private   ESC quit";
     DrawText(keys, (int)(w - MeasureText(keys, 10) - 16), (int)y + 18, 10, COL_TEXT_FAINT);
 }
 
@@ -307,7 +307,7 @@ static const demo_step_t DEMO[] = {
     /* The drift EMA folds in at 0.1/reconcile: a 4-unit spike needs ~60 patches
      * (~3 s) to bleed back under the noise floor. Give it 6. */
     { 23600, -1, -1,  1, 0, 0, 0, NULL, "lab03-recovered" },
-    { 24100, -1, -1,  0, 0, KEY_X, 0, NULL, NULL },  /* the shell's "drop transport" key */
+    { 24100, -1, -1,  0, 0, KEY_K, 0, NULL, NULL },  /* the shell's "drop transport" key */
     { 31600, -1, -1,  1, 0, 0, 0, "media/native-app/03-reconnected.png", "lab03-reconnected" },
 
     /* ---- M2 ------------------------------------------------------------ */
@@ -677,7 +677,7 @@ static bool shell_frame(void) {
         S.preset = (S.preset + 1) % PRESET_COUNT;
         nd_set_latency(PRESETS[S.preset].delay, PRESETS[S.preset].jitter);
     }
-    if (app_key(KEY_X)) { nd_drop(); S.dropped_at = wall; }
+    if (app_key(KEY_K)) { nd_drop(); S.dropped_at = wall; }
     if (app_key(KEY_P)) { S.app.private_room = !S.app.private_room; switch_lab(S.lab_index); }
     if (app_key(KEY_F12)) { TakeScreenshot("media/native-app/manual.png"); }
 
