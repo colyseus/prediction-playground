@@ -176,7 +176,9 @@ static bool lab07_attach(app_t* app, colyseus_room_t* room) {
     if (!l07.input) { return false; }
     l07.cmd = (move_input_t*)colyseus_input_handle_data(l07.input);
     (void)app;
-    return l07_make_reconciler();
+    if (!l07_make_reconciler()) { return false; }
+    app_set_latency_preset(2);   /* a knife-edge verdict needs a real RTT */
+    return true;
 }
 
 static void l07_draw_remote(const char* sid, void* value, void* userdata) {

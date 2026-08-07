@@ -166,7 +166,9 @@ static bool lab10_attach(app_t* app, colyseus_room_t* room) {
     if (!l10.input) { return false; }
     l10.cmd = (move_input_t*)colyseus_input_handle_data(l10.input);
     (void)app;
-    return l10_make_sim();
+    if (!l10_make_sim()) { return false; }
+    app_set_latency_preset(2);   /* a predicted shot says nothing on a 1 ms link */
+    return true;
 }
 
 static void l10_draw_remote(const char* sid, void* value, void* userdata) {

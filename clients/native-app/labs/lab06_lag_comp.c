@@ -144,7 +144,9 @@ static bool lab06_attach(app_t* app, colyseus_room_t* room) {
     if (!l06.input) { return false; }
     l06.cmd = (range_input_t*)colyseus_input_handle_data(l06.input);
     (void)app;
-    return l06_make_reconciler();
+    if (!l06_make_reconciler()) { return false; }
+    app_set_latency_preset(2);   /* lag comp says nothing on a 1 ms link */
+    return true;
 }
 
 static void l06_draw_remote(const char* sid, void* value, void* userdata) {
