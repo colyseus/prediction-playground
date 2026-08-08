@@ -372,6 +372,19 @@ function Lab09() constructor {
     blurb = "Optimistic projectiles that hand off to the authoritative entity.";
     room_name = "lab-projectile";
 
+    static __make_recon = function(_shell) {
+        var _me = lab_me(_shell);
+        if (_me == 0) return false;
+        recon = predict.reconciler(_me, {
+            fields: ["x", "y", "vx", "vy"],
+            smoothing: 15,
+            step: function(_ctx, _s, _cmd) {
+                sim_step_mirror(_s, _cmd.get("moveX"), _cmd.get("moveY"), _ctx.dt);
+            },
+        });
+        return recon.id > 0;
+    };
+
     static attach = function(_shell) {
         if (lab_me(_shell) == 0) return false;
         input = new ColyseusInput(_shell.net_room);
@@ -385,19 +398,26 @@ function Lab09() constructor {
             step_id: COLYSEUS_STEP_INTEGRATE,
             step_params: json_stringify({ bounds: [0, 0, SIM_ARENA_W, SIM_ARENA_H], edge: "bounce" }),
         });
-        pacer = new Pacer(1000 / SIM_TICK_HZ);
+        if (shots.id <= 0) return false;
         last_lead = 0;
         fired = 0;
         fire_pending = false;
+        rebind = false;
         aim_x = SIM_ARENA_W / 2;
         aim_y = SIM_ARENA_H / 2;
-        return shots.id > 0;
+        return __make_recon(_shell);
     };
 
     static step = function(_shell, _now, _dt) {
+        if (rebind) {
+            if (lab_me(_shell) == 0) return;
+            recon.free_native();
+            if (__make_recon(_shell)) rebind = false; else return;
+        }
         // latch: clicks land between fixed steps — hold until one is due
-        if (mouse_check_button_pressed(mb_left)) fire_pending = true;
-        var _steps = pacer.steps(_now);
+        if (mouse_check_button_pressed(mb_left) || keyboard_check_pressed(vk_space)) fire_pending = true;
+        var _steps = predict.tick(_now);
+        recon.pump();
         repeat (_steps) {
             input.set("moveX", kb_move_x());
             input.set("moveY", kb_move_y());
@@ -407,23 +427,23 @@ function Lab09() constructor {
             input.set("aimY", _wy);
             input.set("fire", fire_pending ? 1 : 0);
             input.send();
+            recon.pump();
             if (fire_pending) {
                 fire_pending = false;
                 fired += 1;
-                // spawn the optimistic local from the DECODED pose toward the aim
-                var _me = lab_me(_shell);
-                if (_me != 0) {
-                    var _px = __colyseus_schema_get_number(_me, "x");
-                    var _py = __colyseus_schema_get_number(_me, "y");
-                    var _d = point_distance(_px, _py, _wx, _wy);
-                    if (_d < 0.001) _d = 1;
-                    shots.spawn({ x: _px, y: _py,
-                        vx: (_wx - _px) / _d * SIM_PROJECTILE_SPEED,
-                        vy: (_wy - _py) / _d * SIM_PROJECTILE_SPEED });
-                }
+                // spawn at the PREDICTED pose (the mirror, post-step) — the
+                // same origin the server uses when this input arrives. The
+                // decoded pose trails a moving shooter, and the handoff would
+                // visibly jump forward in the movement direction.
+                var _px = recon.state.get("x");
+                var _py = recon.state.get("y");
+                var _d = point_distance(_px, _py, _wx, _wy);
+                if (_d < 0.001) _d = 1;
+                shots.spawn({ x: _px, y: _py,
+                    vx: (_wx - _px) / _d * SIM_PROJECTILE_SPEED,
+                    vy: (_wy - _py) / _d * SIM_PROJECTILE_SPEED });
             }
         }
-        predict.tick(_now);
         // surface the newest confirmed lead for the HUD
         var _entries = shots.entries();
         for (var _i = 0; _i < array_length(_entries); _i++) {
@@ -437,10 +457,8 @@ function Lab09() constructor {
         aim_y = _v.wy(device_mouse_y_to_gui(0));
 
         var _me = lab_me(_shell);
-        if (_me != 0) {
-            var _px = __colyseus_schema_get_number(_me, "x");
-            var _py = __colyseus_schema_get_number(_me, "y");
-            draw_square_w(_v, _px, _py, SIM_PLAYER_HALF,
+        if (_me != 0 && !rebind) {
+            draw_square_w(_v, recon.value("x"), recon.value("y"), SIM_PLAYER_HALF,
                 hue_color(__colyseus_schema_get_number(_me, "hue")));
             // crosshair
             draw_set_color(COL_TEXT);
@@ -474,13 +492,15 @@ function Lab09() constructor {
             last_lead > 0 ? string(round(last_lead)) + " ms" : "--");
         _hud.section("CONTROLS");
         _hud.key_hint("click", "fire at the crosshair");
+        _hud.key_hint("space", "fire, too");
         _hud.key_hint("WASD", "drive");
         _hud.note("Amber = your optimistic shot flying before the server knows. It hands off to the authoritative entity (same id) with the measured lead. Red = the turret's foreign shots - never yours to predict.");
     };
 
     static detach = function(_shell) {
+        recon.free_native();
         shots.free_native();
         predict.free_native();
     };
-    static on_reconnect = function(_shell) { pacer.reset(); };
+    static on_reconnect = function(_shell) { rebind = true; };
 }

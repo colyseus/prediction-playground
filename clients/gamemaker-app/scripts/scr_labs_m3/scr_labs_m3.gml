@@ -81,7 +81,7 @@ function Lab06() constructor {
             colyseus_send(_shell.net_room, "lagcomp", { on: lagcomp_on });
         }
         // latch: clicks land between fixed steps — hold until one is due
-        if (mouse_check_button_pressed(mb_left)) fire_pending = true;
+        if (mouse_check_button_pressed(mb_left) || keyboard_check_pressed(vk_space)) fire_pending = true;
         var _steps = predict.tick(_now);
         recon.pump();
         repeat (_steps) {
@@ -177,6 +177,7 @@ function Lab06() constructor {
         _hud.row("hits / shots", COL_TEXT, string(hits) + " / " + string(shots));
         _hud.section("CONTROLS");
         _hud.key_hint("click", "fire at the bot YOU see");
+        _hud.key_hint("space", "fire, too");
         _hud.key_hint("C", "toggle server lag comp");
         _hud.note("You aim at a 100ms-old render. With lag comp ON the server rewinds the bot to that instant (green marker = its read). OFF, it tests the live pose (red) - and you miss.");
     };
@@ -484,7 +485,7 @@ function Lab11() constructor {
 
     static step = function(_shell, _now, _dt) {
         if (keyboard_check_pressed(ord("X"))) cheat = !cheat;   // X: K is the global drop key
-        if (mouse_check_button_pressed(mb_left)) fire_pending = true;
+        if (mouse_check_button_pressed(mb_left) || keyboard_check_pressed(vk_space)) fire_pending = true;
         var _steps = pacer.steps(_now);
         repeat (_steps) {
             input.set("moveX", kb_move_x());
@@ -562,6 +563,7 @@ function Lab11() constructor {
             cheat ? "random() - WRONG" : "(seq, salt) - shared");
         _hud.section("CONTROLS");
         _hud.key_hint("click", "shotgun fan at the crosshair");
+        _hud.key_hint("space", "fire, too");
         _hud.key_hint("X", "toggle the random() cheat");
         _hud.note("Amber = your fan, derived from (input seq, room salt) before the server answers. White = the server's own roll - identical, because the derivation is shared. Press X to see what random() does instead.");
     };
