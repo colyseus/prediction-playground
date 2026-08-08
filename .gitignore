@@ -7,3 +7,10 @@ media/.work/
 clients/defold-app/.editor_settings
 clients/defold-app/manifest.private.der
 clients/defold-app/manifest.public.der
+
+# GameMaker (Igor) build caches + outputs
+clients/gamemaker-app/output/
+clients/gamemaker-app/.html5-cache/
+clients/gamemaker-app/.html5-temp/
+clients/gamemaker-app/.accept-cache/
+clients/gamemaker-app/.accept-temp/

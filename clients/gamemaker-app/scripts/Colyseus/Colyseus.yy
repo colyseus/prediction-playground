@@ -1,0 +1,13 @@
+{
+  "$GMScript":"v1",
+  "%Name":"Colyseus",
+  "isCompatibility":false,
+  "isDnD":false,
+  "name":"Colyseus",
+  "parent":{
+    "name":"PredictionPlayground",
+    "path":"PredictionPlayground.yyp",
+  },
+  "resourceType":"GMScript",
+  "resourceVersion":"2.0",
+}

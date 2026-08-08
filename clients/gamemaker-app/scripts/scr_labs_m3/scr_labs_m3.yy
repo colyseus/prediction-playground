@@ -1,0 +1,13 @@
+{
+  "$GMScript":"v1",
+  "%Name":"scr_labs_m3",
+  "isCompatibility":false,
+  "isDnD":false,
+  "name":"scr_labs_m3",
+  "parent":{
+    "name":"PredictionPlayground",
+    "path":"PredictionPlayground.yyp",
+  },
+  "resourceType":"GMScript",
+  "resourceVersion":"2.0",
+}
