@@ -77,5 +77,5 @@ acceptance = environment_get_variable("COLYSEUS_ACCEPTANCE") == "1";
 if (acceptance) {
     run_acceptance();   // busy-runs, prints ACCEPT lines, calls game_end()
 } else {
-    switch_lab(3);      // start on Lab 03 — the headline
+    switch_lab(0);      // start at the beginning — the labs are a course
 }
