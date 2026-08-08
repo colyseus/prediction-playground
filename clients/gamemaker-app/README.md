@@ -4,6 +4,8 @@ The 12-lab netcode playground running on the Colyseus native SDK's GameMaker
 extension (`native-sdk/platforms/gamemaker`). Same server, same shared
 deterministic sim, same labs as the web / C (raylib) / Godot clients.
 
+![Lab 03 — predict & reconcile, drift 0.0000 at wire precision](../../media/gamemaker-app/03-reconcile.png)
+
 GameMaker's FFI can never call GML, so this port exercises the extension's
 **manual-pump reconciler**: the lab's GML step function runs inside
 `recon.pump()` between `pump_next`/`pump_commit` — live predictions and
@@ -16,15 +18,25 @@ rollback replays alike — while dead-reckon steps run C-side (the built-in
 # 1. the playground server (repo root)
 pnpm dev --host 0.0.0.0
 
-# 2. open PredictionPlayground.yyp in GameMaker (2024.14+) and Run
-#    — or headless acceptance (macOS + Igor + licence):
+# 2. open PredictionPlayground.yyp in GameMaker (2024.14+) and Run,
+#    or windowed via Igor without the IDE (macOS + licence):
+./run.sh
+
+# headless acceptance (same requirements):
 ./run-acceptance.sh
 ```
+
+The HTML5 target works out of the box: pick HTML5 in the IDE and Run, or
+`Igor ... -- HTML5 Run` serves it on a local port. The shared sim carries
+the runner's numeric quirks already worked around in `scr_sim` (see the
+comments there before touching the RNG), and `sim_selfcheck()` gates every
+lab on boot, on both runners.
 
 The extension binaries (`extensions/Colyseus_SDK/`) are copied from
 `native-sdk/platforms/gamemaker` — rebuild there (`zig build`,
 `./build-wasm.sh`) and re-copy `libcolyseus.dylib` / `colyseus_wasm.js`
-after SDK changes.
+after SDK changes. When re-copying `Colyseus_SDK.yy`, patch its `parent`
+block to `PredictionPlayground.yyp`.
 
 ## Keys
 
@@ -58,6 +70,13 @@ Lab 05 note: bots reckon through the extension's built-in `INTEGRATE`
 (+bounce) projection — patrol bots project exactly; wander/teleport bots
 change heading server-side and visibly warp on reveal, which is the lab's
 own lesson.
+
+| | |
+|---|---|
+| ![Lab 02 — clocks](../../media/gamemaker-app/02-clocks.png) | ![Lab 04 — interpolation modes](../../media/gamemaker-app/04-interp.png) |
+| ![Lab 06 — lag compensation](../../media/gamemaker-app/06-lagcomp.png) | ![Lab 09 — predicted spawns](../../media/gamemaker-app/09-spawns.png) |
+
+Screenshots for every lab live in [`media/gamemaker-app/`](../../media/gamemaker-app/).
 
 ## Acceptance
 

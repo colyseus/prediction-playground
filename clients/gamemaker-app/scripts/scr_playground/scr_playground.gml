@@ -177,60 +177,74 @@ function Spark() constructor {
 
 // ── HUD: right panel of sections / rows / keys / sparks ────────────────
 
-function Hud() constructor {
-    x = 0; y = 0; cursor_y = 0;
+// HUD state lives in globals and the drawing in plain functions: on the
+// HTML5 runner, self-field access inside struct methods is unreliable
+// (x/y alias the calling instance's built-ins; begin()'s writes never
+// reached row()'s reads). Globals + global functions behave identically
+// on every runner; the Hud struct stays as a thin API shim for the labs.
+global.__hud_x = 0;
+global.__hud_cy = 0;
 
-    static begin = function(_x, _y, _h) {
-        x = _x; y = _y; cursor_y = _y + 12;
-        draw_set_color(COL_PANEL);
-        draw_rectangle(_x, _y, _x + HUD_W, _y + _h, false);
-        draw_set_color(COL_BORDER);
-        draw_rectangle(_x, _y, _x + HUD_W, _y + _h, true);
-        draw_set_font(-1);
-    };
-    static section = function(_title) {
-        cursor_y += 8;
-        draw_set_color(COL_FAINT);
-        draw_text(x + 14, cursor_y, _title);
-        cursor_y += 20;
-    };
-    static row = function(_label, _col, _value) {
-        draw_set_color(COL_DIM);
-        draw_text(x + 14, cursor_y, _label);
-        draw_set_color(_col);
-        draw_set_halign(fa_right);
-        draw_text(x + HUD_W - 14, cursor_y, _value);
-        draw_set_halign(fa_left);
-        cursor_y += 18;
-    };
-    static key_hint = function(_key, _what) {
+function __hud_begin(_x, _y, _h) {
+    global.__hud_x = _x;
+    global.__hud_cy = _y + 12;
+    draw_set_color(COL_PANEL);
+    draw_rectangle(_x, _y, _x + HUD_W, _y + _h, false);
+    draw_set_color(COL_BORDER);
+    draw_rectangle(_x, _y, _x + HUD_W, _y + _h, true);
+}
+function __hud_section(_title) {
+    global.__hud_cy += 8;
+    draw_set_color(COL_FAINT);
+    draw_text(global.__hud_x + 14, global.__hud_cy, _title);
+    global.__hud_cy += 20;
+}
+function __hud_row(_label, _col, _value) {
+    draw_set_color(COL_DIM);
+    draw_text(global.__hud_x + 14, global.__hud_cy, _label);
+    draw_set_color(_col);
+    draw_set_halign(fa_right);
+    draw_text(global.__hud_x + HUD_W - 14, global.__hud_cy, _value);
+    draw_set_halign(fa_left);
+    global.__hud_cy += 18;
+}
+function __hud_key_hint(_key, _what) {
+    draw_set_color(COL_ACCENT);
+    draw_text(global.__hud_x + 14, global.__hud_cy, _key);
+    draw_set_color(COL_DIM);
+    draw_text(global.__hud_x + 84, global.__hud_cy, _what);
+    global.__hud_cy += 18;
+}
+function __hud_spark(_spark, _label, _value, _col) {
+    __hud_row(_label, COL_TEXT, _value);
+    _spark.draw(global.__hud_x + 14, global.__hud_cy, HUD_W - 28, 26, _col);
+    global.__hud_cy += 32;
+}
+function __hud_chips(_label, _n, _cap) {
+    __hud_row(_label, COL_TEXT, string(_n));
+    var _cx = global.__hud_x + 14;
+    for (var _i = 0; _i < min(_n, _cap); _i++) {
         draw_set_color(COL_ACCENT);
-        draw_text(x + 14, cursor_y, _key);
-        draw_set_color(COL_DIM);
-        draw_text(x + 84, cursor_y, _what);
-        cursor_y += 18;
-    };
-    static spark = function(_spark, _label, _value, _col) {
-        row(_label, COL_TEXT, _value);
-        _spark.draw(x + 14, cursor_y, HUD_W - 28, 26, _col);
-        cursor_y += 32;
-    };
-    static chips = function(_label, _n, _cap) {
-        row(_label, COL_TEXT, string(_n));
-        var _cx = x + 14;
-        for (var _i = 0; _i < min(_n, _cap); _i++) {
-            draw_set_color(COL_ACCENT);
-            draw_rectangle(_cx, cursor_y, _cx + 4, cursor_y + 8, false);
-            _cx += 6;
-        }
-        cursor_y += 14;
-    };
-    static note = function(_text) {
-        draw_set_color(COL_FAINT);
-        var _wrap = HUD_W - 28;
-        draw_text_ext(x + 14, cursor_y, _text, 14, _wrap);
-        cursor_y += string_height_ext(_text, 14, _wrap) + 6;
-    };
+        draw_rectangle(_cx, global.__hud_cy, _cx + 4, global.__hud_cy + 8, false);
+        _cx += 6;
+    }
+    global.__hud_cy += 14;
+}
+function __hud_note(_text) {
+    draw_set_color(COL_FAINT);
+    var _wrap = HUD_W - 28;
+    draw_text_ext(global.__hud_x + 14, global.__hud_cy, _text, 14, _wrap);
+    global.__hud_cy += string_height_ext(_text, 14, _wrap) + 6;
+}
+
+function Hud() constructor {
+    static begin = function(_x, _y, _h) { __hud_begin(_x, _y, _h); };
+    static section = function(_title) { __hud_section(_title); };
+    static row = function(_label, _col, _value) { __hud_row(_label, _col, _value); };
+    static key_hint = function(_key, _what) { __hud_key_hint(_key, _what); };
+    static spark = function(_spark, _label, _value, _col) { __hud_spark(_spark, _label, _value, _col); };
+    static chips = function(_label, _n, _cap) { __hud_chips(_label, _n, _cap); };
+    static note = function(_text) { __hud_note(_text); };
 }
 
 // ── keyboard ───────────────────────────────────────────────────────────

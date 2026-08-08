@@ -483,7 +483,7 @@ function Lab11() constructor {
     };
 
     static step = function(_shell, _now, _dt) {
-        if (keyboard_check_pressed(ord("K"))) cheat = !cheat;
+        if (keyboard_check_pressed(ord("X"))) cheat = !cheat;   // X: K is the global drop key
         if (mouse_check_button_pressed(mb_left)) fire_pending = true;
         var _steps = pacer.steps(_now);
         repeat (_steps) {
@@ -562,8 +562,8 @@ function Lab11() constructor {
             cheat ? "random() - WRONG" : "(seq, salt) - shared");
         _hud.section("CONTROLS");
         _hud.key_hint("click", "shotgun fan at the crosshair");
-        _hud.key_hint("K", "toggle the random() cheat");
-        _hud.note("Amber = your fan, derived from (input seq, room salt) before the server answers. White = the server's own roll - identical, because the derivation is shared. Press K to see what random() does instead.");
+        _hud.key_hint("X", "toggle the random() cheat");
+        _hud.note("Amber = your fan, derived from (input seq, room salt) before the server answers. White = the server's own roll - identical, because the derivation is shared. Press X to see what random() does instead.");
     };
 
     static detach = function(_shell) {};

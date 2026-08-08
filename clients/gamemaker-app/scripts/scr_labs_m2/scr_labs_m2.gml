@@ -259,10 +259,13 @@ function Lab08() constructor {
                 // the scoring gate (src/shared/goal.ts) — deterministic replay
                 var _ticks = _s.get("scoreTicks");
                 if (_ticks > 0) _s.set("scoreTicks", _ticks - 1);
-                else if (_e.x >= SIM_ARENA_W - 8 && _e.y >= SIM_ARENA_H / 2 - 9
-                      && _e.y <= SIM_ARENA_H / 2 + 9) {
-                    _s.set("scoreTicks", SIM_SCORE_COOLDOWN_TICKS);
-                    if (!_ctx.is_replay) _ctx.predict(lab.goals, "goal-" + string(_ctx.tick));
+                else {
+                    var _x = _s.get("x"), _y = _s.get("y");
+                    if (_x >= SIM_ARENA_W - 8 && _y >= SIM_ARENA_H / 2 - 9
+                     && _y <= SIM_ARENA_H / 2 + 9) {
+                        _s.set("scoreTicks", SIM_SCORE_COOLDOWN_TICKS);
+                        if (!_ctx.is_replay) _ctx.predict(lab.goals, "goal-" + string(_ctx.tick));
+                    }
                 }
             }),
         });
