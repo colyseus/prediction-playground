@@ -14,3 +14,8 @@ clients/gamemaker-app/.html5-cache/
 clients/gamemaker-app/.html5-temp/
 clients/gamemaker-app/.accept-cache/
 clients/gamemaker-app/.accept-temp/
+
+# GameMaker extension binaries: built in native-sdk/platforms/gamemaker and
+# copied here (see clients/gamemaker-app/README.md) — never committed
+clients/gamemaker-app/extensions/Colyseus_SDK/*.dylib
+clients/gamemaker-app/extensions/Colyseus_SDK/colyseus_wasm.js

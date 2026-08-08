@@ -32,10 +32,10 @@ the runner's numeric quirks already worked around in `scr_sim` (see the
 comments there before touching the RNG), and `sim_selfcheck()` gates every
 lab on boot, on both runners.
 
-The extension binaries (`extensions/Colyseus_SDK/`) are copied from
-`native-sdk/platforms/gamemaker` — rebuild there (`zig build`,
-`./build-wasm.sh`) and re-copy `libcolyseus.dylib` / `colyseus_wasm.js`
-after SDK changes. When re-copying `Colyseus_SDK.yy`, patch its `parent`
+The extension binaries are NOT committed. Build them in
+`native-sdk/platforms/gamemaker` (`zig build`, `./build-wasm.sh`) and copy
+`libcolyseus.dylib` / `colyseus_wasm.js` into `extensions/Colyseus_SDK/`
+before the first run — and again after SDK changes. When re-copying `Colyseus_SDK.yy`, patch its `parent`
 block to `PredictionPlayground.yyp`.
 
 ## Keys
