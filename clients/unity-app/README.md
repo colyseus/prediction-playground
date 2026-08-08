@@ -34,7 +34,7 @@ reload with no copy step.
 | `0`–`9` | switch lab (10 and 11 via the shell list) |
 | `WASD` / arrows | drive |
 | `L` | cycle the injected-latency preset |
-| `D` | drop the socket (tests auto-reconnect) |
+| `K` | drop the socket (tests auto-reconnect) |
 | `P` | private room ⇄ shared room |
 
 Per-lab keys are listed in each lab's CONTROLS panel.
