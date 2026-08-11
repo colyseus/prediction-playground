@@ -1,0 +1,25 @@
+name: colyseus_playground
+description: "Colyseus Prediction Playground — Flutter/macOS dogfood app for the native SDK's Flutter bindings."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  colyseus_flutter:
+    path: ../../../../native-sdk/platforms/flutter/colyseus_flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

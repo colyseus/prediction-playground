@@ -1,0 +1,21 @@
+PODS:
+  - colyseus_flutter (0.18.0)
+  - FlutterMacOS (1.0.0)
+
+DEPENDENCIES:
+  - colyseus_flutter (from `Flutter/ephemeral/.symlinks/plugins/colyseus_flutter/macos`)
+  - FlutterMacOS (from `Flutter/ephemeral`)
+
+EXTERNAL SOURCES:
+  colyseus_flutter:
+    :path: Flutter/ephemeral/.symlinks/plugins/colyseus_flutter/macos
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+
+SPEC CHECKSUMS:
+  colyseus_flutter: 1e69132878e18ef4dc098e6712dd68cd8e57421d
+  FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+
+PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
+
+COCOAPODS: 1.17.0
