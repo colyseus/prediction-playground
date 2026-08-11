@@ -139,10 +139,20 @@ void main() {
       if (i % 40 == 20) buttons.onPressed();
     });
 
+    // The turret fires on its own schedule, so only the owned entities prove
+    // the fire input made the round trip.
+    var mine = 0;
+    final projectiles = lab.room!.state?.getMap('projectiles');
+    for (final entry in projectiles?.entries ?? const <MapEntry<String, dynamic>>[]) {
+      final instance = entry.value;
+      if (instance is SchemaInstance && instance['owner'] == lab.room!.sessionId) {
+        mine++;
+      }
+    }
     // ignore: avoid_print
-    print('LAB09 projectiles='
-        '${lab.room!.state?.getMap('projectiles')?.length}');
-    expect(lab.room!.state?.getMap('projectiles'), isNotNull);
+    print('LAB09 projectiles=${projectiles?.length} mine=$mine');
+    expect(mine, greaterThan(0),
+        reason: 'the fire input never produced an authoritative projectile');
     await close(lab);
   }, timeout: budget);
 }
