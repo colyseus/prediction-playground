@@ -80,7 +80,7 @@ class _PlaygroundShellState extends State<PlaygroundShell>
 
     _ticker = createTicker(_onTick)..start();
     // Land on reconcile: it shows the whole idea in one screen.
-    _switchTo(_labs.firstWhere((lab) => lab.id == '04'));
+    _switchTo(_labs.firstWhere((lab) => lab.id == '03'));
   }
 
   @override
