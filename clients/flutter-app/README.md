@@ -56,7 +56,8 @@ Re-check when upgrading Flutter — the flag is expected to become the default.
 | Key | |
 |---|---|
 | `WASD` / arrows | move |
-| `1`–`3` | switch lab |
+| `1`–`7` | switch lab |
+| mouse / click / `space` | aim and fire (lab 09) |
 | `L` | cycle injected latency |
 | `K` | drop the connection |
 
@@ -76,11 +77,20 @@ would on a real connection.
 | 01 | Feel the Lag | Draws the server position directly, so every keypress waits a full round trip. |
 | 02 | Clocks | Local time, estimated server time, and the slew-limited render timeline. |
 | 03 | Reconcile | Predict locally; rewind and replay when the server disagrees. |
+| 04 | Interp Modes | One bot drawn four ways at once, scored for smoothness. |
+| 05 | Dead Reckoning | Forward-simulate the last snapshot instead of interpolating it. |
+| 08 | Optimistic Events | Show a goal the moment you predict it; confirm or retract when the server rules. |
+| 09 | Predicted Spawns | Fire immediately, then hand off to the server's projectile with no visible seam. |
 
 In lab 03: your square is the prediction, the dashed ghost is the last position
 the server confirmed, and the red arrow is the correction being applied. Press
-**Impulse** to have the server kick you in a way the client never predicted —
+**Impulse** to have the server kick you in a way the client never predicted:
 the arrow appears and decays rather than snapping.
+
+Lab 05 is worth setting to `wander`. Patrol and circle track exactly, because
+the client can compute them; wander re-rolls its heading from a seed only the
+server has, so dead reckoning visibly breaks. That is the honest limit of the
+technique, not a bug.
 
 The pending chips are inputs applied locally that the server hasn't confirmed
 yet; at 200 ms you should see three or four. Drift stays `matched` because
@@ -104,7 +114,7 @@ on one thread and inside one frame. The SDK's own poll timer is turned off in
 |---|---|
 | `lib/sim/` | The server's shared simulation, transliterated to Dart. Differential-tested against the TypeScript original — 5320 cases, zero mismatches. |
 | `lib/net/schema_bridge.dart` | Runs those step functions directly over SDK storage, so there's no copy to drift. |
-| `lib/labs/move_lane.dart` | Join, smooth the other players, predict and reconcile your own. Labs 00 and 03 share it. |
+| `lib/labs/move_lane.dart` | Join, smooth the other players, predict and reconcile your own. Labs 03, 08 and 09 share it, each naming its own room, reconciled fields and extra step. |
 | `lib/shell.dart` | Connection lifecycle, frame loop, lab switching. |
 
 The rest (`world_view`, `draw_kit`, `hud`, `kb`, `pacer`, `trail`, `spark`,
@@ -123,7 +133,7 @@ Runs the real app code — real SDK, real dylib, real server — and checks:
 2. joining `lab-move` decodes your own player,
 3. prediction runs ahead and holds drift below the noise floor,
 4. a server impulse registers as a correction and decays,
-5. injected latency shows up in the clock and deepens the pending window,
+5. injected latency shows up in the round trip and deepens the pending window,
 6. a dropped connection reconnects and prediction keeps working.
 
 Check 1 is the load-bearing one: if the Dart simulation has drifted from the
@@ -132,9 +142,9 @@ network.
 
 ## Known gaps
 
-- Labs 00 and 04–11 aren't ported yet. The SDK surface they need (composite
-  sim, predicted spawns, optimistic events, lag compensation) is implemented
-  and covered by the SDK's own integration tests.
+- Labs 00, 06, 07, 10 and 11 aren't ported yet. The SDK surface they need
+  (composite sim, lag compensation, deterministic RNG) is implemented and
+  covered by the SDK's own integration tests.
 - macOS only so far. Nothing in the app is platform-specific; the SDK builds
   for iOS, Android, Linux and Windows, though Windows still dead-strips the
   predict layer out of the DLL (noted in `platforms/flutter/build.zig`).

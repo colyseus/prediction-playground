@@ -6,10 +6,22 @@ import '../net/schema_bridge.dart';
 import '../sim/sim.dart';
 import '../trail.dart';
 
-/// The predicted-movement stack against `lab-move`, in one reusable piece.
+/// Extra work inside the reconciler step, after the shared movement step.
 ///
-/// Labs 00 and 03 both need the same thing: join, smooth the other players,
-/// predict and reconcile your own. Only what they draw differs.
+/// Runs on the live input and again on every rollback replay, so it must be
+/// deterministic. Guard one-shot effects on `ctx.isReplay`, or predict them
+/// through `ctx.predict`, which is replay-safe by construction.
+typedef LaneStep = void Function(StepContext ctx, SchemaBody body);
+
+/// Fills the input fields this room declares beyond movement — aim, fire.
+typedef LaneInputFill = void Function(SchemaView data);
+
+/// The predicted-movement stack, in one reusable piece.
+///
+/// Labs 03, 08 and 09 all need the same thing: join, smooth the other players,
+/// predict and reconcile your own. Only what they draw, and what else rides
+/// the same step, differs — so the rooms that share the `players` map and the
+/// movement input reuse this by naming their own room and fields.
 ///
 /// The whole point is visible in three positions:
 /// - [predictedX]/[predictedY] — what you should draw. Responds instantly.
@@ -17,6 +29,24 @@ import '../trail.dart';
 /// - other players — smoothed, since their inputs aren't yours to predict.
 class MoveLane {
   final ColyseusRoom room;
+
+  /// Fields the reconciler mirrors and replays.
+  final List<String> fields;
+
+  /// Extra simulation folded into the step — the score gate, in lab 08.
+  ///
+  /// Read at call time, so it can be set after [mount] without rebuilding.
+  LaneStep? onStep;
+
+  /// Fills the non-movement input fields before each send.
+  LaneInputFill? fillInput;
+
+  /// Runs once per input step, right after the send.
+  ///
+  /// The input has already been applied to the predicted mirror by then, so
+  /// this is where to read [Reconciler.state] for something that starts at the
+  /// post-step pose — a projectile leaving the muzzle, in lab 09.
+  void Function()? afterSend;
 
   late final Predict predict;
   late final InputHandle input;
@@ -46,12 +76,21 @@ class MoveLane {
   double lastCorrectionX = 0;
   double lastCorrectionY = 0;
 
-  MoveLane(this.room);
+  MoveLane(this.room, {this.fields = const ['x', 'y', 'vx', 'vy']});
 
-  /// Joins and wires prediction. Returns false if the player never decoded.
-  static Future<MoveLane?> mount(ColyseusClient client) async {
-    final room = await client.joinOrCreate('lab-move');
-    final lane = MoveLane(room);
+  /// Joins [roomName] and wires prediction. Returns null if the player never
+  /// decoded.
+  ///
+  /// [fields] are the ones the reconciler mirrors; a room that carries extra
+  /// reconciled state (lab 08's `scoreTicks`) names it here so rollback replay
+  /// covers it too.
+  static Future<MoveLane?> mount(
+    ColyseusClient client, {
+    String roomName = 'lab-move',
+    List<String> fields = const ['x', 'y', 'vx', 'vy'],
+  }) async {
+    final room = await client.joinOrCreate(roomName);
+    final lane = MoveLane(room, fields: fields);
 
     if (!await lane._bind()) {
       await room.leave();
@@ -97,11 +136,13 @@ class MoveLane {
     _recon = predict.reconciler(
       truth,
       input: input,
-      fields: const ['x', 'y', 'vx', 'vy'],
+      fields: fields,
       smoothing: smoothing,
       step: (ctx, state, cmd) {
         // The server's own movement rules, run over the predicted mirror.
-        stepEntity(_binding.body(state), _binding.input(cmd), ctx.dt);
+        final body = _binding.body(state);
+        stepEntity(body, _binding.input(cmd), ctx.dt);
+        onStep?.call(ctx, body);
       },
     );
     lastReconcileSeq = _recon!.reconcileSeq;
@@ -158,7 +199,9 @@ class MoveLane {
     for (var i = 0; i < steps; i++) {
       input.data['moveX'] = mx;
       input.data['moveY'] = my;
+      fillInput?.call(input.data);
       input.send();
+      afterSend?.call();
     }
 
     if (recon.reconcileSeq != lastReconcileSeq) {

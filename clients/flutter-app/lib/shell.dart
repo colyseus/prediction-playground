@@ -1,4 +1,5 @@
 import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:flutter/gestures.dart' show kPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +12,10 @@ import 'lab.dart';
 import 'labs/lab01_feel_the_lag.dart';
 import 'labs/lab02_clocks.dart';
 import 'labs/lab03_reconcile.dart';
+import 'labs/lab04_interp_modes.dart';
+import 'labs/lab05_dead_reckoning.dart';
+import 'labs/lab08_optimistic_events.dart';
+import 'labs/lab09_predicted_spawns.dart';
 import 'net/net_delay.dart';
 import 'palette.dart';
 import 'world_view.dart';
@@ -46,6 +51,10 @@ class _PlaygroundShellState extends State<PlaygroundShell>
     Lab01FeelTheLag(),
     Lab02Clocks(),
     Lab03Reconcile(),
+    Lab04InterpModes(),
+    Lab05DeadReckoning(),
+    Lab08OptimisticEvents(),
+    Lab09PredictedSpawns(),
   ];
 
   Lab? _active;
@@ -70,7 +79,8 @@ class _PlaygroundShellState extends State<PlaygroundShell>
     _ctx = LabContext(client: _client, view: _view);
 
     _ticker = createTicker(_onTick)..start();
-    _switchTo(_labs.last); // land on the lab that shows the whole idea
+    // Land on reconcile: it shows the whole idea in one screen.
+    _switchTo(_labs.firstWhere((lab) => lab.id == '04'));
   }
 
   @override
@@ -103,7 +113,7 @@ class _PlaygroundShellState extends State<PlaygroundShell>
   }
 
   void _hotkeys() {
-    for (var i = 0; i < _labs.length; i++) {
+    for (var i = 0; i < _labs.length && i < _digitKeys.length; i++) {
       if (Kb.pressed(_digitKeys[i])) _switchTo(_labs[i]);
     }
     if (Kb.pressed(LogicalKeyboardKey.keyL)) {
@@ -113,12 +123,17 @@ class _PlaygroundShellState extends State<PlaygroundShell>
     if (Kb.pressed(LogicalKeyboardKey.keyK)) NetDelay.dropAll();
   }
 
+  /// One digit per lab, in list order — not by lab id, since the ids skip.
   static const _digitKeys = [
     LogicalKeyboardKey.digit1,
     LogicalKeyboardKey.digit2,
     LogicalKeyboardKey.digit3,
     LogicalKeyboardKey.digit4,
     LogicalKeyboardKey.digit5,
+    LogicalKeyboardKey.digit6,
+    LogicalKeyboardKey.digit7,
+    LogicalKeyboardKey.digit8,
+    LogicalKeyboardKey.digit9,
   ];
 
   Future<void> _switchTo(Lab lab) async {
@@ -181,16 +196,28 @@ class _PlaygroundShellState extends State<PlaygroundShell>
       backgroundColor: Palette.bg,
       body: Stack(
         children: [
+          // Aiming labs read the pointer through Kb, the same way they read
+          // the keyboard. The control panel sits above this in the stack, so
+          // it keeps its own clicks.
           Positioned.fill(
-            child: CustomPaint(
-              painter: _ShellPainter(
-                repaint: _frame,
-                labOf: () => _active,
-                ctx: _ctx,
-                view: _view,
-                controlsHeight: () => _controlsHeight,
-                panelWidth: _panelWidth,
-                status: () => _status,
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerHover: (e) => Kb.mousePos = e.localPosition,
+              onPointerMove: (e) => Kb.mousePos = e.localPosition,
+              onPointerDown: (e) {
+                Kb.mousePos = e.localPosition;
+                if (e.buttons & kPrimaryButton != 0) Kb.feedMouseDown();
+              },
+              child: CustomPaint(
+                painter: _ShellPainter(
+                  repaint: _frame,
+                  labOf: () => _active,
+                  ctx: _ctx,
+                  view: _view,
+                  controlsHeight: () => _controlsHeight,
+                  panelWidth: _panelWidth,
+                  status: () => _status,
+                ),
               ),
             ),
           ),
@@ -271,7 +298,7 @@ class _PlaygroundShellState extends State<PlaygroundShell>
       ButtonsSpec([
         (label: 'Drop connection', onPressed: NetDelay.dropAll),
       ]),
-      const NoteSpec('Keys: 1-3 labs · L cycle latency · K drop connection'),
+      const NoteSpec('Keys: 1-7 labs · L cycle latency · K drop connection'),
     ];
   }
 }
