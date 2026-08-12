@@ -353,6 +353,12 @@ do -- lab 06: lag comp lands the shot where the shooter aimed
   check("lab06 the rewound read coincides with our view",
     lab:rewind_error() >= 0 and lab:rewind_error() < 3.0,
     string.format("rewind error %.2f u, view lag %.1f u", lab:rewind_error(), lab:view_lag()))
+  -- The ray's click-time colour. Aiming dead-on, the client must call its own
+  -- shots hits — a transposed ray_circle argument loads clean and would paint
+  -- every ray red instead.
+  check("lab06 the client previews its own shots as hits",
+    lab.predicted_hits * 10 > lab.shots_on * 6,
+    string.format("%d/%d previewed", lab.predicted_hits, lab.shots_on))
 
   leave(lab, room)
 end

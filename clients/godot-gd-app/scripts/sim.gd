@@ -17,6 +17,9 @@ const PLAYER_ACCEL := 220.0
 const PLAYER_MAX_SPEED := 34.0
 const PLAYER_FRICTION_K := 0.72
 const BOT_RADIUS := 1.8
+## Hitscan reach — the client previews its own shot verdict with the same
+## ray_circle the server resolves with.
+const SHOT_RANGE := 200.0
 const REMOTE_INTERP_MS := 100.0
 const TELEPORT_SNAP_DIST := 8.0
 ## Server rewind cap — also what bounds render-time spoofing.

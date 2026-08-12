@@ -21,6 +21,9 @@ M.PLAYER_ACCEL = 220.0
 M.PLAYER_MAX_SPEED = 34.0
 M.PLAYER_FRICTION_K = 0.72
 M.BOT_RADIUS = 1.8
+-- Hitscan reach: the client previews its own shot verdict with the same
+-- ray_circle the server resolves with.
+M.SHOT_RANGE = 200.0
 M.REMOTE_INTERP_MS = 100.0
 M.TELEPORT_SNAP_DIST = 8.0
 M.MAX_REWIND_MS = 500.0

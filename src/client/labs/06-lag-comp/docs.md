@@ -16,11 +16,19 @@ markers:
 - **red** — where the bot *actually* was on the server, ahead of your view by
   ~(RTT/2 + interp delay) × its speed.
 
+The ray itself carries a fourth reading. At the click the client runs the
+server's own `rayCircle` against the blue pose and draws its verdict
+immediately, faint; when the report lands the server's verdict replaces it at
+full strength. Agreement is the whole point — **a ray that changes colour is a
+shot the rewind resolved differently than your screen did.**
+
 Experiments:
 
 - Crank sim latency to 250 ms. With **lag comp on**, aiming dead-on keeps
-  hitting — watch green track blue while red runs away. Toggle **lag comp
-  off** (room-wide!) and the same crosshair aim starts missing: now you must
+  hitting — watch green track blue while red runs away, and the ray hold the
+  colour it was drawn with. Toggle **lag comp off** (room-wide!) and the same
+  crosshair aim starts missing: every ray now flashes green and resolves red,
+  because the server is testing against a bot you were never shown. You must
   lead the target by the red-blue gap.
 - The rewind is capped (`maxRewindMs: 500`) — a hard bound on how far into the
   past any client can drag the server, which also bounds the "shot around the

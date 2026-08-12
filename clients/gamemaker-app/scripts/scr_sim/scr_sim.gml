@@ -14,6 +14,9 @@
 #macro SIM_PLAYER_MAX_SPEED 34
 #macro SIM_PLAYER_FRICTION_K 0.72
 #macro SIM_BOT_RADIUS 1.8
+// Hitscan reach — the client previews its own shot verdict with the same
+// sim_ray_circle the server resolves with.
+#macro SIM_SHOT_RANGE 200
 #macro SIM_TELEPORT_SNAP_DIST 8
 #macro SIM_SQRT1_2 0.70710678118654752440
 // hockey.ts

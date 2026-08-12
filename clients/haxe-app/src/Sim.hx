@@ -20,6 +20,9 @@ class Sim {
 	public static inline var PLAYER_MAX_SPEED = 34.0;
 	public static inline var PLAYER_FRICTION_K = 0.72;
 	public static inline var BOT_RADIUS = 1.8;
+	/** Hitscan reach — the client previews its own shot verdict with the same
+	    rayCircle the server resolves with. */
+	public static inline var SHOT_RANGE = 200.0;
 	public static inline var REMOTE_INTERP_MS = 100.0;
 	public static inline var TELEPORT_SNAP_DIST = 8.0;
 	public static inline var MAX_REWIND_MS = 500.0;

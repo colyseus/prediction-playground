@@ -37,6 +37,7 @@ namespace Playground
         {
             public double Ox, Oy, Tx, Ty;        // ray origin + drawn endpoint
             public double BlueX, BlueY;          // what the shooter saw at click time
+            public bool PredictedHit;            // this screen's own verdict, at click time
             public double GreenX, GreenY;        // server's rewound read
             public double RedX, RedY;            // server's live position
             public bool Answered, Hit;
@@ -55,6 +56,7 @@ namespace Playground
         private bool _pendingFire;
         private readonly List<Shot> _shots = new List<Shot>();
         private int _hitsOn, _shotsOn, _hitsOff, _shotsOff;
+        private int _predictedHits;
 
         public override async Task<bool> Mount(App app)
         {
@@ -175,11 +177,18 @@ namespace Playground
             double len = System.Math.Sqrt(dx * dx + dy * dy);
             if (len < 1e-9) len = 1;
             dx /= len; dy /= len;
+            double bx = _predict.Value(_bot, "x"), by = _predict.Value(_bot, "y");
+            // The server's own hit test, run against the pose THIS screen was
+            // showing. Available immediately, and it agrees with the server
+            // whenever the rewind lands where it should.
+            bool predictedHit = Sim.RayCircle(px, py, dx, dy, bx, by, Sim.BotRadius, Sim.ShotRange) >= 0;
+            if (predictedHit) _predictedHits++;
             if (_shots.Count == MaxShots) _shots.RemoveAt(0);
             _shots.Add(new Shot
             {
                 Ox = px, Oy = py, Tx = px + dx * 120, Ty = py + dy * 120,
-                BlueX = _predict.Value(_bot, "x"), BlueY = _predict.Value(_bot, "y"),
+                BlueX = bx, BlueY = by,
+                PredictedHit = predictedHit,
                 T = now,
             });
         }
@@ -214,9 +223,12 @@ namespace Playground
                 double age = now - s.T;
                 if (age > ShotFadeMs) { _shots.RemoveAt(i); continue; }
                 float a = (float)(1 - age / ShotFadeMs);
-                var ray = !s.Answered
-                    ? Palette.A(Palette.Text, a * 0.5f)
-                    : Palette.A(s.Hit ? Palette.Good : Palette.Bad, a * 0.7f);
+                // Until the report lands the ray wears this screen's own
+                // verdict, faint; the server's answer replaces it at full
+                // strength. A ray that flips colour is the rewind disagreeing.
+                var ray = Palette.A(
+                    (s.Answered ? s.Hit : s.PredictedHit) ? Palette.Good : Palette.Bad,
+                    a * (s.Answered ? 0.7f : 0.3f));
                 Draw.Line(new Vector2(v.SX(s.Ox), v.SY(s.Oy)), new Vector2(v.SX(s.Tx), v.SY(s.Ty)),
                     ray, 1.2f);
                 Draw.CircleOutline(v, s.BlueX, s.BlueY, Sim.BotRadius * 0.7, Palette.A(Palette.Blue, a));
@@ -241,8 +253,9 @@ namespace Playground
             h.Key("click / SPACE", "fire");
             h.Key("C", Room.State.lagComp ? "lag comp: ON (room-wide)" : "lag comp: OFF (room-wide)");
             h.Note("blue = what you saw — green = the server's rewound read — red = the " +
-                   "server live. Turn lag comp off at 200 ms and you have to lead the target " +
-                   "by exactly the red-to-blue gap.");
+                   "server live. The ray shows your own verdict faintly at the click, then " +
+                   "the server's at full strength. Turn lag comp off at 200 ms and you have " +
+                   "to lead the target by exactly the red-to-blue gap.");
         }
 
         /// <summary>Newest answered shot's red↔blue distance; −1 if none yet.</summary>
@@ -267,6 +280,8 @@ namespace Playground
         public int ShotsOn => _shotsOn;
         public int HitsOff => _hitsOff;
         public int ShotsOff => _shotsOff;
+        /// <summary>Shots this screen called a hit at the click, before any report.</summary>
+        public int PredictedHits => _predictedHits;
         /// <summary>The rewind error the server actually made, in ms of bot travel.</summary>
         public double RewindErrorU()
         {

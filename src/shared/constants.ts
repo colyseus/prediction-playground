@@ -18,6 +18,11 @@ export const PLAYER_FRICTION_K = 0.72;
 // Bots.
 export const BOT_RADIUS = 1.8;
 
+// Hitscan reach. Shared because the client previews its own shot verdict with
+// the same rayCircle the server resolves with — a different range would show
+// the shooter a hit the server never grants.
+export const SHOT_RANGE = 200;
+
 // Remote-entity interpolation buffer (Lab 4 default; per-mode sliders override).
 export const REMOTE_INTERP_MS = 100;
 

@@ -39,8 +39,9 @@ function Lab06() constructor {
         rebind = false;
         pacer = new Pacer(1000 / SIM_TICK_HZ);
         lagcomp_on = true;
-        rays = [];          // {ox,oy,tx,ty, bx,by, answered, hit, gx,gy, rx,ry, t}
+        rays = [];          // {ox,oy,tx,ty, bx,by, predicted, answered, hit, gx,gy, rx,ry, t}
         hits = 0; shots = 0;
+        predicted_hits = 0; // shots THIS screen called a hit, before any report
         fire_pending = false;
         aim_x = SIM_ARENA_W / 2; aim_y = SIM_ARENA_H / 2;
         colyseus_send(_shell.net_room, "lagcomp", { on: true });
@@ -106,10 +107,18 @@ function Lab06() constructor {
                     var _ay = clamp(aim_y, 0, SIM_ARENA_H);
                     var _len = max(point_distance(_px, _py, _ax, _ay), 0.000000001);
                     var _dx = (_ax - _px) / _len, _dy = (_ay - _py) / _len;
+                    var _bx = _bot != 0 ? predict.value(_bot, "x") : _ax;
+                    var _by = _bot != 0 ? predict.value(_bot, "y") : _ay;
+                    // the server's own hit test, run against the pose THIS
+                    // screen was showing — available immediately, and it agrees
+                    // with the server whenever the rewind lands where it should
+                    var _pred = sim_ray_circle(_px, _py, _dx, _dy, _bx, _by,
+                        SIM_BOT_RADIUS, SIM_SHOT_RANGE) >= 0;
+                    if (_pred) predicted_hits += 1;
                     array_push(rays, {
                         ox: _px, oy: _py, tx: _px + _dx * 120, ty: _py + _dy * 120,
-                        bx: _bot != 0 ? predict.value(_bot, "x") : _ax,
-                        by: _bot != 0 ? predict.value(_bot, "y") : _ay,
+                        bx: _bx, by: _by,
+                        predicted: _pred,
                         answered: false, hit: false, gx: 0, gy: 0, rx: 0, ry: 0,
                         t: _now,
                     });
@@ -151,7 +160,9 @@ function Lab06() constructor {
             _v.sx(clamp(aim_x, 0, SIM_ARENA_W)), _v.sy(clamp(aim_y, 0, SIM_ARENA_H)));
         draw_set_alpha(1);
 
-        // shot rays: faint while in flight; green/red tint once answered.
+        // shot rays: this screen's own verdict while in flight, faint; the
+        // server's at full strength once answered — a ray that flips colour is
+        // the rewind disagreeing with what you saw.
         // blue = the bot YOU saw, green = the server's rewound read,
         // red = the live pose at resolution time
         for (var _i = array_length(rays) - 1; _i >= 0; _i--) {
@@ -159,9 +170,9 @@ function Lab06() constructor {
             var _age = _now - _ray.t;
             if (_age > 2600) { array_delete(rays, _i, 1); continue; }
             var _a = 1 - _age / 2600;
-            var _col = !_ray.answered ? COL_TEXT : (_ray.hit ? COL_GOOD : COL_BAD);
-            draw_set_color(_col);
-            draw_set_alpha(_a * 0.6);
+            var _verdict = _ray.answered ? _ray.hit : _ray.predicted;
+            draw_set_color(_verdict ? COL_GOOD : COL_BAD);
+            draw_set_alpha(_a * (_ray.answered ? 0.7 : 0.3));
             draw_line(_v.sx(_ray.ox), _v.sy(_ray.oy), _v.sx(_ray.tx), _v.sy(_ray.ty));
             draw_set_alpha(_a);
             draw_circle_w(_v, _ray.bx, _ray.by, SIM_BOT_RADIUS * 0.7, COL_BLUE, true);
@@ -179,7 +190,7 @@ function Lab06() constructor {
         _hud.key_hint("click", "fire at the bot YOU see");
         _hud.key_hint("space", "fire, too");
         _hud.key_hint("C", "toggle server lag comp");
-        _hud.note("You aim at a 100ms-old render. With lag comp ON the server rewinds the bot to that instant (green marker = its read). OFF, it tests the live pose (red) - and you miss.");
+        _hud.note("You aim at a 100ms-old render. With lag comp ON the server rewinds the bot to that instant (green marker = its read). OFF, it tests the live pose (red) - and you miss. The ray carries your own verdict faintly at the click, then the server's at full strength.");
     };
 
     static detach = function(_shell) {

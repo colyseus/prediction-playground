@@ -319,6 +319,13 @@ public class AcceptanceTest
         // and nothing else in the lab says so.
         Assert.Less(lab.RewindErrorU(), 3.0,
             $"server rewound to {lab.RewindErrorU():F2} u away from our view — check renderDelay");
+
+        // The ray's click-time colour. The autopilot aims dead-on, so the
+        // client must call its own shots hits — a transposed RayCircle
+        // argument compiles clean and would paint every ray red instead.
+        Assert.Greater(lab.PredictedHits * 10, lab.ShotsOn * 6,
+            $"the client previewed only {lab.PredictedHits}/{lab.ShotsOn} of its own shots as " +
+            "hits while aiming dead-on — the click-time hit test disagrees with the crosshair");
         Debug.Log($"OK lab06 comp ON: {lab.HitsOn}/{lab.ShotsOn} hits, " +
                   $"rewind error {lab.RewindErrorU():F2} u, view lag {lab.ViewLag():F1} u");
 

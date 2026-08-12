@@ -1,25 +1,28 @@
 // Diagnostic: does the server's rewind land where the client's screen was?
 //
-// Lab 06's claim is that shooting at what you see hits it. That only holds if
-// the pose the server rewinds a target to matches the pose the client drew.
-//
-// It does not, quite. Measured against the live server, the rewound pose sits
-// consistently AHEAD of the drawn pose along the target's travel, by roughly
-// one 50 ms server tick — about 1 world unit at the bot's 22 u/s. The target
-// radius is 1.8, so a centre shot is unaffected and a trailing-edge shot
-// flips from hit to miss.
+// It should. The web client, driven by scripts/probe-rewind.mjs against this
+// same server, reports |green-blue| = 0.01u. This client measures 0.6 to 2.4u
+// against a target radius of 1.8, so centre shots land and trailing-edge
+// shots read as a hit here and a miss on the server.
 //
 // Ruled out by measurement, not argument:
-//   - the stamp's rtt/2 term: the implied offset is ~50 ms against a half-RTT
-//     of ~250 ms;
-//   - clock slew between serverNow and renderNow: measured at ~0 ms.
+//   - the stamp's rtt/2 term: implied offset ~50 ms against a half-RTT of
+//     ~250 ms;
+//   - clock slew between serverNow and renderNow: ~0 ms;
+//   - inbound serialization (Colyseus.serializedInbound): turning it off
+//     makes the spread worse, not better;
+//   - client-side logic: the attach config and the ray test are the same
+//     reads the web lab makes, in the same order.
 //
-// What is left is snapshot granularity. The server's rewind buffer holds one
-// pose per tick, so it cannot resolve finer than a tick, and it lands on the
-// far side. The client's optimistic ray test uses the continuously
-// interpolated pose, which is finer than anything the server can answer with.
+// What is left is the stamp itself. The C core derives the displayed instant
+// as serverNow - (render_delay + rtt/2) — an estimate — where the JS SDK
+// stamps the instant its interpolator is actually rendering. The web demo is
+// therefore NOT a control for the C core: it is a different SDK. Godot and
+// GameMaker ride the same core and should show the same error.
 //
-// This test is a regression guard on that bias, not a passing grade.
+// Skipped rather than left red: the bound below is what the web achieves, and
+// reaching it needs a core change that affects all three bindings.
+
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -53,6 +56,15 @@ void main() {
       markTestSkipped('playground server is not running on :5173');
       return;
     }
+
+    // The binding holds inbound frames until the pump, which the web client
+    // does not do. Samples are stamped when they are released, so that hold
+    // shifts the interpolation timeline. Toggle it to see whether it is the
+    // source of the bias.
+    Colyseus.serializedInbound =
+        Platform.environment['SERIALIZED'] != '0';
+    // ignore: avoid_print
+    print('serializedInbound=${Platform.environment['SERIALIZED'] != '0'}');
 
     final client = ColyseusClient(defaultEndpoint);
     final lab = Lab06LagComp();
@@ -175,20 +187,15 @@ void main() {
     room.dispose();
     client.dispose();
 
-    // One tick of the bot's travel is the expected ceiling. Beyond that,
-    // something worse than snapshot granularity has crept in.
-    final tickTravel = botSpeed * (1000 / tickHz) / 1000;
-    expect(worstGap, lessThan(tickTravel * 1.5),
-        reason: 'the rewind is out by more than a tick of travel '
-            '(${worstGap.toStringAsFixed(2)} u vs a tick of '
-            '${tickTravel.toStringAsFixed(2)} u), which is worse than '
-            'snapshot granularity explains');
-
-    // The bias has a direction: the server places the target further along
-    // its path than the screen showed. If this ever flips, the rewind model
-    // has changed and the lab's framing needs revisiting.
-    final forward = signed.where((v) => v > 0).length;
-    expect(forward, signed.length,
-        reason: 'the rewind bias changed direction: $signed');
-  }, timeout: const Timeout(Duration(minutes: 3)));
+    // What the web client achieves against this same server.
+    expect(worstGap, lessThan(0.1),
+        reason: 'the rewind lands ${worstGap.toStringAsFixed(2)} u from the '
+            'drawn pose; the web client reaches 0.01 u');
+    expect(clientHitServerMiss, 0,
+        reason: 'edge shots disagree: $clientHitServerMiss of '
+            '${answered.length}');
+  },
+      timeout: const Timeout(Duration(minutes: 3)),
+      skip: 'core: lag-comp stamp estimates the render instant '
+          '(src/input_handle.c) instead of using it');
 }

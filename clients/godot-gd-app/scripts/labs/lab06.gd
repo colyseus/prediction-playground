@@ -26,12 +26,14 @@ var _aim_x := 50.0
 var _aim_y := 20.0
 var _pending_fire := false
 ## Shots: [ox, oy, tx, ty, blue_x, blue_y, green_x, green_y, red_x, red_y,
-##         answered, hit, t]
+##         answered, hit, t, predicted_hit]
 var _shots: Array = []
 var hits_on := 0
 var shots_on := 0
 var hits_off := 0
 var shots_off := 0
+## Shots this screen called a hit at the click, before any report.
+var predicted_hits := 0
 
 func _init() -> void:
 	id = "06-lag-comp"
@@ -142,10 +144,17 @@ func _record_shot(now: float) -> void:
 	if len < 1e-9: len = 1.0
 	dx /= len
 	dy /= len
+	var bx: float = _predict.value(_bot, "x")
+	var by: float = _predict.value(_bot, "y")
+	# The server's own hit test, run against the pose THIS screen was showing.
+	# Available immediately, and it agrees with the server whenever the rewind
+	# lands where it should.
+	var predicted: bool = Sim.ray_circle(px, py, dx, dy, bx, by, Sim.BOT_RADIUS, Sim.SHOT_RANGE) >= 0.0
+	if predicted: predicted_hits += 1
 	if _shots.size() == MAX_SHOTS: _shots.pop_front()
 	_shots.append([px, py, px + dx * 120, py + dy * 120,
-		_predict.value(_bot, "x"), _predict.value(_bot, "y"),
-		0.0, 0.0, 0.0, 0.0, false, false, now])
+		bx, by,
+		0.0, 0.0, 0.0, 0.0, false, false, now, predicted])
 
 func render(app: App) -> void:
 	var v := app.view
@@ -180,8 +189,12 @@ func render(app: App) -> void:
 			_shots.remove_at(i)
 			continue
 		var a := 1.0 - age / SHOT_FADE_MS
-		var ray: Color = Palette.a(Palette.TEXT, a * 0.5) if not s[10] \
-			else Palette.a(Palette.GOOD if s[11] else Palette.BAD, a * 0.7)
+		# Until the report lands the ray wears this screen's own verdict, faint;
+		# the server's answer replaces it at full strength. A ray that flips
+		# colour is the rewind disagreeing with what you saw.
+		var verdict: bool = s[11] if s[10] else s[13]
+		var ray: Color = Palette.a(Palette.GOOD if verdict else Palette.BAD,
+			a * (0.7 if s[10] else 0.3))
 		Draw.line(Vector2(v.sx(s[0]), v.sy(s[1])), Vector2(v.sx(s[2]), v.sy(s[3])), ray, 1.2)
 		Draw.circle_outline(v, s[4], s[5], Sim.BOT_RADIUS * 0.7, Palette.a(Palette.BLUE, a))
 		if not s[10]: continue
@@ -204,8 +217,9 @@ func render(app: App) -> void:
 	h.key("click / SPACE", "fire")
 	h.key("C", "lag comp: ON (room-wide)" if bool(st.get("lagComp", false)) else "lag comp: OFF (room-wide)")
 	h.note("blue = what you saw — green = the server's rewound read — red = the " +
-		"server live. Turn lag comp off at 200 ms and you have to lead the target " +
-		"by exactly the red-to-blue gap.")
+		"server live. The ray shows your own verdict faintly at the click, then " +
+		"the server's at full strength. Turn lag comp off at 200 ms and you have " +
+		"to lead the target by exactly the red-to-blue gap.")
 
 # ------------------------------------------------------- harness accessors
 

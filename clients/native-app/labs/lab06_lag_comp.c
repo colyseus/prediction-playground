@@ -20,6 +20,7 @@
 typedef struct {
     double ox, oy, tx, ty;        /* ray origin + drawn endpoint */
     double blue_x, blue_y;        /* what the shooter saw at click time */
+    bool predicted_hit;           /* this screen's own verdict, at click time */
     double green_x, green_y;      /* server's rewound read */
     double red_x, red_y;          /* server's live position */
     bool answered, hit;
@@ -47,6 +48,8 @@ static struct {
     l06_shot_t shots[L06_MAX_SHOTS];
     int shot_count;
     int hits_on, shots_on, hits_off, shots_off;
+    /* Shots this screen called a hit at the click, before any report. */
+    int predicted_hits;
 } l06;
 
 /* Only fire frames carry the lag-comp stamp. */
@@ -210,12 +213,18 @@ static void lab06_frame(app_t* app, double now, double dt) {
             double len = sqrt(dx * dx + dy * dy);
             if (len < 1e-9) { len = 1; }
             dx /= len; dy /= len;
+            /* The server's own hit test, run against the pose THIS screen was
+               showing. Available immediately, and it agrees with the server
+               whenever the rewind lands where it should. */
+            bool predicted = ray_circle(px, py, dx, dy, bx, by, BOT_RADIUS, SHOT_RANGE) >= 0;
+            if (predicted) { l06.predicted_hits++; }
             if (l06.shot_count == L06_MAX_SHOTS) {
                 memmove(l06.shots, l06.shots + 1, sizeof(l06_shot_t) * (L06_MAX_SHOTS - 1));
                 l06.shot_count--;
             }
             l06.shots[l06.shot_count] = (l06_shot_t){
-                px, py, px + dx * 120, py + dy * 120, bx, by, 0, 0, 0, 0, false, false, now };
+                px, py, px + dx * 120, py + dy * 120, bx, by, predicted,
+                0, 0, 0, 0, false, false, now };
             l06.shot_count++;
             l06.pending_fire = false;
         }
@@ -247,8 +256,11 @@ static void lab06_frame(app_t* app, double now, double dt) {
             continue;
         }
         double a = 1 - age / 2600;
-        Color ray = !s->answered ? with_alpha(COL_TEXT, a * 0.5)
-            : with_alpha(s->hit ? COL_GOOD : COL_BAD, a * 0.7);
+        /* Until the report lands the ray wears this screen's own verdict,
+           faint; the server's answer replaces it at full strength. A ray that
+           flips colour is the rewind disagreeing with what you saw. */
+        Color ray = with_alpha((s->answered ? s->hit : s->predicted_hit) ? COL_GOOD : COL_BAD,
+            a * (s->answered ? 0.7 : 0.3));
         draw_line_world(v, s->ox, s->oy, s->tx, s->ty, ray, 1.2f);
         draw_marker_world(v, s->blue_x, s->blue_y, BOT_RADIUS * 0.7, with_alpha(COL_BLUE, a));
         if (s->answered) {
@@ -285,8 +297,9 @@ static void lab06_frame(app_t* app, double now, double dt) {
     hud_key(h, "click / SPACE", "fire");
     hud_key(h, "C", l06.state->lagComp ? "lag comp: ON (room-wide)" : "lag comp: OFF (room-wide)");
     hud_note(h, "blue = what you saw - green = the server's rewound read - red = the "
-        "server live. Turn lag comp off at 200 ms and you have to lead the target by "
-        "exactly the red-to-blue gap.");
+        "server live. The ray shows your own verdict faintly at the click, then the "
+        "server's at full strength. Turn lag comp off at 200 ms and you have to lead "
+        "the target by exactly the red-to-blue gap.");
 }
 
 static void lab06_detach(app_t* app) {

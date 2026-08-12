@@ -34,6 +34,8 @@ class Lab06 implements Lab {
 	public var shotsOn(default, null) = 0;
 	public var hitsOff(default, null) = 0;
 	public var shotsOff(default, null) = 0;
+	/** Shots this screen called a hit at the click, before any report. */
+	public var predictedHits(default, null) = 0;
 
 	static inline var SHOT_FADE_MS = 2600;
 
@@ -132,9 +134,16 @@ class Lab06 implements Lab {
 		var len = Math.sqrt(dx * dx + dy * dy);
 		if (len < 1e-9) len = 1;
 		dx /= len; dy /= len;
+		var bx = predict.value(bot, "x"), by = predict.value(bot, "y");
+		// The server's own hit test, run against the pose THIS screen was
+		// showing. Available immediately, and it agrees with the server
+		// whenever the rewind lands where it should.
+		var predicted = Sim.rayCircle(px, py, dx, dy, bx, by, Sim.BOT_RADIUS, Sim.SHOT_RANGE) >= 0;
+		if (predicted) predictedHits++;
 		shots.push({
 			ox: px, oy: py, tx: px + dx * 120, ty: py + dy * 120,
-			blueX: predict.value(bot, "x"), blueY: predict.value(bot, "y"),
+			blueX: bx, blueY: by,
+			predictedHit: predicted,
 			greenX: 0, greenY: 0, redX: 0, redY: 0,
 			answered: false, hit: false, t: now,
 		});
@@ -223,8 +232,11 @@ class Lab06 implements Lab {
 			var age = now - s.t;
 			if (age > SHOT_FADE_MS) { shots.splice(i, 1); i--; continue; }
 			var a = 1 - age / SHOT_FADE_MS;
-			var ray = !s.answered ? Palette.a(Palette.TEXT, a * 0.5)
-				: Palette.a(s.hit ? Palette.GOOD : Palette.BAD, a * 0.7);
+			// Until the report lands the ray wears this screen's own verdict,
+			// faint; the server's answer replaces it at full strength. A ray
+			// that flips colour is the rewind disagreeing with what you saw.
+			var ray = Palette.a((s.answered ? s.hit : s.predictedHit) ? Palette.GOOD : Palette.BAD,
+				a * (s.answered ? 0.7 : 0.3));
 			g.line(s.ox, s.oy, s.tx, s.ty, ray, 1.2);
 			g.circleOutline(s.blueX, s.blueY, Sim.BOT_RADIUS * 0.7, Palette.a(Palette.BLUE, a));
 			if (s.answered) {
@@ -250,8 +262,9 @@ class Lab06 implements Lab {
 		g.hudKey("click / SPACE", "fire");
 		g.hudKey("C", room.state.lagComp ? "lag comp: ON (room-wide)" : "lag comp: OFF (room-wide)");
 		g.hudNote("blue = what you saw — green = the server's rewound read — red = "
-			+ "the server live. Turn lag comp off at 200 ms and you have to lead the "
-			+ "target by exactly the red-to-blue gap.");
+			+ "the server live. The ray shows your own verdict faintly at the click, "
+			+ "then the server's at full strength. Turn lag comp off at 200 ms and you "
+			+ "have to lead the target by exactly the red-to-blue gap.");
 	}
 
 	public function unmount(): Void predict.dispose();
@@ -270,6 +283,7 @@ class Lab06 implements Lab {
 typedef Shot = {
 	ox: Float, oy: Float, tx: Float, ty: Float,
 	blueX: Float, blueY: Float,      // what the shooter saw at click time
+	predictedHit: Bool,              // this screen's own verdict, at click time
 	greenX: Float, greenY: Float,    // server's rewound read
 	redX: Float, redY: Float,        // server's live position
 	answered: Bool, hit: Bool, t: Float,

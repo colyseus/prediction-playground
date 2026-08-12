@@ -514,12 +514,18 @@ static void demo_checkpoint(const char* name) {
         double rewind_err = s ? sqrt((s->green_x - s->blue_x) * (s->green_x - s->blue_x)
             + (s->green_y - s->blue_y) * (s->green_y - s->blue_y)) : -1;
         double rate = l06.shots_on ? (double)l06.hits_on / l06.shots_on : 0;
+        /* Aiming dead-on, the click-time preview that colours the ray must call
+           its own shots hits — a transposed ray_circle argument compiles clean
+           and would paint every ray red instead. */
         demo_check(name, s != NULL && l06.state->lagComp && l06.shots_on >= 5
-            && rate >= 0.6 && rewind_err < lead,
+            && rate >= 0.6 && rewind_err < lead
+            && l06.predicted_hits * 10 > l06.shots_on * 6,
             "%d/%d hits (%.0f %%) aiming dead-on at the lerp view, rtt %.0f ms; the "
             "server rewound to within %.2f u of what I saw while live had moved %.2f u "
-            "away [stamp render=%d reckon=%d, %.0f ms of bot travel]",
+            "away; I previewed %d/%d of my own shots as hits "
+            "[stamp render=%d reckon=%d, %.0f ms of bot travel]",
             l06.hits_on, l06.shots_on, rate * 100, rtt, rewind_err, lead,
+            l06.predicted_hits, l06.shots_on,
             l06.room->input_stamp_render, l06.room->input_stamp_reckon,
             rewind_err / 22.0 * 1000.0);
     } else if (strcmp(name, "lab07-bumps") == 0) {

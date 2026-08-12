@@ -5,12 +5,16 @@ import type { LabDescriptor, LabContext, LabInstance } from "../../framework/lab
 import { waitFor } from "../../framework/lab.ts";
 import { Keyboard } from "../../framework/input.ts";
 import { drawSquare, drawCircle, drawLine, drawMarker, drawLabel, hueColor } from "../../framework/draw.ts";
-import { PLAYER_HALF, BOT_RADIUS } from "../../../shared/constants.ts";
+import { rayCircle } from "../../../shared/hitscan.ts";
+import { PLAYER_HALF, BOT_RADIUS, SHOT_RANGE } from "../../../shared/constants.ts";
+
+const GOOD = "#7be08a", BAD = "#ff6688";
 
 interface ShotViz {
   ox: number; oy: number;
   tx: number; ty: number;         // ray endpoint (aim dir × range, for drawing)
   blueX: number; blueY: number;   // what the shooter saw at click time
+  predictedHit: boolean;          // this screen's own verdict, at click time
   greenX?: number; greenY?: number; // server's rewound read
   redX?: number; redY?: number;     // server's live position
   hit?: boolean;
@@ -37,6 +41,7 @@ export const lab: LabDescriptor = {
     let pendingFire = false;
     const shots: ShotViz[] = [];
     let hitsOn = 0, shotsOn = 0, hitsOff = 0, shotsOff = 0;
+    let predictedHits = 0;
 
     const onMouseMove = (e: MouseEvent) => {
       const r = ctx.canvas.getBoundingClientRect();
@@ -68,7 +73,7 @@ export const lab: LabDescriptor = {
       onChange: (v) => room.send("lagcomp", { on: v }),
       note: "OFF at high latency = you must lead the target by the red↔blue gap.",
     });
-    ctx.controls.note("Aim with the mouse, click to fire. WASD moves you (predicted, Lab 03 style). Markers: blue = what you saw · green = server's rewound read · red = server live.");
+    ctx.controls.note("Aim with the mouse, click to fire. WASD moves you (predicted, Lab 03 style). The ray shows your own hit verdict faintly at the click, then the server's at full strength. Markers: blue = what you saw · green = server's rewound read · red = server live.");
 
     const tallyOn = ctx.hud.row("hits (lag comp ON)");
     const tallyOff = ctx.hud.row("hits (lag comp OFF)");
@@ -96,10 +101,16 @@ export const lab: LabDescriptor = {
             let dx = aimX - px, dy = aimY - py;
             const len = Math.hypot(dx, dy) || 1;
             dx /= len; dy /= len;
+            // The server's own hit test, run against the pose THIS screen was
+            // showing. Available immediately, and it agrees with the server
+            // whenever the rewind lands where it should.
+            const predictedHit = rayCircle(px, py, dx, dy, bx, by, BOT_RADIUS, SHOT_RANGE) >= 0;
+            if (predictedHit) predictedHits++;
             shots.push({
               ox: px, oy: py,
               tx: px + dx * 120, ty: py + dy * 120,
               blueX: bx, blueY: by,
+              predictedHit,
               t: now,
             });
             if (shots.length > 6) shots.shift();
@@ -134,11 +145,17 @@ export const lab: LabDescriptor = {
           const age = now - s.t;
           if (age > 2600) { shots.splice(i, 1); continue; }
           const a = Math.max(0, 1 - age / 2600);
-          drawLine(g, v, s.ox, s.oy, s.tx, s.ty, s.hit === undefined ? "rgba(255,255,255,0.5)" : s.hit ? "#7be08a" : "#ff6688", 1.2, undefined, a * 0.7);
+          // Until the report lands the ray wears this screen's own verdict,
+          // faint; the server's answer replaces it at full strength. A ray
+          // that flips colour is the rewind disagreeing with what you saw.
+          const answered = s.hit !== undefined;
+          drawLine(g, v, s.ox, s.oy, s.tx, s.ty,
+            (answered ? s.hit : s.predictedHit) ? GOOD : BAD,
+            1.2, undefined, a * (answered ? 0.7 : 0.3));
           drawMarker(g, v, s.blueX, s.blueY, BOT_RADIUS * 0.7, "#6db3ff", a);
           if (s.greenX !== undefined) {
-            drawMarker(g, v, s.greenX!, s.greenY!, BOT_RADIUS * 0.85, "#7be08a", a);
-            drawMarker(g, v, s.redX!, s.redY!, BOT_RADIUS, "#ff6688", a);
+            drawMarker(g, v, s.greenX!, s.greenY!, BOT_RADIUS * 0.85, GOOD, a);
+            drawMarker(g, v, s.redX!, s.redY!, BOT_RADIUS, BAD, a);
           }
         }
 
@@ -165,10 +182,11 @@ export const lab: LabDescriptor = {
       debug() {
         const latest = [...shots].reverse().find((s) => s.redX !== undefined);
         return {
-          shotsOn, hitsOn, shotsOff, hitsOff,
+          shotsOn, hitsOn, shotsOff, hitsOff, predictedHits,
           lagComp: room.state.lagComp,
           latestShot: latest ? {
-            blueX: latest.blueX, greenX: latest.greenX, redX: latest.redX, hit: latest.hit,
+            blueX: latest.blueX, greenX: latest.greenX, redX: latest.redX,
+            hit: latest.hit, predictedHit: latest.predictedHit,
           } : null,
           botLerpX: predict.value(bot, "x"),
           botLerpY: predict.value(bot, "y"),

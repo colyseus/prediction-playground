@@ -21,6 +21,9 @@ namespace Playground
         public const double PlayerMaxSpeed = 34.0;
         public const double PlayerFrictionK = 0.72;
         public const double BotRadius = 1.8;
+        /// <summary>Hitscan reach — the client previews its own shot verdict
+        /// with the same RayCircle the server resolves with.</summary>
+        public const double ShotRange = 200.0;
         public const double RemoteInterpMs = 100.0;
         public const double TeleportSnapDist = 8.0;
         /// <summary>Server rewind cap — also what bounds render-time spoofing.</summary>

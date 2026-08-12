@@ -337,6 +337,12 @@ class Acceptance {
 				lab.rewindError() >= 0 && lab.rewindError() < 3.0,
 				'rewind error ${Math.round(lab.rewindError() * 100) / 100} u, '
 					+ 'view lag ${Math.round(lab.viewLag() * 10) / 10} u');
+			// The ray's click-time colour. Aiming dead-on, the client must call
+			// its own shots hits — a transposed rayCircle argument compiles
+			// clean and would paint every ray red instead.
+			check("lab06 the client previews its own shots as hits",
+				lab.predictedHits * 10 > lab.shotsOn * 6,
+				'${lab.predictedHits}/${lab.shotsOn} previewed');
 
 			leave(lab, room);
 		}

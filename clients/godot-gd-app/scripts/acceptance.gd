@@ -351,6 +351,13 @@ func _t_lab06() -> void:
 		# assertion that catches an unbound renderDelay.
 		check(lab.rewind_error_u() < 3.0,
 			"server rewound to %.2f u away from our view — check renderDelay" % lab.rewind_error_u())
+
+		# The ray's click-time colour. The autopilot aims dead-on, so the client
+		# must call its own shots hits — a transposed ray_circle argument parses
+		# clean and would paint every ray red instead.
+		check(lab.predicted_hits * 10 > lab.shots_on * 6,
+			"the client previewed only %d/%d of its own shots as hits while aiming dead-on" % [
+				lab.predicted_hits, lab.shots_on])
 		print("OK lab06 comp ON: %d/%d hits, rewind error %.2f u, view lag %.1f u" % [
 			lab.hits_on, lab.shots_on, lab.rewind_error_u(), lab.view_lag()])
 	await teardown(lab)

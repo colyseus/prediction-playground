@@ -37,6 +37,8 @@ function Lab.new()
     pending_fire = false,
     shots = {},
     hits_on = 0, shots_on = 0, hits_off = 0, shots_off = 0,
+    -- Shots this screen called a hit at the click, before any report.
+    predicted_hits = 0,
   }, Lab)
 end
 
@@ -112,10 +114,17 @@ function Lab:record_shot(now)
   local len = math.sqrt(dx * dx + dy * dy)
   if len < 1e-9 then len = 1 end
   dx, dy = dx / len, dy / len
+  local bx = self.predict:value(self.bot, "x")
+  local by = self.predict:value(self.bot, "y")
+  -- The server's own hit test, run against the pose THIS screen was showing.
+  -- Available immediately, and it agrees with the server whenever the rewind
+  -- lands where it should.
+  local predicted = sim.ray_circle(px, py, dx, dy, bx, by, sim.BOT_RADIUS, sim.SHOT_RANGE) >= 0
+  if predicted then self.predicted_hits = self.predicted_hits + 1 end
   table.insert(self.shots, {
     ox = px, oy = py, tx = px + dx * 120, ty = py + dy * 120,
-    blue_x = self.predict:value(self.bot, "x"),
-    blue_y = self.predict:value(self.bot, "y"),
+    blue_x = bx, blue_y = by,
+    predicted_hit = predicted,
     answered = false, hit = false, t = now,
   })
   if #self.shots > 6 then table.remove(self.shots, 1) end
@@ -200,8 +209,14 @@ function Lab:render(gfx)
       table.remove(self.shots, i)
     else
       local a = 1 - age / SHOT_FADE_MS
-      local ray = not s.answered and gfx.a(gfx.PALETTE.text, a * 0.5)
-        or gfx.a(s.hit and gfx.PALETTE.good or gfx.PALETTE.bad, a * 0.7)
+      -- Until the report lands the ray wears this screen's own verdict, faint;
+      -- the server's answer replaces it at full strength. A ray that flips
+      -- colour is the rewind disagreeing with what you saw. (Spelled out, not
+      -- `and/or`: the verdict is a boolean and false would fall through.)
+      local verdict, weight
+      if s.answered then verdict, weight = s.hit, 0.7
+      else verdict, weight = s.predicted_hit, 0.3 end
+      local ray = gfx.a(verdict and gfx.PALETTE.good or gfx.PALETTE.bad, a * weight)
       gfx.line(s.ox, s.oy, s.tx, s.ty, ray, 1.2)
       gfx.circle_outline(s.blue_x, s.blue_y, sim.BOT_RADIUS * 0.7, gfx.a(gfx.PALETTE.blue, a))
       if s.answered then
@@ -230,8 +245,9 @@ function Lab:render(gfx)
   gfx.hud_key("C", self.room.state.lagComp and "lag comp: ON (room-wide)"
     or "lag comp: OFF (room-wide)")
   gfx.hud_note("blue = what you saw — green = the server's rewound read — red = " ..
-    "the server live. Turn lag comp off at 200 ms and you have to lead the " ..
-    "target by exactly the red-to-blue gap.")
+    "the server live. The ray shows your own verdict faintly at the click, then " ..
+    "the server's at full strength. Turn lag comp off at 200 ms and you have to " ..
+    "lead the target by exactly the red-to-blue gap.")
 end
 
 function Lab:unmount() self.predict:dispose() end

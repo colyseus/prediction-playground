@@ -30,7 +30,7 @@ async function volley() {
   await new Promise((r) => setTimeout(r, 800)); // let the last report land
   return page.evaluate(() => {
     const t = window.__lab.telemetry;
-    return { on: [t.hitsOn, t.shotsOn], off: [t.hitsOff, t.shotsOff] };
+    return { on: [t.hitsOn, t.shotsOn], off: [t.hitsOff, t.shotsOff], predicted: t.predictedHits };
   });
 }
 
@@ -46,6 +46,11 @@ check("shots registered (lag comp ON)", t1.on[1] >= SHOTS - 1, `shots=${t1.on[1]
 check("aiming at what you SEE hits with lag comp ON",
   t1.on[0] / Math.max(1, t1.on[1]) >= 0.75,
   `${t1.on[0]}/${t1.on[1]} at ${LATENCY}ms`);
+// The ray is drawn from the client's own verdict at the click, then redrawn
+// from the server's. Aiming dead-on, the client must call every shot a hit —
+// so with lag comp ON the two agree, and the ray keeps its colour.
+check("the client calls every dead-on shot a hit (lag comp ON)",
+  t1.predicted >= SHOTS - 1, `predicted ${t1.predicted}/${SHOTS}`);
 
 // Volley 2: lag comp OFF.
 await page.evaluate(() => window.__lab.room.send("lagcomp", { on: false }));
@@ -56,6 +61,12 @@ check("shots registered (lag comp OFF)", offShots >= SHOTS - 1, `shots=${offShot
 check("the same aim mostly MISSES with lag comp OFF",
   offHits / Math.max(1, offShots) <= 0.4,
   `${offHits}/${offShots} at ${LATENCY}ms`);
+// Same dead-on aim, so the client still calls them all hits while the server
+// mostly misses: the ray flashes green at the click and resolves red.
+const predictedOff = t2.predicted - t1.predicted;
+check("client says hit, server says miss with lag comp OFF",
+  predictedOff >= SHOTS - 1 && offHits < predictedOff,
+  `predicted ${predictedOff}/${SHOTS}, server ${offHits}/${offShots}`);
 
 // The marker geometry: server's rewound read (green) ≈ what the shooter saw (blue).
 await page.evaluate(() => window.__lab.room.send("lagcomp", { on: true }));

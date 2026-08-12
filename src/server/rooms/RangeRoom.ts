@@ -5,9 +5,7 @@ import { stepEntity } from "../../shared/movement.ts";
 import { stepBot } from "../../shared/movers.ts";
 import { rayCircle } from "../../shared/hitscan.ts";
 import { spreadAngles, PELLETS } from "../../shared/spread.ts";
-import { TICK_HZ, ARENA_W, ARENA_H, BOT_RADIUS, MAX_REWIND_MS } from "../../shared/constants.ts";
-
-const SHOT_RANGE = 200;
+import { TICK_HZ, ARENA_W, ARENA_H, BOT_RADIUS, MAX_REWIND_MS, SHOT_RANGE } from "../../shared/constants.ts";
 
 /**
  * The shooting range — server-side lag compensation (Lab 06, also Lab 11).
