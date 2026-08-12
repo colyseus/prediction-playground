@@ -15,8 +15,12 @@ import 'labs/lab02_clocks.dart';
 import 'labs/lab03_reconcile.dart';
 import 'labs/lab04_interp_modes.dart';
 import 'labs/lab05_dead_reckoning.dart';
+import 'labs/lab06_lag_comp.dart';
+import 'labs/lab07_wysiwyg.dart';
 import 'labs/lab08_optimistic_events.dart';
 import 'labs/lab09_predicted_spawns.dart';
+import 'labs/lab10_composite_sim.dart';
+import 'labs/lab11_deterministic_rng.dart';
 import 'net/net_delay.dart';
 import 'palette.dart';
 import 'world_view.dart';
@@ -55,8 +59,12 @@ class _PlaygroundShellState extends State<PlaygroundShell>
     Lab03Reconcile(),
     Lab04InterpModes(),
     Lab05DeadReckoning(),
+    Lab06LagComp(),
+    Lab07Wysiwyg(),
     Lab08OptimisticEvents(),
     Lab09PredictedSpawns(),
+    Lab10CompositeSim(),
+    Lab11DeterministicRng(),
   ];
 
   Lab? _active;
@@ -118,6 +126,11 @@ class _PlaygroundShellState extends State<PlaygroundShell>
     for (var i = 0; i < _labs.length && i < _digitKeys.length; i++) {
       if (Kb.pressed(_digitKeys[i])) _switchTo(_labs[i]);
     }
+
+    // There are more labs than digit keys, so brackets step through the whole
+    // list the way the other ports do.
+    if (Kb.pressed(LogicalKeyboardKey.bracketLeft)) _step(-1);
+    if (Kb.pressed(LogicalKeyboardKey.bracketRight)) _step(1);
     if (Kb.pressed(LogicalKeyboardKey.keyL)) {
       NetDelay.cycle();
       _bumpControls();
@@ -137,6 +150,15 @@ class _PlaygroundShellState extends State<PlaygroundShell>
     LogicalKeyboardKey.digit8,
     LogicalKeyboardKey.digit9,
   ];
+
+  /// Moves [delta] labs along the list, wrapping.
+  void _step(int delta) {
+    final current = _active;
+    if (current == null) return;
+    final i = _labs.indexOf(current);
+    if (i < 0) return;
+    _switchTo(_labs[(i + delta + _labs.length) % _labs.length]);
+  }
 
   Future<void> _switchTo(Lab lab) async {
     if (_switching || identical(lab, _active)) return;
@@ -300,7 +322,7 @@ class _PlaygroundShellState extends State<PlaygroundShell>
       ButtonsSpec([
         (label: 'Drop connection', onPressed: NetDelay.dropAll),
       ]),
-      const NoteSpec('Keys: 1-7 labs · L cycle latency · K drop connection'),
+      const NoteSpec('Keys: 1-9 labs · [ ] step · L latency · K drop'),
     ];
   }
 }

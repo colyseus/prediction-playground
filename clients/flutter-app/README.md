@@ -56,8 +56,9 @@ Re-check when upgrading Flutter — the flag is expected to become the default.
 | Key | |
 |---|---|
 | `WASD` / arrows | move |
-| `1`–`7` | switch lab |
+| `1`–`9` | switch lab |
 | mouse / click / `space` | aim and fire (lab 09) |
+| `[` / `]` | step through all twelve labs |
 | `L` | cycle injected latency |
 | `K` | drop the connection |
 
@@ -74,13 +75,18 @@ would on a real connection.
 
 | | | |
 |---|---|---|
+| 00 | Lag vs Prediction | Two lanes, one entity: the top waits for the server, the bottom predicts. |
 | 01 | Feel the Lag | Draws the server position directly, so every keypress waits a full round trip. |
 | 02 | Clocks | Local time, estimated server time, and the slew-limited render timeline. |
 | 03 | Reconcile | Predict locally; rewind and replay when the server disagrees. |
 | 04 | Interp Modes | One bot drawn four ways at once, scored for smoothness. |
 | 05 | Dead Reckoning | Forward-simulate the last snapshot instead of interpolating it. |
+| 06 | Lag Compensation | Shoot at where you see a bot; the server rewinds to the instant you saw. |
+| 07 | WYSIWYG | Evaluate a collision at the instant the input was stamped, and freeze the verdict. |
 | 08 | Optimistic Events | Show a goal the moment you predict it; confirm or retract when the server rules. |
 | 09 | Predicted Spawns | Fire immediately, then hand off to the server's projectile with no visible seam. |
+| 10 | Composite Sim | A paddle and a puck rolled back together, because one hits the other. |
+| 11 | Deterministic RNG | Both sides derive the same shotgun spread from a shared seed. |
 
 In lab 03: your square is the prediction, the dashed ghost is the last position
 the server confirmed, and the red arrow is the correction being applied. Press
@@ -136,15 +142,16 @@ Runs the real app code — real SDK, real dylib, real server — and checks:
 5. injected latency shows up in the round trip and deepens the pending window,
 6. a dropped connection reconnects and prediction keeps working.
 
+`test/lab_smoke_test.dart` and `test/lab00_smoke_test.dart` then mount every
+lab, drive a few hundred real frames and render each one, which is what catches
+a lab that fails to join, throws in its step, or blows up while painting.
+
 Check 1 is the load-bearing one: if the Dart simulation has drifted from the
 TypeScript, every drift reading elsewhere is measuring that instead of the
 network.
 
 ## Known gaps
 
-- Labs 00, 06, 07, 10 and 11 aren't ported yet. The SDK surface they need
-  (composite sim, lag compensation, deterministic RNG) is implemented and
-  covered by the SDK's own integration tests.
 - macOS only so far. Nothing in the app is platform-specific; the SDK builds
   for iOS, Android, Linux and Windows, though Windows still dead-strips the
   predict layer out of the DLL (noted in `platforms/flutter/build.zig`).
