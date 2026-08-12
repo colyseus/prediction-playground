@@ -41,7 +41,6 @@ function Lab06() constructor {
         lagcomp_on = true;
         rays = [];          // {ox,oy,tx,ty, bx,by, predicted, answered, hit, gx,gy, rx,ry, t}
         hits = 0; shots = 0;
-        predicted_hits = 0; // shots THIS screen called a hit, before any report
         fire_pending = false;
         aim_x = SIM_ARENA_W / 2; aim_y = SIM_ARENA_H / 2;
         colyseus_send(_shell.net_room, "lagcomp", { on: true });
@@ -114,7 +113,6 @@ function Lab06() constructor {
                     // with the server whenever the rewind lands where it should
                     var _pred = sim_ray_circle(_px, _py, _dx, _dy, _bx, _by,
                         SIM_BOT_RADIUS, SIM_SHOT_RANGE) >= 0;
-                    if (_pred) predicted_hits += 1;
                     array_push(rays, {
                         ox: _px, oy: _py, tx: _px + _dx * 120, ty: _py + _dy * 120,
                         bx: _bx, by: _by,
