@@ -9,6 +9,7 @@ import 'draw_kit.dart';
 import 'hud.dart';
 import 'kb.dart';
 import 'lab.dart';
+import 'labs/lab00_split.dart';
 import 'labs/lab01_feel_the_lag.dart';
 import 'labs/lab02_clocks.dart';
 import 'labs/lab03_reconcile.dart';
@@ -48,6 +49,7 @@ class _PlaygroundShellState extends State<PlaygroundShell>
   final _view = WorldView();
 
   final List<Lab> _labs = [
+    Lab00Split(),
     Lab01FeelTheLag(),
     Lab02Clocks(),
     Lab03Reconcile(),
