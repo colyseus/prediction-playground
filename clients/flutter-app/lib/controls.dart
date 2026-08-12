@@ -12,6 +12,14 @@ import 'palette.dart';
 /// keyboard-only stand-in.
 sealed class ControlSpec {
   const ControlSpec();
+
+  /// A copy whose callback also runs [after].
+  ///
+  /// A lab's control mutates lab state, and the panel is a widget that only
+  /// rebuilds when told to — so without this the knob keeps showing the value
+  /// it had when the panel was last built. The shell chains a rebuild onto
+  /// every spec here rather than asking each lab to remember.
+  ControlSpec withRefresh(VoidCallback after);
 }
 
 /// A continuous knob — smoothing, latency, delay.
@@ -44,6 +52,20 @@ final class SliderSpec extends ControlSpec {
 
   /// Value readout; defaults to one decimal.
   final String Function(double value)? format;
+
+  @override
+  SliderSpec withRefresh(VoidCallback after) => SliderSpec(
+        label,
+        min,
+        max,
+        value,
+        (v) {
+          onChanged(v);
+          after();
+        },
+        divisions: divisions,
+        format: format,
+      );
 }
 
 /// An on/off knob.
@@ -58,6 +80,12 @@ final class ToggleSpec extends ControlSpec {
 
   /// Called on flip.
   final ValueChanged<bool> onChanged;
+
+  @override
+  ToggleSpec withRefresh(VoidCallback after) => ToggleSpec(label, value, (v) {
+        onChanged(v);
+        after();
+      });
 }
 
 /// A one-of-N picker, rendered as a segmented button (the web build's
@@ -76,6 +104,13 @@ final class RadioSpec<T> extends ControlSpec {
 
   /// Called on pick.
   final ValueChanged<T> onChanged;
+
+  @override
+  RadioSpec<T> withRefresh(VoidCallback after) =>
+      RadioSpec<T>(label, options, value, (v) {
+        onChanged(v);
+        after();
+      });
 
   /// Builds the picker itself.
   ///
@@ -107,6 +142,18 @@ final class ButtonsSpec extends ControlSpec {
 
   /// The actions, in display order.
   final List<({String label, VoidCallback onPressed})> buttons;
+
+  @override
+  ButtonsSpec withRefresh(VoidCallback after) => ButtonsSpec([
+        for (final b in buttons)
+          (
+            label: b.label,
+            onPressed: () {
+              b.onPressed();
+              after();
+            }
+          ),
+      ]);
 }
 
 /// A line of explanatory text between knobs.
@@ -115,6 +162,9 @@ final class NoteSpec extends ControlSpec {
 
   /// The caption.
   final String text;
+
+  @override
+  NoteSpec withRefresh(VoidCallback after) => this;
 }
 
 /// The panel that renders a lab's [ControlSpec] list.

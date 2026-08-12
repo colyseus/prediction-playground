@@ -108,4 +108,78 @@ void main() {
     ]);
     expect(tester.takeException(), isNull);
   });
+
+  // A lab's control mutates lab state, and the panel only rebuilds when told
+  // to. Without the chained refresh the knob keeps showing its old value
+  // until the lab is remounted, which looked like the selection being
+  // ignored.
+  group('withRefresh', () {
+    testWidgets('a radio reflects the new selection immediately',
+        (tester) async {
+      var pattern = 'patrol';
+      var rebuilds = 0;
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                child: ControlsPanel(
+                  specs: [
+                    RadioSpec<String>(
+                      'pattern',
+                      const [
+                        (label: 'patrol', value: 'patrol'),
+                        (label: 'wander', value: 'wander'),
+                      ],
+                      pattern,
+                      (v) => pattern = v,
+                    ).withRefresh(() {
+                      rebuilds++;
+                      setState(() {});
+                    }),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('wander'));
+      await tester.pumpAndSettle();
+
+      expect(pattern, 'wander');
+      expect(rebuilds, 1, reason: 'the panel was never asked to rebuild');
+
+      // The rendered selection, not just the backing value.
+      final button = tester.widget<SegmentedButton<String>>(
+        find.byType(SegmentedButton<String>),
+      );
+      expect(button.selected, {'wander'});
+    });
+
+    testWidgets('chains for every spec type', (tester) async {
+      var refreshes = 0;
+      void bump() => refreshes++;
+
+      await pumpPanel(tester, [
+        SliderSpec('a', 0, 10, 5, (_) {}).withRefresh(bump),
+        ToggleSpec('b', false, (_) {}).withRefresh(bump),
+        ButtonsSpec([(label: 'Go', onPressed: () {})]).withRefresh(bump),
+        const NoteSpec('c').withRefresh(bump),
+      ]);
+
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Go'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(Slider), const Offset(60, 0));
+      await tester.pumpAndSettle();
+
+      expect(refreshes, greaterThanOrEqualTo(3),
+          reason: 'a spec type did not chain its refresh');
+    });
+  });
 }

@@ -268,8 +268,11 @@ class _PlaygroundShellState extends State<PlaygroundShell>
             const SizedBox(height: 8),
             ControlsPanel(
               key: ValueKey('${lab?.id}-$_controlsRevision'),
+              // Every knob rebuilds the panel after it fires, so a control
+              // that changes lab state shows its new value immediately
+              // instead of when the lab is next mounted.
               specs: [
-                ...?lab?.controls(_ctx),
+                ...?lab?.controls(_ctx).map((s) => s.withRefresh(_bumpControls)),
                 ..._networkControls(),
               ],
               onHeight: (h) => _controlsHeight = h,

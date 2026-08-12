@@ -140,6 +140,16 @@ class Lab06LagComp extends Lab {
       shot.rewoundY = _read(data['seenY']);
       shot.liveX = _read(data['liveX']);
       shot.liveY = _read(data['liveY']);
+
+      // Project the rewind error onto the direction the bot is travelling.
+      final travelX = shot.liveX - shot.seenX;
+      final travelY = shot.liveY - shot.seenY;
+      final travel = math.sqrt(travelX * travelX + travelY * travelY);
+      if (travel > 1e-9) {
+        shot.aheadOfDrawn = ((shot.rewoundX - shot.seenX) * travelX +
+                (shot.rewoundY - shot.seenY) * travelY) /
+            travel;
+      }
       return;
     }
   }
@@ -235,7 +245,38 @@ class Lab06LagComp extends Lab {
         'server rewound it to, red is where it was live. The blue to red gap '
         'is your view lag in world units: that is how far you would have to '
         'lead the target with compensation off.');
+    hud.note('Aim at the middle. Green sits about one server tick along the '
+        'path from blue, because the rewind buffer holds one pose per tick '
+        'and cannot resolve finer. Centre shots are unaffected; shots at the '
+        'trailing edge can read as a hit here and a miss on the server.');
   }
+
+  /// Answered shots, for diagnostics.
+  ///
+  /// The lab's claim is that the pose the server rewinds to matches the pose
+  /// this screen drew, so both are exposed alongside the two verdicts.
+  List<
+      ({
+        double drewX,
+        double drewY,
+        double rewoundX,
+        double rewoundY,
+        bool predictedHit,
+        bool serverHit,
+        double aheadOfDrawn,
+      })> get answeredShots => [
+        for (final shot in _shots)
+          if (shot.answered)
+            (
+              drewX: shot.seenX,
+              drewY: shot.seenY,
+              rewoundX: shot.rewoundX,
+              rewoundY: shot.rewoundY,
+              predictedHit: shot.predictedHit,
+              serverHit: shot.hit,
+              aheadOfDrawn: shot.aheadOfDrawn,
+            ),
+      ];
 
   /// Distance between the live pose and the seen pose on the newest answered
   /// shot, in world units. NaN until the server has answered one.
@@ -327,4 +368,9 @@ class _Shot {
   /// Where the bot actually was when the input arrived.
   double liveX = 0;
   double liveY = 0;
+
+  /// How far the server's rewound pose sits along the bot's travel relative
+  /// to the pose this screen drew. Positive means the server placed it
+  /// further ahead than the screen showed.
+  double aheadOfDrawn = 0;
 }
