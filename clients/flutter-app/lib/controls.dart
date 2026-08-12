@@ -76,6 +76,29 @@ final class RadioSpec<T> extends ControlSpec {
 
   /// Called on pick.
   final ValueChanged<T> onChanged;
+
+  /// Builds the picker itself.
+  ///
+  /// This lives on the spec because `T` has to stay bound. A `case
+  /// RadioSpec():` pattern binds the type argument as `dynamic`, and a
+  /// `void Function(int)` is not a `void Function(dynamic)` — reading
+  /// [onChanged] through that view throws before the widget ever appears.
+  Widget buildPicker() {
+    return SegmentedButton<T>(
+      showSelectedIcon: false,
+      style: SegmentedButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        textStyle: const TextStyle(fontSize: 11),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+      ),
+      segments: [
+        for (final o in options)
+          ButtonSegment<T>(value: o.value, label: Text(o.label)),
+      ],
+      selected: {value},
+      onSelectionChanged: (s) => onChanged(s.first),
+    );
+  }
 }
 
 /// A row of momentary actions — impulse, teleport, drop transport.
@@ -204,7 +227,7 @@ class ControlsPanel extends StatelessWidget {
               const SizedBox(height: 4),
               Align(
                 alignment: Alignment.centerLeft,
-                child: _segmented(spec),
+                child: spec.buildPicker(),
               ),
             ],
           ),
@@ -241,23 +264,6 @@ class ControlsPanel extends StatelessWidget {
 
   // `SegmentedButton` needs the element type; a helper keeps the generic bound
   // without leaking it into the switch above.
-  Widget _segmented<T>(RadioSpec<T> spec) {
-    return SegmentedButton<T>(
-      showSelectedIcon: false,
-      style: SegmentedButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-        textStyle: const TextStyle(fontSize: 11),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-      ),
-      segments: [
-        for (final o in spec.options)
-          ButtonSegment<T>(value: o.value, label: Text(o.label)),
-      ],
-      selected: {spec.value},
-      onSelectionChanged: (s) => spec.onChanged(s.first),
-    );
-  }
-
   static Widget _caption(String s, Color color, double size) => Text(
         s,
         style: TextStyle(color: color, fontSize: size, height: 1.3),
