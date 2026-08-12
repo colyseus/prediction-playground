@@ -235,13 +235,13 @@ namespace Playground
             Check(atZero > 0, "meter never armed at 0 injected latency");
             Check(atZero < 250, $"input->motion {atZero:F0} ms at 0 injected — expected ~one patch interval");
 
-            // Now with 200 ms each way; no prediction, so it must track the round trip.
+            // Now with a 200 ms round trip; no prediction, so it must track it.
             await Drive(lab, app, 900);
             NetDelay.SetLatency(200, 0);
             await Drive(lab, app, 1200);
             await Drive(lab, app, 2000, autoX: -1);
             double at200 = lab.Measured;
-            Check(at200 > 300, $"input->motion {at200:F0} ms at 200 ms injected — latency not felt");
+            Check(at200 > atZero + 150, $"input->motion {at200:F0} ms at 200 ms injected (was {atZero:F0}) — latency not felt");
             GD.Print($"OK lab01: {atZero:F0} ms at 0 injected, {at200:F0} ms at 200 ms");
 
             await Teardown(lab);

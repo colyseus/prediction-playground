@@ -239,7 +239,7 @@ void main() {
     // A predicted collision says nothing on a 1 ms link: the whole lab lives
     // in the window between stamping an input and the server processing it,
     // and that window is also what makes rollback replay happen at all.
-    lab.room!.setLatency(delayMs: 120, jitterMs: 10);
+    lab.room!.setLatency(delayMs: 240, jitterMs: 20);
 
     // Park in the patrol lane and let the sweep come to us: chasing a target
     // that moves at 20 u/s with a 34 u/s bang-bang controller just orbits it.
@@ -276,7 +276,7 @@ void main() {
 
     // Enough delay that inputs are actually in flight: with none, the sim
     // would never rewind and the composite path would go untested.
-    lab.room!.setLatency(delayMs: 120, jitterMs: 10);
+    lab.room!.setLatency(delayMs: 240, jitterMs: 20);
 
     var retreat = 0;
     var struck = 0;

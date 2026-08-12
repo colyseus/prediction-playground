@@ -59,7 +59,9 @@ end
 -- perturbed by) whatever else in the process is drawing random numbers.
 local function one_way()
   M._seed = (M._seed * 1103515245 + 12345) % 2147483648
-  return M.delay_ms + (M._seed / 2147483648) * M.jitter_ms
+  -- Half the round trip, plus symmetric jitter — the split the JS SDK's
+  -- __net() uses, so a preset means the same RTT on every client.
+  return (M.delay_ms + ((M._seed / 2147483648) * 2 - 1) * M.jitter_ms) / 2
 end
 
 local function enqueue(q, now, kind, payload)

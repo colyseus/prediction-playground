@@ -158,11 +158,11 @@ void main() {
       await drive(lane, 30, moveX: 1);
       final baseline = await lane.room.ping().timeout(const Duration(seconds: 5));
 
-      NetDelay.select(2); // 200 ms each way
+      NetDelay.select(2); // 200 ms round trip
       await drive(lane, 30, moveX: 1);
       final delayed = await lane.room.ping().timeout(const Duration(seconds: 10));
 
-      expect(delayed, greaterThan(baseline + 250),
+      expect(delayed, greaterThan(baseline + 150),
           reason: 'baseline ${baseline}ms vs delayed ${delayed}ms');
 
       // ...and the deeper round trip leaves more inputs unacknowledged.

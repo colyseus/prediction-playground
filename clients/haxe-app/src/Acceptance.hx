@@ -131,8 +131,8 @@ class Acceptance {
 			drive(lab, app, 1200);
 			drive(lab, app, 2000, -1);
 			var at200 = lab.measured;
-			check("lab01 input->motion tracks the round trip at 200 ms each way",
-				at200 > 300, '${Math.round(at200)} ms (was ${Math.round(atZero)} ms)');
+			check("lab01 input->motion tracks a 200 ms round trip",
+				at200 > atZero + 150, '${Math.round(at200)} ms (was ${Math.round(atZero)} ms)');
 
 			leave(lab, room);
 		}

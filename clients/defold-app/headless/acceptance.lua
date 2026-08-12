@@ -125,8 +125,8 @@ do -- lab 01: with no prediction, input->motion IS the round trip
   drive(lab, context, 1200)
   drive(lab, context, 2000, -1)
   local at_200 = lab.measured
-  check("lab01 input->motion tracks the round trip at 200 ms each way",
-    at_200 > 300, string.format("%.0f ms (was %.0f ms)", at_200, at_zero))
+  check("lab01 input->motion tracks a 200 ms round trip",
+    at_200 > at_zero + 150, string.format("%.0f ms (was %.0f ms)", at_200, at_zero))
 
   leave(lab, room)
 end

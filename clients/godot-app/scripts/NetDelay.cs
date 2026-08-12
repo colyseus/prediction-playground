@@ -160,7 +160,9 @@ namespace Playground
         // Rng is shared across connections but Enqueue only holds the per-socket lock.
         private static double OneWay()
         {
-            lock (Rng) return DelayMs + Rng.NextDouble() * JitterMs;
+            // Half the round trip, plus symmetric jitter — the split the JS
+            // SDK's __net() uses, so a preset means the same RTT everywhere.
+            lock (Rng) return (DelayMs + (Rng.NextDouble() * 2.0 - 1.0) * JitterMs) / 2.0;
         }
 
         private void QueueInbound(ConnectionEvent e)

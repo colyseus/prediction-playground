@@ -146,7 +146,9 @@ class NetDelay {
 	// perturbed by) whatever else in the process is drawing random numbers.
 	static function oneWay(): Float {
 		seed = (seed * 1103515245 + 12345) & 0x3FFFFFFF;
-		return delayMs + (seed / 0x40000000) * jitterMs;
+		// Half the round trip, plus symmetric jitter — the split the JS SDK's
+		// __net() uses, so a preset means the same RTT on every client.
+		return (delayMs + ((seed / 0x40000000) * 2 - 1) * jitterMs) / 2;
 	}
 
 	function enqueue(q: Array<Packet>, now: Float, what: Payload): Void {

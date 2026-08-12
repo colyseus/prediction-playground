@@ -124,13 +124,13 @@ public class AcceptanceTest
         Assert.Greater(atZero, 0, "meter never armed at 0 injected latency");
         Assert.Less(atZero, 250, $"input->motion {atZero:F0} ms at 0 injected — expected ~one patch interval");
 
-        // Now with 200 ms each way; no prediction, so it must track the round trip.
+        // Now with a 200 ms round trip; no prediction, so it must track it.
         yield return Drive(lab, app, 900);
         NetDelay.SetLatency(200, 0);
         yield return Drive(lab, app, 1200);
         yield return Drive(lab, app, 2000, autoX: -1);
         double at200 = lab.Measured;
-        Assert.Greater(at200, 300, $"input->motion {at200:F0} ms at 200 ms injected — latency not felt");
+        Assert.Greater(at200, atZero + 150, $"input->motion {at200:F0} ms at 200 ms injected (was {atZero:F0}) — latency not felt");
         Debug.Log($"OK lab01: {atZero:F0} ms at 0 injected, {at200:F0} ms at 200 ms");
 
         yield return Teardown(lab);

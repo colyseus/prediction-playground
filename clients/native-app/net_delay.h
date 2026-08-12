@@ -101,7 +101,9 @@ static double nd_rand01(void) {
 
 /** One-way delay for the next packet. Round-trip ends up ~2x this. */
 static double nd_one_way(void) {
-    return nd_delay_ms + nd_rand01() * nd_jitter_ms;
+    /* Half the round trip, plus symmetric jitter — the split the JS SDK's
+     * __net() uses, so a preset means the same RTT on every client. */
+    return (nd_delay_ms + (nd_rand01() * 2.0 - 1.0) * nd_jitter_ms) / 2.0;
 }
 
 static void nd_set_latency(double delay_ms, double jitter_ms) {

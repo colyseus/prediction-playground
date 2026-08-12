@@ -245,10 +245,10 @@ class Lab06LagComp extends Lab {
         'server rewound it to, red is where it was live. The blue to red gap '
         'is your view lag in world units: that is how far you would have to '
         'lead the target with compensation off.');
-    hud.note('Known gap: green sits about a unit along the path from blue, '
-        'where the web client reaches 0.01 u. Centre shots land; trailing '
-        'edge shots can read as a hit here and a miss on the server. The '
-        'stamp estimates the displayed instant rather than using it.');
+    hud.note('Green should sit on top of blue. Past about 500 ms of round '
+        'trip it starts drifting ahead: the rewind the server would need is '
+        'deeper than the room allows (maxRewindMs), so it clamps, and trailing '
+        'edge shots read as a hit here and a miss there.');
   }
 
   /// Answered shots, for diagnostics.

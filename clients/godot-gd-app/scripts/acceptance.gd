@@ -142,13 +142,13 @@ func _t_lab01() -> void:
 		check(at_zero > 0, "meter never armed at 0 injected latency")
 		check(at_zero < 250, "input->motion %.0f ms at 0 injected — expected ~one patch interval" % at_zero)
 
-		# Now with 200 ms each way; no prediction, so it must track the round trip.
+		# Now with a 200 ms round trip; no prediction, so it must track it.
 		await drive(lab, app, 900)
 		NetDelay.set_latency(200, 0)
 		await drive(lab, app, 1200)
 		await drive(lab, app, 2000, -1)
 		var at200 := lab.measured
-		check(at200 > 300, "input->motion %.0f ms at 200 ms injected — latency not felt" % at200)
+		check(at200 > at_zero + 150, "input->motion %.0f ms at 200 ms injected (was %.0f) — latency not felt" % [at200, at_zero])
 		print("OK lab01: %.0f ms at 0 injected, %.0f ms at 200 ms" % [at_zero, at200])
 	await teardown(lab)
 

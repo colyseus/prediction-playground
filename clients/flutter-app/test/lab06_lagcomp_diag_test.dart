@@ -1,27 +1,18 @@
-// Diagnostic: does the server's rewind land where the client's screen was?
+// Does the server's rewind land where the client's screen was?
 //
-// It should. The web client, driven by scripts/probe-rewind.mjs against this
-// same server, reports |green-blue| = 0.01u. This client measures 0.6 to 2.4u
-// against a target radius of 1.8, so centre shots land and trailing-edge
-// shots read as a hit here and a miss on the server.
+// It has to, or shots at a target's trailing edge read as a hit here and a
+// miss there — the bot radius is 1.8 u, so a gap approaching that flips the
+// verdict. The aim below is deliberately the tail, not the centre: a centre
+// shot forgives a rewind error that a player would still notice.
 //
-// Ruled out by measurement, not argument:
-//   - the stamp's rtt/2 term: implied offset ~50 ms against a half-RTT of
-//     ~250 ms;
-//   - clock slew between serverNow and renderNow: ~0 ms;
-//   - inbound serialization (Colyseus.serializedInbound): turning it off
-//     makes the spread worse, not better;
-//   - client-side logic: the attach config and the ray test are the same
-//     reads the web lab makes, in the same order.
-//
-// What is left is the stamp itself. The C core derives the displayed instant
-// as serverNow - (render_delay + rtt/2) — an estimate — where the JS SDK
-// stamps the instant its interpolator is actually rendering. The web demo is
-// therefore NOT a control for the C core: it is a different SDK. Godot and
-// GameMaker ride the same core and should show the same error.
-//
-// Skipped rather than left red: the bound below is what the web achieves, and
-// reaching it needs a core change that affects all three bindings.
+// This used to fail by 0.6 to 2.4 u, and the cause was not the stamp. The
+// injector applied its delay to EACH direction while the JS SDK's __net()
+// splits one round trip across both, so the "200 ms" preset ran at an RTT
+// near 500. The rewind depth that needs (renderDelay + RTT + a tick) is past
+// the room's maxRewindMs of 500, and the server clamps — landing about a unit
+// ahead of the drawn pose. With the injector aligned (src/network/net_delay.c
+// in the native SDK), the stamp error measures -0.2 ms and the rewind lands
+// within 0.01 u, matching the web client against the same server.
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -56,15 +47,6 @@ void main() {
       markTestSkipped('playground server is not running on :5173');
       return;
     }
-
-    // The binding holds inbound frames until the pump, which the web client
-    // does not do. Samples are stamped when they are released, so that hold
-    // shifts the interpolation timeline. Toggle it to see whether it is the
-    // source of the bias.
-    Colyseus.serializedInbound =
-        Platform.environment['SERIALIZED'] != '0';
-    // ignore: avoid_print
-    print('serializedInbound=${Platform.environment['SERIALIZED'] != '0'}');
 
     final client = ColyseusClient(defaultEndpoint);
     final lab = Lab06LagComp();
@@ -194,8 +176,5 @@ void main() {
     expect(clientHitServerMiss, 0,
         reason: 'edge shots disagree: $clientHitServerMiss of '
             '${answered.length}');
-  },
-      timeout: const Timeout(Duration(minutes: 3)),
-      skip: 'core: lag-comp stamp estimates the render instant '
-          '(src/input_handle.c) instead of using it');
+  }, timeout: const Timeout(Duration(minutes: 3)));
 }
