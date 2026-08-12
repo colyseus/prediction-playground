@@ -77,15 +77,27 @@ class Lab04InterpModes extends Lab {
 
     _modes.addAll([
       _Mode('raw', Palette.text, null),
-      _Mode('lerp', Palette.blue,
-          FieldOptions(mode: PredictMode.lerp, delay: _lerpDelay)),
-      _Mode('damped', Palette.good,
-          FieldOptions(mode: PredictMode.damped, damping: _damping)),
+      _Mode(
+          'lerp',
+          Palette.blue,
+          FieldOptions(
+              mode: PredictMode.lerp,
+              delay: _lerpDelay,
+              snap: teleportSnapDist)),
+      _Mode(
+          'damped',
+          Palette.good,
+          FieldOptions(
+              mode: PredictMode.damped,
+              damping: _damping,
+              snap: teleportSnapDist)),
       _Mode(
           'extrapolate',
           Palette.warn,
           FieldOptions(
-              mode: PredictMode.extrapolate, maxExtrapolate: _maxExtrapolate)),
+              mode: PredictMode.extrapolate,
+              maxExtrapolate: _maxExtrapolate,
+              snap: teleportSnapDist)),
     ]);
     for (final mode in _modes) {
       mode.attach(joined);
@@ -249,6 +261,10 @@ class Lab04InterpModes extends Lab {
     hud.note('Lower CV is smoother. raw steps at the patch rate, lerp is '
         'smooth but late, damped rounds corners, extrapolate is present-time '
         'and overshoots reversals. Switch to circle to see that clearly.');
+    hud.note('Every mode carries a snap threshold, so switching pattern (which '
+        'puts the bot back at the lane centre) reads as a cut. Without one a '
+        'teleport looks like one enormous step of velocity, and extrapolate '
+        'projects it.');
   }
 
   /// The buffer timeline: samples that arrived against what each mode drew.
@@ -328,16 +344,28 @@ class Lab04InterpModes extends Lab {
       ),
       SliderSpec('lerp delay', 0, 300, _lerpDelay, (v) {
         _lerpDelay = v;
-        _retune('lerp', FieldOptions(mode: PredictMode.lerp, delay: v));
+        _retune(
+            'lerp',
+            FieldOptions(
+                mode: PredictMode.lerp, delay: v, snap: teleportSnapDist));
       }, divisions: 12, format: (v) => '${v.round()} ms'),
       SliderSpec('damped damping', 2, 30, _damping, (v) {
         _damping = v;
-        _retune('damped', FieldOptions(mode: PredictMode.damped, damping: v));
+        _retune(
+            'damped',
+            FieldOptions(
+                mode: PredictMode.damped,
+                damping: v,
+                snap: teleportSnapDist));
       }, divisions: 14, format: (v) => '${v.round()} /s'),
       SliderSpec('extrapolate cap', 50, 500, _maxExtrapolate, (v) {
         _maxExtrapolate = v;
-        _retune('extrapolate',
-            FieldOptions(mode: PredictMode.extrapolate, maxExtrapolate: v));
+        _retune(
+            'extrapolate',
+            FieldOptions(
+                mode: PredictMode.extrapolate,
+                maxExtrapolate: v,
+                snap: teleportSnapDist));
       }, divisions: 9, format: (v) => '${v.round()} ms'),
       for (final mode in _modes)
         ToggleSpec('show ${mode.name}', mode.visible, (v) => mode.visible = v),
