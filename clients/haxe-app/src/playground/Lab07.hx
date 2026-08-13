@@ -82,7 +82,7 @@ class Lab07 implements Lab {
 		bot = room.state.bots.items.get("bot1");
 		if (me == null || bot == null) return false;
 
-		predict = Predict.forRoom(room);
+		predict = Predict.get(room);
 		// Bots are DEAD-RECKONED through the shared step — the timeline the
 		// collision test below reads at ctx.reckonTime.
 		predict.attachAll("bots", {

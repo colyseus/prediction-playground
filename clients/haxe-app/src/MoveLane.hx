@@ -52,7 +52,7 @@ class MoveLane {
 
 		this.input = room.input({ type: lab.MoveInput });
 		this.cmd = input.data;
-		this.predict = Predict.forRoom(room);
+		this.predict = Predict.get(room);
 		// Remote squares: damped toward the latest snapshot. Their inputs are not
 		// ours to predict — lab 04 explores the modes.
 		predict.attachAll("players", { x: "damped", y: "damped" });

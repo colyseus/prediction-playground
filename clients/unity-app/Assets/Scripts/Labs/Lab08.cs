@@ -61,7 +61,7 @@ namespace Playground
             if (Room.State.players == null || !Room.State.players.TryGetValue(_sid, out _me)) return false;
             _denyRate = Room.State.denyRate;
 
-            _predict = Predict.For(Room);
+            _predict = Predict.Get(Room);
             _predict.AttachAll("players", new AttachConfig {
                 ["x"] = PredictMode.Damped, ["y"] = PredictMode.Damped,
             });

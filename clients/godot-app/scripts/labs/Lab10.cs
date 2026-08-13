@@ -114,7 +114,7 @@ namespace Playground
             _puck = Room.State.puck;
             if (_puck == null || !Room.State.players.TryGetValue(Sim.BotId, out _bot)) return false;
 
-            _predict = Predict.For(Room);
+            _predict = Predict.Get(Room);
             // Remote paddles: damped toward the latest snapshot. They enter the
             // sim as colliders, not as predicted parts.
             _predict.AttachAll("players", new AttachConfig {

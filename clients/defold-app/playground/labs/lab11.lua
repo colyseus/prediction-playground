@@ -53,7 +53,7 @@ function Lab:mount(context, room)
   self.bot = room.state.bots["bot1"]
   if self.me == nil or self.bot == nil then return false end
 
-  self.predict = Predict.for_room(room)
+  self.predict = Predict.get(room)
   -- Bots ride the lerp timeline — the one the server rewinds to.
   self.predict:attach_all("bots", {
     x = { mode = "lerp", delay = sim.REMOTE_INTERP_MS },

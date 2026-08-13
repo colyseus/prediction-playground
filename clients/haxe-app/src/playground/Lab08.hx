@@ -69,7 +69,7 @@ class Lab08 implements Lab {
 		if (me == null) return false;
 		denyRate = room.state.denyRate;
 
-		predict = Predict.forRoom(room);
+		predict = Predict.get(room);
 		predict.attachAll("players", { x: "damped", y: "damped" });
 
 		goals = predict.defineEvent({

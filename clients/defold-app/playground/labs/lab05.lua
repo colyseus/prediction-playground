@@ -59,7 +59,7 @@ function Lab:mount(context, room)
   if self.bot == nil then return false end
 
   -- The delayed baseline to compare against.
-  self.lerp = Predict.for_room(room)
+  self.lerp = Predict.get(room)
   local lerp_opts = { mode = "lerp", delay = sim.REMOTE_INTERP_MS }
   self.lerp:attach(self.bot, { x = lerp_opts, y = lerp_opts })
 
@@ -78,7 +78,7 @@ end
 --- makes the circle's closed form and the teleport schedule evaluable at any
 --- instant — the same property the server relies on.
 function Lab:attach_reckon()
-  self.reckon = Predict.for_room(self.room)
+  self.reckon = Predict.get(self.room)
   self.reckon:attach(self.bot, {
     mode = "reckon",
     fields = { "x", "y" },

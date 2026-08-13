@@ -49,7 +49,7 @@ namespace Playground
 
             _cmd = new Lab.MoveInput();
             _input = Room.Input(_cmd);
-            Predict = Predict.For(Room);
+            Predict = Predict.Get(Room);
             // Remote squares: damped toward the latest snapshot. Their inputs are
             // not ours to predict — lab 04 explores the modes.
             Predict.AttachAll("players", new AttachConfig {

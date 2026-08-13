@@ -86,7 +86,7 @@ namespace Playground
         /// <summary>One Predict per mode — same entity, same fields, different smoothing.</summary>
         private Mode Attach(string name, Color color, PredictFieldOptions opts)
         {
-            var predict = Predict.For(Room);
+            var predict = Predict.Get(Room);
             predict.Attach(_bot, new AttachConfig { ["x"] = opts, ["y"] = opts });
             return new Mode { Name = name, Color = color, Predict = predict };
         }

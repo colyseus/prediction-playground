@@ -82,7 +82,7 @@ class Lab11 implements Lab {
 		bot = room.state.bots.items.get("bot1");
 		if (me == null || bot == null) return false;
 
-		predict = Predict.forRoom(room);
+		predict = Predict.get(room);
 		// Bots ride the lerp timeline — the one the server rewinds to.
 		predict.attachAll("bots", {
 			x: { mode: "lerp", delay: Sim.REMOTE_INTERP_MS },

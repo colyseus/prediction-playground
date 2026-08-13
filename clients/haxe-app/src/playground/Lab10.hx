@@ -130,7 +130,7 @@ class Lab10 implements Lab {
 		bot = room.state.players.items.get(Sim.BOT_ID);
 		if (me == null || puck == null || bot == null) return false;
 
-		predict = Predict.forRoom(room);
+		predict = Predict.get(room);
 		// Remote paddles: damped toward the latest snapshot. They enter the sim
 		// as colliders, not as predicted parts.
 		predict.attachAll("players", { x: "damped", y: "damped" });

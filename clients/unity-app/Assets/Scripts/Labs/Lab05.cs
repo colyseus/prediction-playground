@@ -58,7 +58,7 @@ namespace Playground
             if (Room.State.bots == null || !Room.State.bots.TryGetValue("bot1", out _bot)) return false;
 
             // The delayed baseline to compare against.
-            _lerp = Predict.For(Room);
+            _lerp = Predict.Get(Room);
             var lerpOpts = new PredictFieldOptions { Mode = PredictMode.Lerp, Delay = Sim.RemoteInterpMs };
             _lerp.Attach(_bot, new AttachConfig { ["x"] = lerpOpts, ["y"] = lerpOpts });
 
@@ -80,7 +80,7 @@ namespace Playground
         /// </summary>
         private void AttachReckon()
         {
-            _reckon = Predict.For(Room);
+            _reckon = Predict.Get(Room);
             _reckon.Attach(_bot, new ReckonOptions<Lab.Bot>
             {
                 Fields = new[] { "x", "y" },

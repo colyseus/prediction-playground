@@ -70,7 +70,7 @@ namespace Playground
             if (Room.State.players == null || !Room.State.players.TryGetValue(_sid, out _me)) return false;
             if (Room.State.bots == null || !Room.State.bots.TryGetValue("bot1", out _bot)) return false;
 
-            _predict = Predict.For(Room);
+            _predict = Predict.Get(Room);
             // Bots ride the lerp timeline — the one the server rewinds to.
             _predict.AttachAll("bots", new AttachConfig {
                 ["x"] = new PredictFieldOptions { Mode = PredictMode.Lerp, Delay = Sim.RemoteInterpMs },

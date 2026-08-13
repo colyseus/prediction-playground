@@ -50,7 +50,7 @@ function Lab:mount(context, room)
   if self.me == nil then return false end
   self.deny_rate = room.state.denyRate or 0
 
-  self.predict = Predict.for_room(room)
+  self.predict = Predict.get(room)
   self.predict:attach_all("players", { x = "damped", y = "damped" })
 
   self.goals = self.predict:define_event({

@@ -53,7 +53,7 @@ function Lab:mount(context, room)
   self.me = room.state.players[self.sid]
   if self.me == nil then return false end
 
-  self.predict = Predict.for_room(room)
+  self.predict = Predict.get(room)
   self.predict:attach_all("players", { x = "damped", y = "damped" })
 
   self.spawns = self.predict:spawns("projectiles", {

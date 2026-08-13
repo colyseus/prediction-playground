@@ -167,7 +167,7 @@ is what makes lab 06 land 6/6 instead of missing by the view lag. This is the
 same trap the C port hit, and it is worth stating plainly for the two SDKs still
 to come: **if a client draws the past, it has to say so.**
 
-**Two conveniences worth having:** `Predict.For(room)` replaces
+**Two conveniences worth having:** `Predict.Get(room)` replaces
 `new Predict(new PredictCallbacks<T>(Callbacks.Get(room)), room.Clock)` — the
 same two collaborators every time, and no decision the caller is better placed to
 make. `AttachAllReckon` is the reckon twin of `AttachAll`, for a collection whose

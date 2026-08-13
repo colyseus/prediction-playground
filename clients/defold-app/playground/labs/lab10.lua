@@ -66,7 +66,7 @@ function Lab:mount(context, room)
   self.bot = room.state.players[sim.BOT_ID]
   if self.me == nil or self.puck == nil or self.bot == nil then return false end
 
-  self.predict = Predict.for_room(room)
+  self.predict = Predict.get(room)
   -- Remote paddles: damped toward the latest snapshot. They enter the sim as
   -- colliders, not as predicted parts.
   self.predict:attach_all("players", { x = "damped", y = "damped" })

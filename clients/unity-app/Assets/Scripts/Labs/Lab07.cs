@@ -60,7 +60,7 @@ namespace Playground
             if (Room.State.players == null || !Room.State.players.TryGetValue(_sid, out _me)) return false;
             if (Room.State.bots == null || !Room.State.bots.TryGetValue("bot1", out _bot)) return false;
 
-            _predict = Predict.For(Room);
+            _predict = Predict.Get(Room);
             // Bots are DEAD-RECKONED through the shared step — the timeline the
             // collision test below reads at ctx.ReckonTime.
             _predict.AttachAll("bots", new ReckonOptions<Lab.Bot>

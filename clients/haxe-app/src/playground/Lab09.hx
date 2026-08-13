@@ -76,7 +76,7 @@ class Lab09 implements Lab {
 		me = room.state.players.items.get(sid);
 		if (me == null) return false;
 
-		predict = Predict.forRoom(room);
+		predict = Predict.get(room);
 		predict.attachAll("players", { x: "damped", y: "damped" });
 
 		var mySid = sid;

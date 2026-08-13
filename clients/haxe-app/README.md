@@ -135,7 +135,7 @@ binds it explicitly.
 
 **`Callbacks.get(room)` queues onto Heaps' MainLoop**, which never drains on a
 headless sys target — the harness would silently see no callbacks at all.
-`Predict.forRoom(room)` uses the immediate `SchemaCallbacks(decoder)` flavour
+`Predict.get(room)` uses the immediate `SchemaCallbacks(decoder)` flavour
 instead, which is correct in both builds because prediction is driven from the
 caller's own loop. That trap belongs in the SDK rather than in every app that
 hits it, which is why the helper moved out of `App`.

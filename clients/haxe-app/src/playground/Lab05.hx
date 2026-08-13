@@ -71,7 +71,7 @@ class Lab05 implements Lab {
 		if (bot == null) return false;
 
 		// The delayed baseline to compare against.
-		lerp = Predict.forRoom(room);
+		lerp = Predict.get(room);
 		var lerpOpts = { mode: "lerp", delay: Sim.REMOTE_INTERP_MS };
 		lerp.attach(bot, { x: lerpOpts, y: lerpOpts });
 
@@ -92,7 +92,7 @@ class Lab05 implements Lab {
 	 * instant — the same property the server relies on.
 	 */
 	function attachReckon(): Void {
-		reckon = Predict.forRoom(room);
+		reckon = Predict.get(room);
 		reckon.attach(bot, {
 			mode: "reckon",
 			fields: ["x", "y"],
