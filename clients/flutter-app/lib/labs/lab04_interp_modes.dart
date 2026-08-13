@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../controls.dart';
 import '../hud.dart';
@@ -12,6 +12,7 @@ import '../palette.dart';
 import '../series.dart';
 import '../sim/sim.dart';
 import '../smoothness.dart';
+import '../gen/schema.dart';
 
 /// The same bot drawn four ways at once.
 ///
@@ -28,7 +29,7 @@ import '../smoothness.dart';
 /// samples that arrived, the coloured traces are what each mode rendered. The
 /// HUD scores them by the coefficient of variation of rendered speed, where
 /// lower is smoother.
-class Lab04InterpModes extends Lab {
+class Lab04InterpModes extends Lab<BotsState> {
   @override
   String get id => '04';
 
@@ -67,7 +68,8 @@ class Lab04InterpModes extends Lab {
 
   @override
   Future<bool> mount(LabContext ctx) async {
-    final joined = await ctx.client.joinOrCreate('lab-bots');
+    final joined =
+        await ctx.client.joinOrCreate('lab-bots', stateType: BotsState.new);
     room = joined;
     NetDelay.register(joined);
 
@@ -108,11 +110,10 @@ class Lab04InterpModes extends Lab {
   }
 
   /// The bot, re-read every frame — the decoder can replace instances.
-  SchemaInstance? get bot =>
-      room?.state?.getMap('bots')?['bot1'] as SchemaInstance?;
+  Bot? get bot => room?.state?.bots['bot1'];
 
   /// Waits for the bot to decode; the join resolves before the first patch.
-  Future<SchemaInstance?> _bot() async {
+  Future<Bot?> _bot() async {
     final deadline = DateTime.now().add(const Duration(seconds: 5));
     while (DateTime.now().isBefore(deadline)) {
       final found = bot;
@@ -147,8 +148,8 @@ class Lab04InterpModes extends Lab {
     if (target == null) return;
 
     final clock = joined.clock;
-    final rawX = (target['x'] as num).toDouble();
-    final rawY = (target['y'] as num).toDouble();
+    final rawX = target.x;
+    final rawY = target.y;
 
     // A received sample is the decoded value changing, which happens once per
     // patch — the dots on the strip are literally the wire.
@@ -194,18 +195,13 @@ class Lab04InterpModes extends Lab {
     draw.arena();
 
     // Players, raw and dim: this lab is about the bot.
-    final players = joined.state?.getMap('players');
+    final players = joined.state?.players;
     if (players != null) {
       for (final entry in players.entries) {
-        final instance = entry.value;
-        if (instance is! SchemaInstance) continue;
-        draw.square(
-          (instance['x'] as num).toDouble(),
-          (instance['y'] as num).toDouble(),
-          playerHalf,
-          hueColor((instance['hue'] as num?)?.toInt() ?? 0,
-              alpha: entry.key == joined.sessionId ? 0.9 : 0.4),
-        );
+        final player = entry.value;
+        draw.square(player.x, player.y, playerHalf,
+            hueColor(player.hue.toInt(),
+                alpha: entry.key == joined.sessionId ? 0.9 : 0.4));
       }
     }
 
@@ -447,7 +443,7 @@ class _Mode {
     final config = options;
     if (config == null) return;
 
-    final layer = Predict.of(room);
+    final layer = Predict.get(room);
     layer.attachAll('bots', config: {'x': config, 'y': config});
     predict = layer;
   }

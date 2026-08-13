@@ -1,4 +1,4 @@
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../sim/sim.dart';
 

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../controls.dart';
 import '../hud.dart';
@@ -9,6 +9,7 @@ import '../lab.dart';
 import '../palette.dart';
 import '../sim/sim.dart';
 import 'move_lane.dart';
+import '../gen/schema.dart';
 
 /// Predicting something that is not a position.
 ///
@@ -42,7 +43,7 @@ class Lab08OptimisticEvents extends Lab {
   static const _maxRecords = 30;
   static const _bannerMs = 1400.0;
 
-  MoveLane? lane;
+  MoveLane<GoalPlayer>? lane;
   EventChannel? _goals;
   StreamSubscription<dynamic>? _goalSub;
 
@@ -58,6 +59,7 @@ class Lab08OptimisticEvents extends Lab {
     // replay with the position, or a rollback would re-open the gate.
     final joined = await MoveLane.mount(
       ctx.client,
+      playerType: GoalPlayer.new,
       roomName: 'lab-goal',
       fields: const ['x', 'y', 'vx', 'vy', 'scoreTicks'],
     );
@@ -179,7 +181,7 @@ class Lab08OptimisticEvents extends Lab {
         size: 42, align: TextAlign.center);
   }
 
-  void _renderHud(LabContext ctx, MoveLane l) {
+  void _renderHud(LabContext ctx, MoveLane<GoalPlayer> l) {
     final hud = ctx.hud;
 
     var confirmed = 0, rejected = 0, pending = 0;
@@ -198,7 +200,7 @@ class Lab08OptimisticEvents extends Lab {
 
     hud.section('EVENTS');
     hud.row('score (authoritative)',
-        '${(l.me?['score'] as num?)?.toInt() ?? 0}');
+        '${l.me?.score.toInt() ?? 0}');
     hud.row('predicted', '${_records.length}');
     hud.row(
       'confirmed',

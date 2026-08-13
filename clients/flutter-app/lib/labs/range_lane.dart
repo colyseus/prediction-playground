@@ -1,4 +1,4 @@
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 import 'package:flutter/services.dart';
 
 import '../kb.dart';
@@ -7,6 +7,7 @@ import '../net/net_delay.dart';
 import '../net/schema_bridge.dart';
 import '../palette.dart';
 import '../sim/sim.dart';
+import '../gen/schema.dart';
 
 /// One fired input, handed to [RangeLane.onFire] the moment it goes out.
 ///
@@ -37,7 +38,7 @@ typedef RangeShot = ({
 /// needs the gate has to create it itself. The binding below is otherwise the
 /// same shape as `MoveLane._bind`.
 class RangeLane {
-  final ColyseusRoom room;
+  final ColyseusRoom<RangeState> room;
 
   late final Predict predict;
   late final InputHandle input;
@@ -64,7 +65,8 @@ class RangeLane {
   /// Joins `lab-range` and wires prediction. Returns null if the player or the
   /// bot never decoded.
   static Future<RangeLane?> mount(ColyseusClient client) async {
-    final room = await client.joinOrCreate('lab-range');
+    final room =
+        await client.joinOrCreate('lab-range', stateType: RangeState.new);
     final lane = RangeLane._(room);
 
     if (!await lane._bind()) {
@@ -82,7 +84,7 @@ class RangeLane {
     // The bots collection has to have decoded before it can be attached to.
     if (await _waitFor(() => bot) == null) return false;
 
-    predict = Predict.of(room);
+    predict = Predict.get(room);
 
     // The bots are drawn in the past, and the server rewinds to exactly that
     // instant — display timeline and rewind timeline have to be the same one.
@@ -124,16 +126,16 @@ class RangeLane {
     return true;
   }
 
-  /// The authoritative entity for this client, re-read every time: the decoder
-  /// can replace instances on a resync.
-  SchemaInstance? get me =>
-      room.state?.getMap('players')?[room.sessionId] as SchemaInstance?;
+  /// The typed root state, straight off the typed room.
+  RangeState? get state => room.state;
+
+  /// The authoritative entity for this client, re-read every time.
+  RangePlayer? get me => state?.players[room.sessionId];
 
   /// The target. The room only ever creates `bot1`.
-  SchemaInstance? get bot =>
-      room.state?.getMap('bots')?['bot1'] as SchemaInstance?;
+  Bot? get bot => state?.bots['bot1'];
 
-  Future<SchemaInstance?> _waitFor(SchemaInstance? Function() read) async {
+  Future<T?> _waitFor<T>(T? Function() read) async {
     // The join resolves on the JOIN opcode, which can land a patch or two
     // before the state carrying the players and bots.
     final deadline = DateTime.now().add(const Duration(seconds: 5));
@@ -277,20 +279,19 @@ class RangeLane {
   double get renderDelay => input.renderDelay;
 
   /// Every other player, smoothed.
-  Iterable<({SchemaInstance instance, double x, double y, int hue})>
+  Iterable<({RangePlayer instance, double x, double y, int hue})>
       get others sync* {
-    final players = room.state?.getMap('players');
+    final players = state?.players;
     if (players == null) return;
 
     for (final entry in players.entries) {
       if (entry.key == room.sessionId) continue;
       final instance = entry.value;
-      if (instance is! SchemaInstance) continue;
       yield (
         instance: instance,
         x: predict.value(instance, 'x'),
         y: predict.value(instance, 'y'),
-        hue: (instance['hue'] as num?)?.toInt() ?? 0,
+        hue: instance.hue.toInt(),
       );
     }
   }

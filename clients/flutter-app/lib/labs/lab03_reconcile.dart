@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../controls.dart';
 import '../hud.dart';
@@ -9,6 +9,7 @@ import '../palette.dart';
 import '../sim/sim.dart';
 import '../spark.dart';
 import 'move_lane.dart';
+import '../gen/schema.dart';
 
 /// Prediction and server reconciliation, side by side.
 ///
@@ -28,7 +29,7 @@ class Lab03Reconcile extends Lab {
   String get blurb =>
       'Predict locally, rewind and replay when the server disagrees.';
 
-  MoveLane? lane;
+  MoveLane<Player>? lane;
   final _driftSpark = Spark();
   double _lastSparkPush = 0;
   bool _showGhost = true;
@@ -36,7 +37,7 @@ class Lab03Reconcile extends Lab {
 
   @override
   Future<bool> mount(LabContext ctx) async {
-    lane = await MoveLane.mount(ctx.client);
+    lane = await MoveLane.mount(ctx.client, playerType: Player.new);
     room = lane?.room;
     return lane != null;
   }
@@ -91,7 +92,7 @@ class Lab03Reconcile extends Lab {
     _renderHud(ctx, l);
   }
 
-  void _renderHud(LabContext ctx, MoveLane l) {
+  void _renderHud(LabContext ctx, MoveLane<Player> l) {
     final hud = ctx.hud;
     final recon = l.reconciler;
 

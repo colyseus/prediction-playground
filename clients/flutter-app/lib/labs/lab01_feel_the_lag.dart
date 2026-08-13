@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../controls.dart';
 import '../hud.dart';
@@ -12,6 +12,7 @@ import '../palette.dart';
 import '../sim/sim.dart';
 import '../spark.dart';
 import '../trail.dart';
+import '../gen/schema.dart';
 
 /// What latency feels like with no prediction at all.
 ///
@@ -19,7 +20,7 @@ import '../trail.dart';
 /// the server and come back before anything moves, so the square lags your
 /// input by a full round trip. Turn the network preset up and it becomes
 /// unplayable — which is the entire reason the rest of the labs exist.
-class Lab01FeelTheLag extends Lab {
+class Lab01FeelTheLag extends Lab<MoveState> {
   @override
   String get id => '01';
 
@@ -41,7 +42,8 @@ class Lab01FeelTheLag extends Lab {
 
   @override
   Future<bool> mount(LabContext ctx) async {
-    final joined = await ctx.client.joinOrCreate('lab-move');
+    final joined =
+        await ctx.client.joinOrCreate('lab-move', stateType: MoveState.new);
     room = joined;
     _input = joined.input();
     NetDelay.register(joined);
@@ -71,7 +73,7 @@ class Lab01FeelTheLag extends Lab {
 
     // Time from "key pressed" to "the drawn square actually moved".
     final me = _me(joined);
-    final x = (me?['x'] as double?) ?? 0;
+    final x = me?.x ?? 0;
     if (mx != 0 || my != 0) {
       if (_pressedAt == 0) _pressedAt = now;
       if (_pressedAt > 0 && (x - _lastX).abs() > 0.01) {
@@ -83,7 +85,7 @@ class Lab01FeelTheLag extends Lab {
     }
     _lastX = x;
 
-    if (me != null) _trail.add(x, me['y'] as double);
+    if (me != null) _trail.add(x, me.y);
 
     if (now - _lastSparkPush > 100) {
       _lastSparkPush = now;
@@ -91,8 +93,8 @@ class Lab01FeelTheLag extends Lab {
     }
   }
 
-  SchemaInstance? _me(ColyseusRoom joined) =>
-      joined.state?.getMap('players')?[joined.sessionId] as SchemaInstance?;
+  Player? _me(ColyseusRoom<MoveState> joined) =>
+      joined.state?.players[joined.sessionId];
 
   @override
   void render(LabContext ctx) {
@@ -100,23 +102,17 @@ class Lab01FeelTheLag extends Lab {
     if (joined == null) return;
 
     final draw = ctx.draw;
-    final players = joined.state?.getMap('players');
+    final players = joined.state?.players;
 
     if (players != null) {
       for (final entry in players.entries) {
-        final instance = entry.value;
-        if (instance is! SchemaInstance) continue;
+        final player = entry.value;
         final own = entry.key == joined.sessionId;
-        final hue = (instance['hue'] as num?)?.toInt() ?? 0;
-        draw.square(
-          instance['x'] as double,
-          instance['y'] as double,
-          playerHalf,
-          hueColor(hue, alpha: own ? 1 : 0.4),
-        );
+        draw.square(player.x, player.y, playerHalf,
+            hueColor(player.hue.toInt(), alpha: own ? 1 : 0.4));
         if (own) {
-          draw.squareOutline(instance['x'] as double, instance['y'] as double,
-              playerHalf, const Color(0xFFFFFFFF), width: 1.5);
+          draw.squareOutline(player.x, player.y, playerHalf,
+              const Color(0xFFFFFFFF), width: 1.5);
         }
       }
     }

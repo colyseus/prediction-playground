@@ -13,7 +13,8 @@
 
 import 'dart:io';
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
+import 'package:colyseus_playground/gen/schema.dart';
 import 'package:colyseus_playground/labs/move_lane.dart';
 import 'package:colyseus_playground/net/net_delay.dart';
 import 'package:colyseus_playground/shell.dart';
@@ -72,7 +73,7 @@ void main() {
       }
 
       final client = ColyseusClient(defaultEndpoint);
-      final lane = await MoveLane.mount(client);
+      final lane = await MoveLane.mount(client, playerType: Player.new);
       expect(lane, isNotNull, reason: 'could not join lab-move');
       expect(lane!.ready, isTrue, reason: 'the reconciler never bound');
       expect(lane.room.sessionId, isNotEmpty);
@@ -90,7 +91,7 @@ void main() {
       }
 
       final client = ColyseusClient(defaultEndpoint);
-      final lane = (await MoveLane.mount(client))!;
+      final lane = (await MoveLane.mount(client, playerType: Player.new))!;
       NetDelay.select(0); // no injected latency for the drift check
 
       final startX = lane.predictedX;
@@ -117,7 +118,7 @@ void main() {
       }
 
       final client = ColyseusClient(defaultEndpoint);
-      final lane = (await MoveLane.mount(client))!;
+      final lane = (await MoveLane.mount(client, playerType: Player.new))!;
       NetDelay.select(2); // 200 ms, so the impulse lands mid-flight
 
       await drive(lane, 30, moveX: 1);
@@ -149,7 +150,7 @@ void main() {
       }
 
       final client = ColyseusClient(defaultEndpoint);
-      final lane = (await MoveLane.mount(client))!;
+      final lane = (await MoveLane.mount(client, playerType: Player.new))!;
 
       // ping() measures directly. The clock's smoothedRtt is an EMA and needs
       // far longer than this window to converge, so it would report a number
@@ -183,7 +184,7 @@ void main() {
       }
 
       final client = ColyseusClient(defaultEndpoint);
-      final lane = (await MoveLane.mount(client))!;
+      final lane = (await MoveLane.mount(client, playerType: Player.new))!;
       NetDelay.select(0);
 
       // The defaults wait for 5 s of uptime before retrying.

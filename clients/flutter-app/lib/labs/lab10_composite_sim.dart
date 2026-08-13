@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../controls.dart';
 import '../hud.dart';
@@ -12,6 +12,7 @@ import '../palette.dart';
 import '../sim/sim.dart';
 import '../spark.dart';
 import '../trail.dart';
+import '../gen/schema.dart' hide MoveInput;
 
 /// Which predicted body resolves a contact, in the server's iteration order.
 enum _PaddleKind {
@@ -61,7 +62,7 @@ class _Contact {
 /// What to look for: the dashed ghost puck is the raw server position. After a
 /// clean strike it trails the predicted puck by about a round trip, then
 /// converges as acks land. That gap is what the composite sim bought you.
-class Lab10CompositeSim extends Lab {
+class Lab10CompositeSim extends Lab<HockeyState> {
   @override
   String get id => '10';
 
@@ -120,11 +121,12 @@ class Lab10CompositeSim extends Lab {
 
   @override
   Future<bool> mount(LabContext ctx) async {
-    final joined = await ctx.client.joinOrCreate('lab-hockey');
+    final joined =
+        await ctx.client.joinOrCreate('lab-hockey', stateType: HockeyState.new);
     room = joined;
     NetDelay.register(joined);
 
-    final predict = Predict.of(joined);
+    final predict = Predict.get(joined);
     _predict = predict;
     // Remote paddles are smoothed for drawing only. Inside the step they are
     // read raw, because the server resolves contacts against its own current
@@ -143,17 +145,17 @@ class Lab10CompositeSim extends Lab {
     return _build();
   }
 
-  /// This client's paddle, re-read every time — the decoder can replace
-  /// instances on a resync, and a cached handle would be a dangling read.
-  SchemaInstance? get me =>
-      room?.state?.getMap('players')?[room!.sessionId] as SchemaInstance?;
+  /// The typed root state, straight off the typed room.
+  HockeyState? get state => room?.state;
+
+  /// This client's paddle.
+  Player? get me => state?.players[room!.sessionId];
 
   /// The puck, likewise re-read.
-  SchemaInstance? get puck => room?.state?.getRef('puck');
+  Puck? get puck => state?.puck;
 
   /// The server-driven paddle.
-  SchemaInstance? get botPaddle =>
-      room?.state?.getMap('players')?[botId] as SchemaInstance?;
+  Player? get botPaddle => state?.players[botId];
 
   /// The composite reconciler, once built.
   Reconciler? get sim => _sim;
@@ -223,10 +225,10 @@ class Lab10CompositeSim extends Lab {
   void _adoptBot() {
     final source = botPaddle;
     if (source == null) return;
-    _bot.x = (source['x'] as num).toDouble();
-    _bot.y = (source['y'] as num).toDouble();
-    _bot.vx = (source['vx'] as num).toDouble();
-    _bot.vy = (source['vy'] as num).toDouble();
+    _bot.x = source.x;
+    _bot.y = source.y;
+    _bot.vx = source.vx;
+    _bot.vy = source.vy;
   }
 
   /// One input applied to the whole world, in `HockeyRoom.step`'s order.
@@ -263,7 +265,7 @@ class Lab10CompositeSim extends Lab {
   /// times, and decoded truth does not change inside one frame anyway.
   void _snapshotContacts() {
     final joined = room;
-    final players = joined?.state?.getMap('players');
+    final players = state?.players;
     _contacts.clear();
     if (joined == null || players == null) return;
 
@@ -277,15 +279,9 @@ class Lab10CompositeSim extends Lab {
         continue;
       }
       final other = entry.value;
-      if (other is! SchemaInstance) continue;
       _contacts.add(_Contact(
         _PaddleKind.remote,
-        SimEntity(
-          x: (other['x'] as num).toDouble(),
-          y: (other['y'] as num).toDouble(),
-          vx: (other['vx'] as num).toDouble(),
-          vy: (other['vy'] as num).toDouble(),
-        ),
+        SimEntity(x: other.x, y: other.y, vx: other.vx, vy: other.vy),
       ));
     }
   }
@@ -336,8 +332,8 @@ class Lab10CompositeSim extends Lab {
   double _puckLead(double px, double py) {
     final ball = puck;
     if (ball == null) return 0;
-    final dx = px - (ball['x'] as num).toDouble();
-    final dy = py - (ball['y'] as num).toDouble();
+    final dx = px - ball.x;
+    final dy = py - ball.y;
     return math.sqrt(dx * dx + dy * dy);
   }
 
@@ -349,7 +345,7 @@ class Lab10CompositeSim extends Lab {
 
     final draw = ctx.draw;
     final view = ctx.view;
-    final players = joined.state?.getMap('players');
+    final players = state?.players;
 
     // Remote humans, smoothed. Their poses are display only: the step reads
     // them raw.
@@ -357,8 +353,7 @@ class Lab10CompositeSim extends Lab {
       for (final entry in players.entries) {
         if (entry.key == joined.sessionId || entry.key == botId) continue;
         final other = entry.value;
-        if (other is! SchemaInstance) continue;
-        final hue = (other['hue'] as num?)?.toInt() ?? 0;
+        final hue = other.hue.toInt();
         draw.circle(predict.value(other, 'x'), predict.value(other, 'y'),
             paddleRadius, hueColor(hue, alpha: 0.35));
         draw.circleOutline(predict.value(other, 'x'),
@@ -378,25 +373,15 @@ class Lab10CompositeSim extends Lab {
 
     // Raw server poses, a round trip behind.
     if (_showGhosts && ball != null) {
-      draw.circleOutline(
-          (ball['x'] as num).toDouble(),
-          (ball['y'] as num).toDouble(),
-          puckRadius,
-          Palette.text.fade(0.5),
-          width: 1.2,
-          dashed: true);
-      draw.label((ball['x'] as num).toDouble(), (ball['y'] as num).toDouble(),
-          'server puck', Palette.text.fade(0.45),
+      draw.circleOutline(ball.x, ball.y, puckRadius, Palette.text.fade(0.5),
+          width: 1.2, dashed: true);
+      draw.label(ball.x, ball.y, 'server puck', Palette.text.fade(0.45),
           size: 9, dy: view.s(puckRadius) + 4);
     }
     if (_showGhosts && self != null) {
-      draw.circleOutline(
-          (self['x'] as num).toDouble(),
-          (self['y'] as num).toDouble(),
-          paddleRadius,
+      draw.circleOutline(self.x, self.y, paddleRadius,
           Palette.text.fade(0.35),
-          width: 1,
-          dashed: true);
+          width: 1, dashed: true);
     }
 
     // The predicted pair.

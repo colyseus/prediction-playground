@@ -1,10 +1,21 @@
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../kb.dart';
 import '../net/net_delay.dart';
 import '../net/schema_bridge.dart';
 import '../sim/sim.dart';
 import '../trail.dart';
+
+/// Every MoveLane room shares one shape: a `players` map of that lab's
+/// player schema. The root state classes differ per room, so this façade
+/// names just the part the lane needs, typed by [P].
+final class PlayersState<P extends SchemaRef> extends SchemaRef {
+  final P Function(int) _player;
+
+  PlayersState(super.handle, this._player);
+
+  MapSchema<P> get players => mapOf('players', _player);
+}
 
 /// Extra work inside the reconciler step, after the shared movement step.
 ///
@@ -27,8 +38,11 @@ typedef LaneInputFill = void Function(SchemaView data);
 /// - [predictedX]/[predictedY] — what you should draw. Responds instantly.
 /// - [serverX]/[serverY] — the last decoded truth. A round trip behind.
 /// - other players — smoothed, since their inputs aren't yours to predict.
-class MoveLane {
+class MoveLane<P extends SchemaRef> {
   final ColyseusRoom room;
+
+  /// Wraps a decoded player handle in this room's generated player class.
+  final P Function(int) playerType;
 
   /// Fields the reconciler mirrors and replays.
   final List<String> fields;
@@ -76,21 +90,24 @@ class MoveLane {
   double lastCorrectionX = 0;
   double lastCorrectionY = 0;
 
-  MoveLane(this.room, {this.fields = const ['x', 'y', 'vx', 'vy']});
+  MoveLane(this.room,
+      {required this.playerType, this.fields = const ['x', 'y', 'vx', 'vy']});
 
   /// Joins [roomName] and wires prediction. Returns null if the player never
   /// decoded.
   ///
-  /// [fields] are the ones the reconciler mirrors; a room that carries extra
-  /// reconciled state (lab 08's `scoreTicks`) names it here so rollback replay
-  /// covers it too.
-  static Future<MoveLane?> mount(
+  /// [playerType] is the room's generated player class — it types [me] and
+  /// [others]. [fields] are the ones the reconciler mirrors; a room that
+  /// carries extra reconciled state (lab 08's `scoreTicks`) names it here so
+  /// rollback replay covers it too.
+  static Future<MoveLane<P>?> mount<P extends SchemaRef>(
     ColyseusClient client, {
+    required P Function(int) playerType,
     String roomName = 'lab-move',
     List<String> fields = const ['x', 'y', 'vx', 'vy'],
   }) async {
     final room = await client.joinOrCreate(roomName);
-    final lane = MoveLane(room, fields: fields);
+    final lane = MoveLane<P>(room, playerType: playerType, fields: fields);
 
     if (!await lane._bind()) {
       await room.leave();
@@ -104,7 +121,7 @@ class MoveLane {
   }
 
   Future<bool> _bind() async {
-    predict = Predict.of(room);
+    predict = Predict.get(room);
 
     // Everyone else is smoothed; this client's own entity is left out because
     // the reconciler predicts it instead.
@@ -121,12 +138,16 @@ class MoveLane {
     return _rebuildReconciler();
   }
 
+  /// The root state, narrowed to the players map every lane room carries.
+  PlayersState<P>? get state =>
+      room.stateAs((handle) => PlayersState<P>(handle, playerType));
+
   /// The authoritative entity for this client, re-read every time.
   ///
-  /// Never cached: the decoder can replace instances on a resync, and a stale
-  /// handle would be a dangling read.
-  SchemaInstance? get me =>
-      room.state?.getMap('players')?[room.sessionId] as SchemaInstance?;
+  /// Re-reading is cheap: the room's schema cache hands back the same wrapper
+  /// while the underlying instance is alive, and drops it on reconnect when
+  /// the decoder replaces instances.
+  P? get me => state?.players[room.sessionId];
 
   Future<bool> _rebuildReconciler() async {
     final truth = await _waitForMe();
@@ -149,7 +170,7 @@ class MoveLane {
     return true;
   }
 
-  Future<SchemaInstance?> _waitForMe() async {
+  Future<P?> _waitForMe() async {
     // The join resolves on the JOIN opcode, which can land a patch or two
     // before the state carrying this player.
     final deadline = DateTime.now().add(const Duration(seconds: 5));
@@ -219,7 +240,7 @@ class MoveLane {
     predictedTrail.add(predictedX, predictedY);
     final truth = me;
     if (truth != null) {
-      serverTrail.add(truth['x'] as double, truth['y'] as double);
+      serverTrail.add(truth.view['x'], truth.view['y']);
     }
   }
 
@@ -228,8 +249,8 @@ class MoveLane {
   double get predictedY => _recon?.value('y') ?? 0;
 
   /// The last position the server confirmed — a round trip in the past.
-  double get serverX => (me?['x'] as double?) ?? 0;
-  double get serverY => (me?['y'] as double?) ?? 0;
+  double get serverX => me?.view['x'] ?? 0;
+  double get serverY => me?.view['y'] ?? 0;
 
   /// Inputs sent but not yet acknowledged.
   int get pending => _recon?.pendingCount ?? 0;
@@ -238,26 +259,24 @@ class MoveLane {
   Drift get drift => _recon?.drift ?? const Drift(0, 0);
 
   /// Every other player, smoothed.
-  Iterable<({SchemaInstance instance, double x, double y, int hue})>
-      get others sync* {
-    final players = room.state?.getMap('players');
+  Iterable<({P instance, double x, double y, int hue})> get others sync* {
+    final players = state?.players;
     if (players == null) return;
 
     for (final entry in players.entries) {
       if (entry.key == room.sessionId) continue;
       final instance = entry.value;
-      if (instance is! SchemaInstance) continue;
       yield (
         instance: instance,
         x: predict.value(instance, 'x'),
         y: predict.value(instance, 'y'),
-        hue: (instance['hue'] as num?)?.toInt() ?? 0,
+        hue: instance.view['hue'].toInt(),
       );
     }
   }
 
   /// This client's colour.
-  int get hue => (me?['hue'] as num?)?.toInt() ?? 200;
+  int get hue => me?.view['hue'].toInt() ?? 200;
 
   void dispose() {
     _recon?.dispose();

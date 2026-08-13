@@ -11,8 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
 
-  colyseus_flutter:
-    path: ../../../../native-sdk/platforms/flutter/colyseus_flutter
+  colyseus:
+    path: ../../../../native-sdk/platforms/flutter/colyseus
 
 dev_dependencies:
   flutter_test:

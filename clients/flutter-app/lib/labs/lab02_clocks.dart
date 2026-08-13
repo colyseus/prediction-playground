@@ -1,4 +1,4 @@
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../controls.dart';
 import '../hud.dart';
@@ -9,6 +9,7 @@ import '../pacer.dart';
 import '../palette.dart';
 import '../sim/sim.dart';
 import '../spark.dart';
+import '../gen/schema.dart';
 
 /// The three clocks a networked client has to keep straight.
 ///
@@ -19,7 +20,7 @@ import '../spark.dart';
 ///
 /// All of it is derived from the input round trip — which is why the lab keeps
 /// sending inputs even though it predicts nothing.
-class Lab02Clocks extends Lab {
+class Lab02Clocks extends Lab<MoveState> {
   @override
   String get id => '02';
 
@@ -38,7 +39,8 @@ class Lab02Clocks extends Lab {
 
   @override
   Future<bool> mount(LabContext ctx) async {
-    final joined = await ctx.client.joinOrCreate('lab-move');
+    final joined =
+        await ctx.client.joinOrCreate('lab-move', stateType: MoveState.new);
     room = joined;
     _input = joined.input();
     NetDelay.register(joined);
@@ -76,18 +78,13 @@ class Lab02Clocks extends Lab {
     final draw = ctx.draw;
 
     // Players, drawn raw — this lab is about the numbers.
-    final players = joined.state?.getMap('players');
+    final players = joined.state?.players;
     if (players != null) {
       for (final entry in players.entries) {
-        final instance = entry.value;
-        if (instance is! SchemaInstance) continue;
-        draw.square(
-          instance['x'] as double,
-          instance['y'] as double,
-          playerHalf,
-          hueColor((instance['hue'] as num?)?.toInt() ?? 0,
-              alpha: entry.key == joined.sessionId ? 1 : 0.4),
-        );
+        final player = entry.value;
+        draw.square(player.x, player.y, playerHalf,
+            hueColor(player.hue.toInt(),
+                alpha: entry.key == joined.sessionId ? 1 : 0.4));
       }
     }
 

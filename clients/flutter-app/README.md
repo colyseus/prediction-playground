@@ -120,6 +120,7 @@ on one thread and inside one frame. The SDK's own poll timer is turned off in
 |---|---|
 | `lib/sim/` | The server's shared simulation, transliterated to Dart. Differential-tested against the TypeScript original — 5320 cases, zero mismatches. |
 | `lib/net/schema_bridge.dart` | Runs those step functions directly over SDK storage, so there's no copy to drift. |
+| `lib/gen/schema.dart` | Typed schema classes, generated from `src/server/schema/`. Regenerate after a schema change: `npx schema-codegen src/server/schema/* --dart --bundle --output clients/flutter-app/lib/gen` (from `demos/prediction-tools`). |
 | `lib/labs/move_lane.dart` | Join, smooth the other players, predict and reconcile your own. Labs 03, 08 and 09 share it, each naming its own room, reconciled fields and extra step. |
 | `lib/shell.dart` | Connection lifecycle, frame loop, lab switching. |
 

@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../controls.dart';
 import '../hud.dart';
@@ -9,6 +9,7 @@ import '../net/schema_bridge.dart';
 import '../palette.dart';
 import '../sim/sim.dart';
 import 'move_lane.dart';
+import '../gen/schema.dart';
 
 /// Hitting something that is moving, and having the server agree.
 ///
@@ -54,7 +55,7 @@ class Lab07Wysiwyg extends Lab {
   /// did not.
   static const _flippedCorrection = 3.0;
 
-  MoveLane? lane;
+  MoveLane<BumpPlayer>? lane;
   final StepBinding _botBinding = StepBinding();
 
   /// Read the bot at `ctx.reckonTime` (the server's instant) or at the newest
@@ -100,6 +101,7 @@ class Lab07Wysiwyg extends Lab {
     // the position, or a rollback re-opens the gate and bumps twice.
     final joined = await MoveLane.mount(
       ctx.client,
+      playerType: BumpPlayer.new,
       roomName: 'lab-bump',
       fields: const ['x', 'y', 'vx', 'vy', 'bumpTicks'],
     );
@@ -122,10 +124,10 @@ class Lab07Wysiwyg extends Lab {
   }
 
   /// The bots collection, re-read every time — the decoder replaces instances.
-  SchemaMap? get bots => room?.state?.getMap('bots');
+  MapSchema<Bot>? get bots => room?.stateAs(BumpState.new)?.bots;
 
   /// The patrolling bot, for readouts.
-  SchemaInstance? get bot => bots?['bot1'] as SchemaInstance?;
+  Bot? get bot => bots?['bot1'];
 
   void _step(StepContext ctx, SchemaBody body) {
     // Only a countdown, so running it after the movement step lands on the
@@ -161,17 +163,14 @@ class Lab07Wysiwyg extends Lab {
     _reckonTime = when;
     for (final entry in all.entries) {
       final target = entry.value;
-      if (target is! SchemaInstance) continue;
 
       // The server rewinds THIS input to `when`, so this is the only read that
       // can agree with it. The naive branch takes the newest decoded sample
       // instead: about half a round trip behind what the server tests.
-      final bx = _atReckonTime
-          ? predict.valueAt(target, 'x', when)
-          : (target['x'] as num).toDouble();
-      final by = _atReckonTime
-          ? predict.valueAt(target, 'y', when)
-          : (target['y'] as num).toDouble();
+      final bx =
+          _atReckonTime ? predict.valueAt(target, 'x', when) : target.x;
+      final by =
+          _atReckonTime ? predict.valueAt(target, 'y', when) : target.y;
       _evalX = bx;
       _evalY = by;
 
@@ -249,7 +248,6 @@ class Lab07Wysiwyg extends Lab {
     if (all != null) {
       for (final entry in all.entries) {
         final target = entry.value;
-        if (target is! SchemaInstance) continue;
 
         // Where the bot is drawn: forward-simulated to the present.
         final bx = l.predict.value(target, 'x');
@@ -261,8 +259,8 @@ class Lab07Wysiwyg extends Lab {
 
         // The newest decoded sample, which is already stale by the time it
         // arrives. The gap to the ring above is what reckoning buys back.
-        final rawX = (target['x'] as num).toDouble();
-        final rawY = (target['y'] as num).toDouble();
+        final rawX = target.x;
+        final rawY = target.y;
         draw.circleOutline(rawX, rawY, botRadius, Palette.text.fade(0.4),
             width: 1, dashed: true);
         draw.label(rawX, rawY, 'latest snapshot', Palette.text.fade(0.4),
@@ -293,7 +291,7 @@ class Lab07Wysiwyg extends Lab {
     _renderHud(ctx, l);
   }
 
-  void _renderHud(LabContext ctx, MoveLane l) {
+  void _renderHud(LabContext ctx, MoveLane<BumpPlayer> l) {
     final hud = ctx.hud;
     final clock = l.room.clock;
     final recon = l.reconciler;
@@ -354,8 +352,8 @@ class Lab07Wysiwyg extends Lab {
   double _evalGap() {
     final target = bot;
     if (target == null || _evalX.isNaN) return 0;
-    final dx = _evalX - (target['x'] as num).toDouble();
-    final dy = _evalY - (target['y'] as num).toDouble();
+    final dx = _evalX - target.x;
+    final dy = _evalY - target.y;
     return math.sqrt(dx * dx + dy * dy);
   }
 

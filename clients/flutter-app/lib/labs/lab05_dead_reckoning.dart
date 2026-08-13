@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import '../controls.dart';
 import '../kb.dart';
@@ -10,6 +10,7 @@ import '../net/schema_bridge.dart';
 import '../pacer.dart';
 import '../palette.dart';
 import '../sim/sim.dart';
+import '../gen/schema.dart';
 
 /// Drawing the present instead of the past.
 ///
@@ -30,7 +31,7 @@ import '../sim/sim.dart';
 /// - wander re-rolls its heading from a seed only the server has. Reckoning
 ///   runs straight through every turn and gets corrected. That error is the
 ///   point, not a defect.
-class Lab05DeadReckoning extends Lab {
+class Lab05DeadReckoning extends Lab<BotsState> {
   @override
   String get id => '05';
 
@@ -70,7 +71,8 @@ class Lab05DeadReckoning extends Lab {
 
   @override
   Future<bool> mount(LabContext ctx) async {
-    final joined = await ctx.client.joinOrCreate('lab-bots');
+    final joined =
+        await ctx.client.joinOrCreate('lab-bots', stateType: BotsState.new);
     room = joined;
     NetDelay.register(joined);
 
@@ -79,7 +81,7 @@ class Lab05DeadReckoning extends Lab {
     if (await _waitForBot() == null) return false;
 
     // The delayed baseline to measure the reckoned one against.
-    _lerp = Predict.of(joined)
+    _lerp = Predict.get(joined)
       ..attachAll('bots', config: {
         'x': const FieldOptions(mode: PredictMode.lerp, delay: remoteInterpMs),
         'y': const FieldOptions(mode: PredictMode.lerp, delay: remoteInterpMs),
@@ -91,10 +93,9 @@ class Lab05DeadReckoning extends Lab {
   }
 
   /// The bot, re-read every frame — the decoder can replace instances.
-  SchemaInstance? get bot =>
-      room?.state?.getMap('bots')?['bot1'] as SchemaInstance?;
+  Bot? get bot => room?.state?.bots['bot1'];
 
-  Future<SchemaInstance?> _waitForBot() async {
+  Future<Bot?> _waitForBot() async {
     final deadline = DateTime.now().add(const Duration(seconds: 5));
     while (DateTime.now().isBefore(deadline)) {
       final found = bot;
@@ -109,7 +110,7 @@ class Lab05DeadReckoning extends Lab {
     if (joined == null) return;
 
     _reckon?.dispose();
-    _reckon = Predict.of(joined)
+    _reckon = Predict.get(joined)
       ..attachAllReckon('bots', const ['x', 'y'], _step,
           smoothing: _smoothing, snap: _snap);
   }
@@ -149,10 +150,10 @@ class Lab05DeadReckoning extends Lab {
 
     final target = bot;
     if (target == null) return;
-    _kind = (target['kind'] as String?) ?? '';
+    _kind = target.kind;
 
-    final rawX = (target['x'] as num).toDouble();
-    final rawY = (target['y'] as num).toDouble();
+    final rawX = target.x;
+    final rawY = target.y;
     if (rawX != _lastRawX || rawY != _lastRawY) {
       _lastRawX = rawX;
       _lastRawY = rawY;
@@ -178,18 +179,13 @@ class Lab05DeadReckoning extends Lab {
     final draw = ctx.draw;
     final now = joined.clock.now;
 
-    final players = joined.state?.getMap('players');
+    final players = joined.state?.players;
     if (players != null) {
       for (final entry in players.entries) {
-        final instance = entry.value;
-        if (instance is! SchemaInstance) continue;
-        draw.square(
-          (instance['x'] as num).toDouble(),
-          (instance['y'] as num).toDouble(),
-          playerHalf,
-          hueColor((instance['hue'] as num?)?.toInt() ?? 0,
-              alpha: entry.key == joined.sessionId ? 0.9 : 0.4),
-        );
+        final player = entry.value;
+        draw.square(player.x, player.y, playerHalf,
+            hueColor(player.hue.toInt(),
+                alpha: entry.key == joined.sessionId ? 0.9 : 0.4));
       }
     }
 
@@ -203,8 +199,8 @@ class Lab05DeadReckoning extends Lab {
     final target = bot;
     if (target == null) return;
 
-    final rawX = (target['x'] as num).toDouble();
-    final rawY = (target['y'] as num).toDouble();
+    final rawX = target.x;
+    final rawY = target.y;
     final lerpX = lerp.value(target, 'x');
     final lerpY = lerp.value(target, 'y');
     final reckonX = reckon.value(target, 'x');

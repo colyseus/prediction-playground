@@ -1,4 +1,4 @@
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 /// A named latency setting.
 typedef LatencyPreset = ({double delayMs, double jitterMs, String label});

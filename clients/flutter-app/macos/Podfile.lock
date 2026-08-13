@@ -1,19 +1,19 @@
 PODS:
-  - colyseus_flutter (0.18.0)
+  - colyseus (0.18.0)
   - FlutterMacOS (1.0.0)
 
 DEPENDENCIES:
-  - colyseus_flutter (from `Flutter/ephemeral/.symlinks/plugins/colyseus_flutter/macos`)
+  - colyseus (from `Flutter/ephemeral/.symlinks/plugins/colyseus/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
 
 EXTERNAL SOURCES:
-  colyseus_flutter:
-    :path: Flutter/ephemeral/.symlinks/plugins/colyseus_flutter/macos
+  colyseus:
+    :path: Flutter/ephemeral/.symlinks/plugins/colyseus/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
 
 SPEC CHECKSUMS:
-  colyseus_flutter: 1e69132878e18ef4dc098e6712dd68cd8e57421d
+  colyseus: d580bdbf5ea387ef30c39abfbd2b1c59785e3c3d
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
 
 PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009

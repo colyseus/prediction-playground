@@ -18,7 +18,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 import 'package:colyseus_playground/controls.dart';
 import 'package:colyseus_playground/draw_kit.dart';
 import 'package:colyseus_playground/hud.dart';

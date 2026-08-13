@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 import 'package:flutter/services.dart';
 
 import '../controls.dart';
@@ -11,6 +11,7 @@ import '../net/schema_bridge.dart';
 import '../palette.dart';
 import '../sim/sim.dart';
 import 'move_lane.dart';
+import '../gen/schema.dart';
 
 /// Firing without waiting for permission.
 ///
@@ -50,7 +51,7 @@ class Lab09PredictedSpawns extends Lab {
 
   static const _flashMs = 350.0;
 
-  MoveLane? lane;
+  MoveLane<Player>? lane;
   Spawns? _store;
 
   /// Scratch adapters for the reckon step. The core reuses a small set of
@@ -76,7 +77,8 @@ class Lab09PredictedSpawns extends Lab {
 
   @override
   Future<bool> mount(LabContext ctx) async {
-    final joined = await MoveLane.mount(ctx.client, roomName: 'lab-projectile');
+    final joined = await MoveLane.mount(ctx.client,
+        playerType: Player.new, roomName: 'lab-projectile');
     if (joined == null) return false;
 
     lane = joined;
@@ -243,7 +245,7 @@ class Lab09PredictedSpawns extends Lab {
     _renderHud(ctx, l);
   }
 
-  void _renderHud(LabContext ctx, MoveLane l) {
+  void _renderHud(LabContext ctx, MoveLane<Player> l) {
     final hud = ctx.hud;
 
     hud.section('SPAWN STORE');

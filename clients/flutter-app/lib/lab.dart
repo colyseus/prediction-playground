@@ -1,4 +1,4 @@
-import 'package:colyseus_flutter/colyseus_flutter.dart';
+import 'package:colyseus/colyseus.dart';
 
 import 'controls.dart';
 import 'draw_kit.dart';
@@ -25,8 +25,9 @@ class LabContext {
 /// One demonstration: a room, a per-frame update, and something to draw.
 ///
 /// The shell owns the connection lifecycle and the frame loop; a lab supplies
-/// what changes between them.
-abstract class Lab {
+/// what changes between them. [TState] types the lab's room — labs that join
+/// with a `stateType:` read `room.state` through their generated class.
+abstract class Lab<TState extends SchemaInstance> {
   /// Short id used in the lab picker.
   String get id;
 
@@ -40,7 +41,7 @@ abstract class Lab {
   bool get ownArena => false;
 
   /// The room this lab is connected to, once [mount] resolves.
-  ColyseusRoom? room;
+  ColyseusRoom<TState>? room;
 
   /// Connects and sets up prediction. Returns false when the join failed.
   Future<bool> mount(LabContext ctx);

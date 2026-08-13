@@ -12,6 +12,7 @@ import '../sim/sim.dart';
 import '../trail.dart';
 import '../world_view.dart';
 import 'move_lane.dart';
+import '../gen/schema.dart';
 
 /// One reversal-heavy leg of the autopilot: direction and how long to hold it.
 typedef _Leg = ({double dx, double dy, double ms});
@@ -42,7 +43,7 @@ class Lab00Split extends Lab {
   @override
   bool get ownArena => true;
 
-  MoveLane? lane;
+  MoveLane<Player>? lane;
 
   final _topView = WorldView();
   final _bottomView = WorldView();
@@ -71,7 +72,7 @@ class Lab00Split extends Lab {
 
   @override
   Future<bool> mount(LabContext ctx) async {
-    lane = await MoveLane.mount(ctx.client);
+    lane = await MoveLane.mount(ctx.client, playerType: Player.new);
     room = lane?.room;
     if (lane == null) return false;
 
@@ -204,7 +205,7 @@ class Lab00Split extends Lab {
         size: 11);
   }
 
-  void _renderHud(LabContext ctx, MoveLane l) {
+  void _renderHud(LabContext ctx, MoveLane<Player> l) {
     final hud = ctx.hud;
     final clock = l.room.clock;
 
