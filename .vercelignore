@@ -1,0 +1,27 @@
+# The Vercel build only needs the web client: index.html, src/, public/, the
+# build scripts and the manifests. Everything below is engine ports, raw source
+# art and local build output, and uploading it makes CLI deploys time out
+# (air-hockey's clients/ alone is 1.9 GB).
+node_modules
+dist
+.git
+
+# Engine client ports (Unity, Godot, Defold, GameMaker, Haxe, Flutter, native)
+clients
+
+# Raw/source art. The runtime ships from public/.
+ASSETS
+NEW_ASSETS
+media
+*.psd
+*.blend
+*.zip
+*.rar
+
+# Local notes and build artefacts
+BUILDS
+PLANS
+DOCS
+.claude
+.DS_Store
+*.log
