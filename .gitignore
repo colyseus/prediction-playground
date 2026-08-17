@@ -19,3 +19,4 @@ clients/gamemaker-app/.accept-temp/
 # copied here (see clients/gamemaker-app/README.md) — never committed
 clients/gamemaker-app/extensions/Colyseus_SDK/*.dylib
 clients/gamemaker-app/extensions/Colyseus_SDK/colyseus_wasm.js
+.vercel

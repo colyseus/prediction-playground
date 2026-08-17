@@ -5,10 +5,12 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --app",
+    "build": "vite build",
     "check": "tsc --noEmit",
     "probes": "node scripts/run-probes.mjs",
-    "media": "node scripts/capture-media.mjs"
+    "media": "node scripts/capture-media.mjs",
+    "build:client": "BUILD_TARGET=client vite build",
+    "deploy:backend": "bash scripts/deploy-backend.sh"
   },
   "dependencies": {
     "@colyseus/core": "^0.18.1",
@@ -24,5 +26,9 @@
     "puppeteer": "^24.41.0",
     "typescript": "^5.8.0",
     "vite": "^8.0.2"
-  }
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "packageManager": "pnpm@10.10.0"
 }

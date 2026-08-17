@@ -19,8 +19,12 @@ const stageMsgEl = document.getElementById("stage-msg")!;
 const stageMsgTextEl = document.getElementById("stage-msg-text")!;
 const labSelectEl = document.getElementById("lab-select") as HTMLSelectElement;
 
+// Prod (Vercel) bakes VITE_SERVER_URL to the shared demos server, path-prefixed
+// per demo (wss://demos.colyseus.cloud/prediction). Dev falls back to same-origin:
+// the colyseus/vite plugin runs the server inside Vite.
 const client = new Client(
-  `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`,
+  import.meta.env.VITE_SERVER_URL ??
+    `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`,
 );
 const view = new WorldView();
 const controls = new ControlsPanel(document.getElementById("controls")!);
