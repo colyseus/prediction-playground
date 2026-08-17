@@ -20,3 +20,4 @@ clients/gamemaker-app/.accept-temp/
 clients/gamemaker-app/extensions/Colyseus_SDK/*.dylib
 clients/gamemaker-app/extensions/Colyseus_SDK/colyseus_wasm.js
 .vercel
+.env*
