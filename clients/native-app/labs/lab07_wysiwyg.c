@@ -134,7 +134,7 @@ static void l07_reckon_step(colyseus_schema_t* state, double dt, double elapsed_
 static bool l07_make_reconciler(void) {
     static const char* const FIELDS[] = { "x", "y", "vx", "vy", "bumpTicks" };
     colyseus_reconciler_options_t opts = { 0 };
-    opts.smoothing = 15;
+    opts.smooth_ms = 65;
     opts.fields = FIELDS;
     opts.field_count = 5;
     l07.recon = colyseus_predict_reconciler(l07.predict, (colyseus_schema_t*)l07.me,

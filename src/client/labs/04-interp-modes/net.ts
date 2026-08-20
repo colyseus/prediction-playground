@@ -4,7 +4,7 @@ import { joinLab } from "../../framework/net.ts";
 import { BotsState, type MoveInput } from "../../../server/schema/bots.ts";
 
 export type OverlayMode = "raw" | "lerp" | "damped" | "extrapolate";
-export interface OverlayOpts { delay?: number; damping?: number; maxExtrapolate?: number; }
+export interface OverlayOpts { delay?: number; smoothMs?: number; maxExtrapolate?: number; }
 
 /**
  * Lab 04 — the SAME bot rendered through four different Predict instances,
@@ -30,7 +30,7 @@ export async function connect(client: Client) {
 export function makeOverlay(room: Room<BotsState>, mode: OverlayMode, opts: OverlayOpts) {
   const predict = Predict.get(room, { name: mode });
   // "raw" needs NO attach: predict.value() falls through to the decoded field.
-  // The opts here are just STARTING values — every parameter (delay, damping,
+  // The opts here are just STARTING values — every parameter (delay, smoothMs,
   // maxExtrapolate, tickInterval, snap) is live-tunable in this Predict's own
   // debug-panel card (top left), one card per mode.
   const detach = mode === "raw"

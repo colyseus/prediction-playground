@@ -10,7 +10,7 @@ ways at once, each through its own `Predict` instance:
   Never invents positions, so it's never wrong — but everything you see already
   happened. Classic snapshot interpolation.
 - **damped** — exponentially chase the newest sample. Smooth and cheap, cuts
-  corners on direction changes, lag scales with the damping constant.
+  corners on direction changes, lag scales with `smoothMs`.
 - **extrapolate** — project the recent trend into the future. Present-time and
   smooth on straight lines, but it **overshoots on every turn** — watch the
   orange ghost shoot past the patrol endpoints.

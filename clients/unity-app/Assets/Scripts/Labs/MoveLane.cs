@@ -29,7 +29,7 @@ namespace Playground
 
         /// <summary>Reset() on a teleport-class correction: a cut, not a glide.</summary>
         public bool AutoSnap = true;
-        public double Smoothing { get; private set; } = 15;
+        public double SmoothMs { get; private set; } = 65;
 
         private Lab.MoveInput _cmd;
         private InputHandle _input;
@@ -55,19 +55,19 @@ namespace Playground
             Predict.AttachAll("players", new AttachConfig {
                 ["x"] = PredictMode.Damped, ["y"] = PredictMode.Damped,
             });
-            Build(Smoothing);
+            Build(SmoothMs);
             return true;
         }
 
         /// <summary>Rebuild the reconciler — smoothing is taken at construction.</summary>
-        public void Build(double smoothing)
+        public void Build(double smoothMs)
         {
-            Smoothing = smoothing;
+            SmoothMs = smoothMs;
             Recon = Predict.Reconciler(Me, new ReconcilerOptions<Lab.Player, Lab.MoveInput>
             {
                 Input = _input,
                 Fields = new[] { "x", "y", "vx", "vy" },
-                Smoothing = smoothing,
+                SmoothMs = smoothMs,
                 // The SAME function the server runs — determinism is the contract.
                 Step = (ctx, s, cmd) =>
                 {
@@ -116,7 +116,7 @@ namespace Playground
         public void Rebind()
         {
             if (Room.State.players.TryGetValue(Sid, out var me)) Me = me;
-            Build(Smoothing);
+            Build(SmoothMs);
         }
 
         public void Dispose() => Predict?.Dispose();

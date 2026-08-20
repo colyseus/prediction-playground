@@ -226,7 +226,7 @@ static void scenario_move(colyseus_client_t* client) {
 
     const char* fields[] = { "x", "y", "vx", "vy" };
     colyseus_reconciler_options_t opts = { 0 };
-    opts.smoothing = 15;
+    opts.smooth_ms = 65;
     opts.fields = fields;
     opts.field_count = 4;
     colyseus_reconciler_t* recon = colyseus_reconciler_create(
@@ -467,7 +467,7 @@ static void scenario_goal(colyseus_client_t* client) {
 
     const char* fields[] = { "x", "y", "vx", "vy", "scoreTicks" };
     colyseus_reconciler_options_t opts = { 0 };
-    opts.smoothing = 15;
+    opts.smooth_ms = 65;
     opts.fields = fields;
     opts.field_count = 5;
     opts.userdata = &gctx;

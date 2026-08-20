@@ -88,7 +88,7 @@ class Lab07 implements Lab {
 		predict.attachAll("bots", {
 			mode: "reckon",
 			fields: ["x", "y"],
-			smoothing: 25,
+			smoothMs: 40,
 			step: (b, dt, elapsedMs) -> {
 				var s: Sim.BotState = {
 					x: b.x, y: b.y, vx: b.vx, vy: b.vy, kind: b.kind,
@@ -130,7 +130,7 @@ class Lab07 implements Lab {
 		recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy", "bumpTicks"],
-			smoothing: 15,
+			smoothMs: 65,
 			step: (ctx, p, inp) -> {
 				p.bumpTicks = Sim.stepBumpGate(p.bumpTicks);   // reconciled tick gate
 				var e: Sim.Entity = { x: p.x, y: p.y, vx: p.vx, vy: p.vy };

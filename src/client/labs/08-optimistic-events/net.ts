@@ -53,7 +53,7 @@ export function makeReconciler(
   return predict.reconciler(self, {
     input,
     fields: ["x", "y", "vx", "vy", "scoreTicks"],
-    smoothing: 15,
+    smoothMs: 65,
     step: (ctx, p, inp) => {
       stepEntity(p, inp, ctx.dt);
       if (stepScoreGate(p)) ctx.predict(goals, n++);   // live-only, replay-safe

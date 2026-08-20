@@ -76,7 +76,7 @@ namespace Playground
                 Attach("lerp", Palette.Blue, new PredictFieldOptions
                     { Mode = PredictMode.Lerp, Delay = Sim.RemoteInterpMs }),
                 Attach("damped", Palette.Good, new PredictFieldOptions
-                    { Mode = PredictMode.Damped, Damping = 12 }),
+                    { Mode = PredictMode.Damped, SmoothMs = 83 }),
                 Attach("extrapolate", Palette.Warn, new PredictFieldOptions
                     { Mode = PredictMode.Extrapolate, MaxExtrapolate = 250 }),
             };

@@ -74,8 +74,8 @@ class MoveLane<P extends SchemaRef> {
   /// Trail of the raw server position, to compare against.
   final Trail serverTrail = Trail();
 
-  /// Correction smoothing, in 1/s. Rebuilt when changed.
-  double smoothing = -1;
+  /// Correction smoothing time constant, in ms. Rebuilt when changed.
+  double smoothMs = -1;
 
   /// Whether a correction bigger than a teleport should snap instead of decay.
   bool autoSnap = true;
@@ -158,7 +158,7 @@ class MoveLane<P extends SchemaRef> {
       truth,
       input: input,
       fields: fields,
-      smoothing: smoothing,
+      smoothMs: smoothMs,
       step: (ctx, state, cmd) {
         // The server's own movement rules, run over the predicted mirror.
         final body = _binding.body(state);
@@ -193,10 +193,10 @@ class MoveLane<P extends SchemaRef> {
     _rebuildReconciler();
   }
 
-  /// Rebuilds the reconciler with a new [smoothing] value.
-  void setSmoothing(double value) {
-    if (smoothing == value) return;
-    smoothing = value;
+  /// Rebuilds the reconciler with a new [smoothMs] value.
+  void setSmoothMs(double value) {
+    if (smoothMs == value) return;
+    smoothMs = value;
     _rebuildReconciler();
   }
 

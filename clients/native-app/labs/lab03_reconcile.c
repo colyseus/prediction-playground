@@ -27,7 +27,7 @@ typedef struct {
     colyseus_reconciler_t* recon;
     player_t* predicted;        /* the reconciler's mirror */
 
-    double smoothing;
+    double smooth_ms;
     bool render_smoothed;
     bool show_ghost;
     bool auto_snap;
@@ -62,7 +62,7 @@ static void l03_step(const colyseus_step_ctx_t* ctx, colyseus_schema_t* state,
 static bool l03_make_reconciler(recon_lane_t* l) {
     static const char* const FIELDS[] = { "x", "y", "vx", "vy" };
     colyseus_reconciler_options_t opts = { 0 };
-    opts.smoothing = l->smoothing;
+    opts.smooth_ms = l->smooth_ms;
     opts.fields = FIELDS;
     opts.field_count = 4;
     /* Born from the Predict: driven by its tick(), donates the fixed step to
@@ -88,7 +88,7 @@ static bool lab03_attach(app_t* app, colyseus_room_t* room) {
     l->state = state;
     l->sid = sid;
     l->me = me;
-    l->smoothing = 15;
+    l->smooth_ms = 65;
     l->render_smoothed = true;
     l->show_ghost = true;
     l->auto_snap = true;
@@ -161,11 +161,11 @@ static void lab03_frame(app_t* app, double now, double dt) {
     if (app_key(KEY_V)) { l->render_smoothed = !l->render_smoothed; }
     if (app_key(KEY_G)) { l->show_ghost = !l->show_ghost; }
     if (app_key(KEY_N)) { l->auto_snap = !l->auto_snap; }
-    int smoothing_step = app_key(KEY_EQUAL) ? 5 : app_key(KEY_MINUS) ? -5 : 0;
+    int smoothing_step = app_key(KEY_EQUAL) ? 10 : app_key(KEY_MINUS) ? -10 : 0;
     if (smoothing_step != 0) {
-        l->smoothing += smoothing_step;
-        if (l->smoothing < 0) { l->smoothing = 0; }
-        if (l->smoothing > 40) { l->smoothing = 40; }
+        l->smooth_ms += smoothing_step;
+        if (l->smooth_ms < 0) { l->smooth_ms = 0; }
+        if (l->smooth_ms > 200) { l->smooth_ms = 200; }
         /* The reconciler takes smoothing at construction — rebuild it, exactly
          * like the web slider's onCommit. */
         colyseus_reconciler_free(l->recon);
@@ -259,7 +259,7 @@ static void lab03_frame(app_t* app, double now, double dt) {
     hud_key(h, "WASD", "drive");
     hud_key(h, "I", "force mispredict (impulse)");
     hud_key(h, "T", "teleport");
-    hud_key(h, "- / =", TextFormat("smoothing  %.0f /s", l->smoothing));
+    hud_key(h, "- / =", TextFormat("smoothing  %.0f ms", l->smooth_ms));
     hud_key(h, "V", l->render_smoothed ? "render: value() smoothed" : "render: state (exact)");
     hud_key(h, "G", l->show_ghost ? "server ghost: on" : "server ghost: off");
     hud_key(h, "N", l->auto_snap ? "snap on teleport: on" : "snap on teleport: off");

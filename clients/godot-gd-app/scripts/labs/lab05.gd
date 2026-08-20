@@ -5,7 +5,7 @@ extends LabBase
 ## Instead of drawing the PAST (lerp), forward-simulate the latest snapshot
 ## to the PRESENT with the same step function the server runs. The reckon
 ## horizon is exactly the snapshot age.
-##   smoothing  glide applied to each snapshot REBASE.
+##   smooth_ms  glide applied to each snapshot REBASE.
 ##   snap       rebases beyond this distance POP instead of gliding.
 ## Port of labs/05-dead-reckoning/.
 
@@ -19,7 +19,7 @@ var _pacer: Pacer
 var _sid := ""
 var _bot = null
 
-var _smoothing := 25.0
+var _smooth_ms := 40.0
 var _snap := 8.0
 var _pattern := 0
 
@@ -78,7 +78,7 @@ func _reckon_step(b, dt: float, elapsed_ms: float) -> void:
 func _attach_reckon() -> void:
 	_reckon = Colyseus.Predict.of(room)
 	_reckon.attach_reckon(_bot, ["x", "y"], _reckon_step,
-		{ "smoothing": _smoothing, "snap": _snap })
+		{ "smooth_ms": _smooth_ms, "snap": _snap })
 
 func _rebuild() -> void:
 	_reckon = null
@@ -92,9 +92,9 @@ func frame(_app: App, now: float, _dt_ms: float) -> void:
 		_pattern = (_pattern + 1) % PATTERNS.size()
 		_send_pattern()
 		_warps = 0
-	var smooth_step := 5 if Kb.key(KEY_EQUAL) else (-5 if Kb.key(KEY_MINUS) else 0)
+	var smooth_step := 10 if Kb.key(KEY_EQUAL) else (-10 if Kb.key(KEY_MINUS) else 0)
 	if smooth_step != 0:
-		_smoothing = clampf(_smoothing + smooth_step, 0, 50)
+		_smooth_ms = clampf(_smooth_ms + smooth_step, 0, 200)
 		_rebuild()
 	var snap_step := 6 if Kb.key(KEY_PERIOD) else (-6 if Kb.key(KEY_COMMA) else 0)
 	if snap_step != 0:
@@ -184,7 +184,7 @@ func render(app: App) -> void:
 	h.section("CONTROLS")
 	h.key("WASD", "drive your own square")
 	h.key("B", "bot pattern: %s" % PATTERNS[_pattern])
-	h.key("- / =", "rebase smoothing  %.0f /s" % _smoothing)
+	h.key("- / =", "rebase smoothing  %.0f ms" % _smooth_ms)
 	h.key(", / .", "snap threshold  %.0f u" % _snap)
 	h.note("patrol = fully predictable — wander = server-secret turns, so reckon " +
 		"extrapolates straight through every one and gets corrected — teleport = a " +

@@ -57,8 +57,8 @@ class Lab03 implements Lab {
 		if (Kb.key("v")) renderSmoothed = !renderSmoothed;
 		if (Kb.key("g")) showGhost = !showGhost;
 		if (Kb.key("n")) lane.autoSnap = !lane.autoSnap;
-		var step = Kb.key("equals") ? 5 : Kb.key("minus") ? -5 : 0;
-		if (step != 0) lane.build(Math.max(0, Math.min(40, lane.smoothing + step)));
+		var step = Kb.key("equals") ? 10 : Kb.key("minus") ? -10 : 0;
+		if (step != 0) lane.build(Math.max(0, Math.min(200, lane.smoothMs + step)));
 
 		lane.drive(now, Kb.moveX(), Kb.moveY());
 	}
@@ -101,7 +101,7 @@ class Lab03 implements Lab {
 		g.hudKey("WASD", "drive");
 		g.hudKey("I", "force mispredict (impulse)");
 		g.hudKey("T", "teleport");
-		g.hudKey("- / =", 'smoothing ${Math.round(lane.smoothing)} /s');
+		g.hudKey("- / =", 'smoothing ${Math.round(lane.smoothMs)} ms');
 		g.hudKey("V", renderSmoothed ? "render: value() smoothed" : "render: state (exact)");
 		g.hudKey("G", showGhost ? "server ghost: on" : "server ghost: off");
 		g.hudKey("N", lane.autoSnap ? "snap on teleport: on" : "snap on teleport: off");

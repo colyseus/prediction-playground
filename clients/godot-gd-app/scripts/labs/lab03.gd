@@ -30,9 +30,9 @@ func frame(_app: App, now: float, dt_ms: float) -> void:
 	if Kb.key(KEY_V): _render_smoothed = not _render_smoothed
 	if Kb.key(KEY_G): _show_ghost = not _show_ghost
 	if Kb.key(KEY_N): lane.auto_snap = not lane.auto_snap
-	var smooth_step := 5 if Kb.key(KEY_EQUAL) else (-5 if Kb.key(KEY_MINUS) else 0)
+	var smooth_step := 10 if Kb.key(KEY_EQUAL) else (-10 if Kb.key(KEY_MINUS) else 0)
 	if smooth_step != 0:
-		lane.build(clampf(lane.smoothing + smooth_step, 0, 40))
+		lane.build(clampf(lane.smooth_ms + smooth_step, 0, 200))
 
 	lane.drive(now, Kb.move_x(), Kb.move_y())
 
@@ -83,7 +83,7 @@ func render(app: App) -> void:
 	h.key("WASD", "drive")
 	h.key("I", "force mispredict (impulse)")
 	h.key("T", "teleport")
-	h.key("- / =", "smoothing %.0f /s" % lane.smoothing)
+	h.key("- / =", "smoothing %.0f ms" % lane.smooth_ms)
 	h.key("V", "render: value() smoothed" if _render_smoothed else "render: state (exact)")
 	h.key("G", "server ghost: on" if _show_ghost else "server ghost: off")
 	h.key("N", "snap on teleport: on" if lane.auto_snap else "snap on teleport: off")

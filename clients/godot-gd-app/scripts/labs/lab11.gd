@@ -72,7 +72,7 @@ func _build() -> void:
 	_recon = _predict.reconciler(_me, {
 		"input": _input,
 		"fields": ["x", "y", "vx", "vy"],
-		"smoothing": 15.0,
+		"smooth_ms": 65.0,
 		"step": func(ctx, s, cmd): Sim.step_entity(s, float(cmd.moveX), float(cmd.moveY), ctx.dt),
 	})
 

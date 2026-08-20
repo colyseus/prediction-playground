@@ -14,7 +14,7 @@ own inputs.
   server tick). Unacked inputs replay on top — your predicted shot is
   re-derived from truth ~20× a second. If the server agrees, the replay lands
   where the puck already is: correction 0.
-- **pose** exposes the render view; `smoothing` glides whatever corrections
+- **pose** exposes the render view; `smoothMs` glides whatever corrections
   remain.
 
 Watch the dashed **server ghost puck** trail your predicted puck by ~RTT after

@@ -81,7 +81,7 @@ func _build() -> void:
 	_recon = _predict.reconciler(_me, {
 		"input": _input,
 		"fields": ["x", "y", "vx", "vy", "scoreTicks"],
-		"smoothing": 15.0,
+		"smooth_ms": 65.0,
 		"step": _step,
 	})
 

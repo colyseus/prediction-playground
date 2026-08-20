@@ -78,7 +78,7 @@ function Lab:build()
   self.recon = self.predict:reconciler(self.me, {
     input = self.input,
     fields = { "x", "y", "vx", "vy" },
-    smoothing = 15,
+    smooth_ms = 65,
     step = function(ctx, p, inp) sim.step_entity(p, inp.moveX, inp.moveY, ctx.dt) end,
   })
 end

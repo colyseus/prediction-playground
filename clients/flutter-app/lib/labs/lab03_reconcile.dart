@@ -134,8 +134,8 @@ class Lab03Reconcile extends Lab {
       ]),
       const NoteSpec('Impulse kicks you server-side — a correction the client '
           'never predicted.'),
-      SliderSpec('smoothing', 0, 40, l.smoothing < 0 ? 20 : l.smoothing,
-          l.setSmoothing),
+      SliderSpec('smoothing', 0, 200, l.smoothMs < 0 ? 50 : l.smoothMs,
+          l.setSmoothMs),
       ToggleSpec('server ghost', _showGhost, (v) => _showGhost = v),
       ToggleSpec('exact (no smoothing)', _showExact, (v) => _showExact = v),
       ToggleSpec('auto-snap teleports', l.autoSnap, (v) => l.autoSnap = v),

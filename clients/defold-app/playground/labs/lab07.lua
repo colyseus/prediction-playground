@@ -66,7 +66,7 @@ function Lab:mount(context, room)
   self.predict:attach_all("bots", {
     mode = "reckon",
     fields = { "x", "y" },
-    smoothing = 25,
+    smooth_ms = 40,
     step = function(b, dt, elapsed_ms)
       local s = {
         x = b.x, y = b.y, vx = b.vx, vy = b.vy, kind = b.kind,
@@ -107,7 +107,7 @@ function Lab:build()
   self.recon = self.predict:reconciler(self.me, {
     input = self.input,
     fields = { "x", "y", "vx", "vy", "bumpTicks" },
-    smoothing = 15,
+    smooth_ms = 65,
     step = function(ctx, p, inp)
       p.bumpTicks = sim.step_bump_gate(p.bumpTicks)   -- reconciled tick gate
       sim.step_entity(p, inp.moveX, inp.moveY, ctx.dt)

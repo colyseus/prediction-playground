@@ -105,7 +105,7 @@ class Lab10CompositeSim extends Lab<HockeyState> {
   final Spark _driftSpark = Spark();
   double _lastSparkPush = 0;
 
-  double _smoothing = 15;
+  double _smoothMs = 65;
   bool _showGhosts = true;
 
   int _lastReconcileSeq = 0;
@@ -214,7 +214,7 @@ class Lab10CompositeSim extends Lab<HockeyState> {
         // Bound parts are pulled from their sources for us; this restores the
         // one part the store does not own, from the same server tick.
         adopt: (_) => _adoptBot(),
-        smoothing: _smoothing,
+        smoothMs: _smoothMs,
       ),
       step: _step,
     );
@@ -459,11 +459,11 @@ class Lab10CompositeSim extends Lab<HockeyState> {
           }
         ),
       ]),
-      SliderSpec('smoothing', 0, 40, _smoothing, (v) {
-        if (v == _smoothing) return;
-        _smoothing = v;
+      SliderSpec('smoothing', 0, 200, _smoothMs, (v) {
+        if (v == _smoothMs) return;
+        _smoothMs = v;
         _build();
-      }, divisions: 8, format: (v) => '${v.round()} /s'),
+      }, divisions: 20, format: (v) => '${v.round()} ms'),
       ToggleSpec('server ghosts', _showGhosts, (v) => _showGhosts = v),
       const NoteSpec('WASD to skate. The puck answers your input the frame you '
           'touch it, at any latency, because it is predicted through your own '

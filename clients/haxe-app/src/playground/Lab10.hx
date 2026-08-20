@@ -98,7 +98,7 @@ class Lab10 implements Lab {
 	var predict: Predict;
 	var input: Dynamic;
 	var cmd: Dynamic;
-	var smoothing = 15.0;
+	var smoothMs = 65.0;
 	var showGhosts = true;
 	var touchedLastStep = false;
 	var retreatTicks = 0;
@@ -148,7 +148,7 @@ class Lab10 implements Lab {
 		if (sim != null) sim.dispose();
 		sim = predict.sim({
 			input: input,
-			smoothing: smoothing,
+			smoothMs: smoothMs,
 			world: new HockeyWorld(me, puck, bot),
 			step: step,
 		});
@@ -218,9 +218,9 @@ class Lab10 implements Lab {
 
 	public function frame(app: App, now: Float, dtMs: Float): Void {
 		if (Kb.key("g")) showGhosts = !showGhosts;
-		var stepSize = Kb.key("equals") ? 5 : Kb.key("minus") ? -5 : 0;
+		var stepSize = Kb.key("equals") ? 10 : Kb.key("minus") ? -10 : 0;
 		if (stepSize != 0) {
-			smoothing = Math.max(0, Math.min(40, smoothing + stepSize));
+			smoothMs = Math.max(0, Math.min(200, smoothMs + stepSize));
 			build();
 		}
 
@@ -289,7 +289,7 @@ class Lab10 implements Lab {
 
 		g.hudSection("CONTROLS");
 		g.hudKey("WASD", "drive your paddle into the puck");
-		g.hudKey("- / =", 'smoothing ${Math.round(smoothing)} /s');
+		g.hudKey("- / =", 'smoothing ${Math.round(smoothMs)} ms');
 		g.hudKey("G", showGhosts ? "server ghosts: on" : "server ghosts: off");
 		g.hudNote("One rollback over THREE parts. Your paddle, the puck AND the "
 			+ "AI paddle are predicted together, in the server's order, so a "

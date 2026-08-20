@@ -113,7 +113,7 @@ class Lab07Wysiwyg extends Lab {
     // Reckoned rather than interpolated: valueAt can only answer for an
     // arbitrary instant when the field is projected through the shared step.
     joined.predict
-        .attachAllReckon('bots', const ['x', 'y'], _reckonBot, smoothing: 25);
+        .attachAllReckon('bots', const ['x', 'y'], _reckonBot, smoothMs: 40);
     joined.onStep = _step;
     return true;
   }

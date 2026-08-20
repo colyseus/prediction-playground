@@ -50,7 +50,7 @@ export function makeSim(
   predict: Predict<HockeyState>,
   room: Room<HockeyState> & { sessionId: string },
   input: InputHandle<MoveInput>,
-  smoothing: number,
+  smoothMs: number,
 ): SimReconciler<any, {
   px: number; py: number; kx: number; ky: number; bx: number; by: number;
 }, HockeyWorld> {
@@ -66,7 +66,7 @@ export function makeSim(
       puck: { x: room.state.puck.x, y: room.state.puck.y, vx: room.state.puck.vx, vy: room.state.puck.vy },
       bot: { x: bot()?.x ?? 0, y: bot()?.y ?? 0, vx: bot()?.vx ?? 0, vy: bot()?.vy ?? 0 },
     } satisfies HockeyWorld,
-    smoothing,
+    smoothMs,
 
     // What "diverging" MEANS for this world. Unset, the classifier falls back to
     // its float-noise floor of 1e-3 — the right cut for a flat reconciler, which

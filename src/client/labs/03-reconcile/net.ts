@@ -32,14 +32,14 @@ export function makeReconciler(
   predict: Predict<MoveState>,
   self: Player,
   input: InputHandle<MoveInput>,
-  smoothing: number,
+  smoothMs: number,
 ): Reconciler<Player, any> {
   return predict.reconciler(self, {
     input,
     fields: [...PREDICTED_FIELDS],
     // Visual error-correction decay: on reconcile, the on-screen pose is kept
-    // and the correction bleeds in exponentially (τ ≈ 1/smoothing s).
-    smoothing,
+    // and the correction bleeds in exponentially (~63% per smoothMs).
+    smoothMs,
     // The SAME function the server runs — determinism is the whole contract.
     step: (ctx, predicted, inp) => stepEntity(predicted, inp, ctx.dt),
   });

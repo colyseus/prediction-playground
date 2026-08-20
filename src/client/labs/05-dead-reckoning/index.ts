@@ -22,12 +22,12 @@ export const lab: LabDescriptor = {
     const bot = await waitFor(() => room.state.bots.get("bot1"));
     const me = await waitFor(() => room.state.players.get(room.sessionId));
 
-    let smoothing = 25;
+    let smoothMs = 40;
     let snap = 8;
-    let reckon = makeReckon(room, { smoothing, snap });
+    let reckon = makeReckon(room, { smoothMs, snap });
     const rebuild = () => {
       reckon.dispose();
-      reckon = makeReckon(room, { smoothing, snap });
+      reckon = makeReckon(room, { smoothMs, snap });
     };
 
     const kb = new Keyboard();
@@ -54,10 +54,10 @@ export const lab: LabDescriptor = {
       note: "patrol = fully predictable · wander = server-secret turns (reckon corrects) · teleport = a scheduled discontinuity",
     });
     ctx.controls.slider({
-      label: "Rebase smoothing", min: 0, max: 50, value: smoothing, unit: "/s",
+      label: "Rebase smoothing", min: 0, max: 200, value: smoothMs, unit: " ms",
       onCommit: true,
-      onChange: (v) => { smoothing = v; rebuild(); },
-      note: "How fast a snapshot-rebase correction glides out. (Reckon params are attach options, not panel profiles — unlike Lab 04's modes, so these sliders rebuild the attach.)",
+      onChange: (v) => { smoothMs = v; rebuild(); },
+      note: "How long a snapshot-rebase correction takes to glide out. (Reckon params are attach options, not panel profiles — unlike Lab 04's modes, so these sliders rebuild the attach.)",
     });
     ctx.controls.slider({
       label: "Snap threshold", min: 1, max: 60, value: snap, unit: " u",

@@ -144,7 +144,7 @@ local function scenario_move(client)
   local recon = predict:reconciler(me, {
     input = input,
     fields = { "x", "y", "vx", "vy" },
-    smoothing = 15,
+    smooth_ms = 65,
     step = function(ctx, s, inp)
       step_entity(s, inp.moveX, inp.moveY, ctx.dt)
     end,
@@ -295,7 +295,7 @@ local function scenario_goal(client)
   local recon = predict:reconciler(me, {
     input = input,
     fields = { "x", "y", "vx", "vy", "scoreTicks" },
-    smoothing = 15,
+    smooth_ms = 65,
     step = function(ctx, s, inp)
       step_entity(s, inp.moveX, inp.moveY, ctx.dt)
       -- shared/goal.ts stepScoreGate — reconciled tick state

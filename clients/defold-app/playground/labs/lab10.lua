@@ -37,7 +37,7 @@ Lab.__index = Lab
 
 function Lab.new()
   return setmetatable({
-    smoothing = 15,
+    smooth_ms = 65,
     show_ghosts = true,
     touches = 0,
     touched_last_step = false,
@@ -86,7 +86,7 @@ function Lab:build()
   if self.sim ~= nil then self.sim:dispose() end
   self.sim = self.predict:sim({
     input = self.input,
-    smoothing = self.smoothing,
+    smooth_ms = self.smooth_ms,
     -- All three entries are decoded instances, so all are auto-bound and
     -- replaced in place by mirrors. The pose keys they derive stay internal:
     -- reads go through predict:value(instance, field).
@@ -164,9 +164,9 @@ end
 
 function Lab:frame(context, now, dt_ms)
   if kb.key("g") then self.show_ghosts = not self.show_ghosts end
-  local step = kb.key("equals") and 5 or kb.key("minus") and -5 or 0
+  local step = kb.key("equals") and 10 or kb.key("minus") and -10 or 0
   if step ~= 0 then
-    self.smoothing = math.max(0, math.min(40, self.smoothing + step))
+    self.smooth_ms = math.max(0, math.min(200, self.smooth_ms + step))
     self:build()
   end
 
@@ -240,7 +240,7 @@ function Lab:render(gfx)
 
   gfx.hud_section("CONTROLS")
   gfx.hud_key("WASD", "drive your paddle into the puck")
-  gfx.hud_key("- / =", string.format("smoothing %.0f /s", self.smoothing))
+  gfx.hud_key("- / =", string.format("smoothing %.0f ms", self.smooth_ms))
   gfx.hud_key("G", self.show_ghosts and "server ghosts: on" or "server ghosts: off")
   gfx.hud_note("One rollback over THREE parts. Your paddle, the puck AND the " ..
     "AI paddle are predicted together, in the server's order, so a strike is " ..

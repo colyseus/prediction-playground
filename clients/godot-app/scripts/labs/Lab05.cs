@@ -38,7 +38,7 @@ namespace Playground
         private string _sid;
         private Lab.Bot _bot;
 
-        private double _smoothing = 25, _snap = 8;
+        private double _smoothMs = 40, _snap = 8;
         private int _pattern;
 
         private readonly (double x, double y, double t)[] _dots =
@@ -84,7 +84,7 @@ namespace Playground
             _reckon.Attach(_bot, new ReckonOptions<Lab.Bot>
             {
                 Fields = new[] { "x", "y" },
-                Smoothing = _smoothing,
+                SmoothMs = _smoothMs,
                 Snap = _snap,
                 Step = (b, dt, elapsedMs) =>
                 {
@@ -119,10 +119,10 @@ namespace Playground
                 SendPattern();
                 _warps = 0;
             }
-            int smoothStep = Kb.Key(Key.Equal) ? 5 : Kb.Key(Key.Minus) ? -5 : 0;
+            int smoothStep = Kb.Key(Key.Equal) ? 10 : Kb.Key(Key.Minus) ? -10 : 0;
             if (smoothStep != 0)
             {
-                _smoothing = Mathf.Clamp((float)(_smoothing + smoothStep), 0, 50);
+                _smoothMs = Mathf.Clamp((float)(_smoothMs + smoothStep), 0, 200);
                 Rebuild();
             }
             int snapStep = Kb.Key(Key.Period) ? 6 : Kb.Key(Key.Comma) ? -6 : 0;
@@ -211,7 +211,7 @@ namespace Playground
             h.Section("CONTROLS");
             h.Key("WASD", "drive your own square");
             h.Key("B", $"bot pattern: {Patterns[_pattern]}");
-            h.Key("- / =", $"rebase smoothing  {_smoothing:F0} /s");
+            h.Key("- / =", $"rebase smoothing  {_smoothMs:F0} ms");
             h.Key(", / .", $"snap threshold  {_snap:F0} u");
             h.Note("patrol = fully predictable — wander = server-secret turns, so reckon " +
                    "extrapolates straight through every one and gets corrected — teleport = a " +

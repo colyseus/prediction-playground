@@ -31,7 +31,7 @@ export async function connect(client: Client) {
   const predict = Predict.get(room, {
     mode: "reckon",
     step: stepBot,
-    smoothing: 25,
+    smoothMs: 40,
     name: "bots",
   });
   predict.attachAll("bots", { fields: ["x", "y"] });
@@ -69,7 +69,7 @@ export function makeReconciler(
   return predict.reconciler(self, {
     input,
     fields: ["x", "y", "vx", "vy", "bumpTicks"],
-    smoothing: 15,
+    smoothMs: 65,
     step: (ctx: StepContext, p: BumpPlayer, inp) => {
       stepBumpGate(p);                       // reconciled tick gate (both sides)
       stepEntity(p, inp, ctx.dt);

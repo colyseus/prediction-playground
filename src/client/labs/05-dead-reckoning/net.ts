@@ -29,21 +29,21 @@ export async function connect(client: Client) {
  * identically here — reading `elapsedMs` on the server-clock timeline makes
  * any forward instant evaluable.
  *
- *   smoothing — glide applied to each snapshot REBASE (the small correction
- *               when a patch lands mid-glide).
- *   snap      — rebases beyond this distance POP instead of gliding: a
- *               teleport is a cut; smoothing across it looks like flying.
+ *   smoothMs — glide applied to each snapshot REBASE (the small correction
+ *              when a patch lands mid-glide).
+ *   snap     — rebases beyond this distance POP instead of gliding: a
+ *              teleport is a cut; smoothing across it looks like flying.
  */
-export function makeReckon(room: Room<BotsState>, opts: { smoothing: number; snap: number }) {
+export function makeReckon(room: Room<BotsState>, opts: { smoothMs: number; snap: number }) {
   const predict = Predict.get(room, {
     mode: "reckon",
     step: stepBot,
-    smoothing: opts.smoothing,
+    smoothMs: opts.smoothMs,
     name: "reckon",
   });
   const detach = predict.attachAll("bots", {
     fields: ["x", "y"],
-    smoothing: opts.smoothing,
+    smoothMs: opts.smoothMs,
     snap: opts.snap,
   });
   return { predict, dispose() { detach(); predict.dispose(); } };

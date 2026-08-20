@@ -58,7 +58,7 @@ export function makeReconciler(
   return predict.reconciler(self, {
     input,
     fields: ["x", "y", "vx", "vy"],
-    smoothing: 15,
+    smoothMs: 65,
     step: (ctx, p, inp) => stepEntity(p, inp, ctx.dt),
   });
 }

@@ -35,7 +35,7 @@ static struct {
     colyseus_sim_world_t* world;
     bool rebind;
 
-    double smoothing;
+    double smooth_ms;
     bool show_ghosts;
     trail_t puck_trail;
     spark_t drift_spark;
@@ -131,7 +131,7 @@ static bool l10_make_sim(void) {
     colyseus_sim_reconciler_options_t opts = { 0 };
     opts.parts = parts;
     opts.part_count = 3;
-    opts.smoothing = l10.smoothing;
+    opts.smooth_ms = l10.smooth_ms;
     l10.sim = colyseus_predict_sim_reconciler(l10.predict, l10.input, l10_step, &opts);
     if (!l10.sim) { return false; }
     l10.world = colyseus_sim_reconciler_world(l10.sim);
@@ -152,7 +152,7 @@ static bool lab10_attach(app_t* app, colyseus_room_t* room) {
     l10.sid = sid;
     l10.me = me;
     l10.bot = bot;
-    l10.smoothing = 15;
+    l10.smooth_ms = 65;
     l10.show_ghosts = true;
     l10.last_touch_t = -1e9;
     trail_init(&l10.puck_trail, 120);
@@ -196,11 +196,11 @@ static void lab10_frame(app_t* app, double now, double dt) {
     }
 
     if (app_key(KEY_G)) { l10.show_ghosts = !l10.show_ghosts; }
-    int smoothing_step = app_key(KEY_EQUAL) ? 5 : app_key(KEY_MINUS) ? -5 : 0;
+    int smoothing_step = app_key(KEY_EQUAL) ? 10 : app_key(KEY_MINUS) ? -10 : 0;
     if (smoothing_step) {
-        l10.smoothing += smoothing_step;
-        if (l10.smoothing < 0) { l10.smoothing = 0; }
-        if (l10.smoothing > 40) { l10.smoothing = 40; }
+        l10.smooth_ms += smoothing_step;
+        if (l10.smooth_ms < 0) { l10.smooth_ms = 0; }
+        if (l10.smooth_ms > 200) { l10.smooth_ms = 200; }
         colyseus_reconciler_free(l10.sim);
         l10_make_sim();
     }
@@ -313,7 +313,7 @@ static void lab10_frame(app_t* app, double now, double dt) {
 
     hud_section(h, "CONTROLS");
     hud_key(h, "WASD", "drive your paddle");
-    hud_key(h, "- / =", TextFormat("smoothing  %.0f /s", l10.smoothing));
+    hud_key(h, "- / =", TextFormat("smoothing  %.0f ms", l10.smooth_ms));
     hud_key(h, "G", l10.show_ghosts ? "server ghosts: on" : "server ghosts: off");
     hud_key(h, "B", l10.state->botEnabled ? "AI paddle: on" : "AI paddle: off");
     hud_note(h, "The puck AND the AI paddle are predicted THROUGH your inputs: every "

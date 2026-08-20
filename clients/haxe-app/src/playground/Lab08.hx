@@ -94,7 +94,7 @@ class Lab08 implements Lab {
 		recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy", "scoreTicks"],
-			smoothing: 15,
+			smoothMs: 65,
 			step: (ctx, p, inp) -> {
 				var e: Sim.Entity = { x: p.x, y: p.y, vx: p.vx, vy: p.vy };
 				Sim.stepEntity(e, inp.moveX, inp.moveY, ctx.dt);

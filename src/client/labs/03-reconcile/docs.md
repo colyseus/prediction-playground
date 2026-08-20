@@ -19,7 +19,7 @@ Try to break it:
 
 - **Force mispredict** makes the server shove you — something the client can't
   have predicted. Watch the red correction arrow and the drift spike, then
-  watch `smoothing` glide the error away. Set smoothing to 0 to feel the raw
+  watch `smoothMs` glide the error away. Set smoothMs to 0 to feel the raw
   snap.
 - **Teleport** is a discontinuity. Smoothing a 50-unit correction looks like
   flying across the arena — that's why teleport-class jumps should **snap**:

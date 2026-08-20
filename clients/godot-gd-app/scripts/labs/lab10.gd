@@ -18,7 +18,7 @@ var _puck = null
 var _bot = null
 var _sid := ""
 
-var _smoothing := 15.0
+var _smooth_ms := 65.0
 var _show_ghosts := true
 var _puck_trail := Trail.new(120)
 var _drift_spark := Spark.new()
@@ -83,7 +83,7 @@ func _build() -> void:
 	sim = _predict.sim({
 		"input": _input,
 		"world": { "paddle": _me, "puck": _puck, "bot": _bot },
-		"smoothing": _smoothing,
+		"smooth_ms": _smooth_ms,
 		"step": _step,
 	})
 
@@ -141,9 +141,9 @@ func _seek_puck() -> Array:
 
 func frame(_app: App, now: float, dt_ms: float) -> void:
 	if Kb.key(KEY_G): _show_ghosts = not _show_ghosts
-	var smooth_step := 5 if Kb.key(KEY_EQUAL) else (-5 if Kb.key(KEY_MINUS) else 0)
+	var smooth_step := 10 if Kb.key(KEY_EQUAL) else (-10 if Kb.key(KEY_MINUS) else 0)
 	if smooth_step != 0:
-		_smoothing = clampf(_smoothing + smooth_step, 0, 40)
+		_smooth_ms = clampf(_smooth_ms + smooth_step, 0, 200)
 		_build()
 
 	var move_x := Kb.move_x()
@@ -242,7 +242,7 @@ func render(app: App) -> void:
 
 	h.section("CONTROLS")
 	h.key("WASD", "drive your paddle into the puck")
-	h.key("- / =", "smoothing %.0f /s" % _smoothing)
+	h.key("- / =", "smoothing %.0f ms" % _smooth_ms)
 	h.key("G", "server ghosts: on" if _show_ghosts else "server ghosts: off")
 	h.note("One rollback over THREE parts. Your paddle, the puck AND the AI " +
 		"paddle are predicted together, in the server's order, so a strike is " +

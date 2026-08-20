@@ -18,7 +18,7 @@ function Lab06() constructor {
         if (_me == 0) return false;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy"],
-            smoothing: 15,
+            smooth_ms: 65,
             step: function(_ctx, _s, _cmd) {
                 sim_step_mirror(_s, _cmd.get("moveX"), _cmd.get("moveY"), _ctx.dt);
             },
@@ -212,7 +212,7 @@ function Lab07() constructor {
         var _lab_self = self;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy", "bumpTicks"],
-            smoothing: 15,
+            smooth_ms: 65,
             step: method({ lab: _lab_self, shell: _shell }, function(_ctx, _s, _cmd) {
                 // gate BEFORE movement, exactly like the server
                 var _ticks = _s.get("bumpTicks");
@@ -326,7 +326,7 @@ function Lab10() constructor {
         if (_me == 0 || _puck == 0) return false;
         sim = predict.sim({
             world: { me: _me, puck: _puck },
-            smoothing: 0,
+            smooth_ms: 0,
             step: function(_ctx, _world, _cmd) {
                 predict_world_step(_ctx, _world, _cmd);
             },

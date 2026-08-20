@@ -69,7 +69,7 @@ func mount(app: App) -> bool:
 		_attach("lerp", Palette.BLUE,
 			{ "mode": Colyseus.Predict.LERP, "delay": Sim.REMOTE_INTERP_MS }),
 		_attach("damped", Palette.GOOD,
-			{ "mode": Colyseus.Predict.DAMPED, "damping": 12.0 }),
+			{ "mode": Colyseus.Predict.DAMPED, "smooth_ms": 83.0 }),
 		_attach("extrapolate", Palette.WARN,
 			{ "mode": Colyseus.Predict.EXTRAPOLATE, "max_extrapolate": 250.0 }),
 	]

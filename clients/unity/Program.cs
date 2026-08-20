@@ -141,7 +141,7 @@ public static class Program
 		{
 			Input = input,
 			Fields = new[] { "x", "y", "vx", "vy" },
-			Smoothing = 15,
+			SmoothMs = 65,
 			Step = (ctx, s, cmd) =>
 			{
 				var e = new Entity { X = s.x, Y = s.y, Vx = s.vx, Vy = s.vy };
@@ -306,7 +306,7 @@ public static class Program
 		{
 			Input = input,
 			Fields = new[] { "x", "y", "vx", "vy", "scoreTicks" },
-			Smoothing = 15,
+			SmoothMs = 65,
 			Step = (ctx, s, cmd) =>
 			{
 				var e = new Entity { X = s.x, Y = s.y, Vx = s.vx, Vy = s.vy };

@@ -25,7 +25,7 @@ class MoveLane {
 	public var maxCorrectionMag: Float = 0;
 	/** reset() on a teleport-class correction: a cut, not a glide. */
 	public var autoSnap: Bool = true;
-	public var smoothing: Float = 15;
+	public var smoothMs: Float = 65;
 
 	var input: Dynamic;
 	var cmd: Dynamic;
@@ -56,17 +56,17 @@ class MoveLane {
 		// Remote squares: damped toward the latest snapshot. Their inputs are not
 		// ours to predict — lab 04 explores the modes.
 		predict.attachAll("players", { x: "damped", y: "damped" });
-		build(smoothing);
+		build(smoothMs);
 		return true;
 	}
 
 	/** Rebuild the reconciler — smoothing is taken at construction. */
-	public function build(smoothing: Float): Void {
-		this.smoothing = smoothing;
+	public function build(smoothMs: Float): Void {
+		this.smoothMs = smoothMs;
 		this.recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy"],
-			smoothing: smoothing,
+			smoothMs: smoothMs,
 			// The SAME function the server runs — determinism is the contract.
 			step: (ctx, s, inp) -> {
 				var e: Sim.Entity = { x: s.x, y: s.y, vx: s.vx, vy: s.vy };
@@ -115,7 +115,7 @@ class MoveLane {
 	public function rebind(): Void {
 		var fresh = room.state.players.items.get(sid);
 		if (fresh != null) me = fresh;
-		build(smoothing);
+		build(smoothMs);
 	}
 
 	public function dispose(): Void {

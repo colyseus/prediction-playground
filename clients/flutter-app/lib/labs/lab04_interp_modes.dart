@@ -59,7 +59,7 @@ class Lab04InterpModes extends Lab<BotsState> {
   InputHandle? _input;
   String _pattern = 'patrol';
   double _lerpDelay = remoteInterpMs;
-  double _damping = 12;
+  double _smoothMs = 83;
   double _maxExtrapolate = 250;
 
   double _lastRawX = double.nan;
@@ -91,7 +91,7 @@ class Lab04InterpModes extends Lab<BotsState> {
           Palette.good,
           FieldOptions(
               mode: PredictMode.damped,
-              damping: _damping,
+              smoothMs: _smoothMs,
               snap: teleportSnapDist)),
       _Mode(
           'extrapolate',
@@ -345,15 +345,15 @@ class Lab04InterpModes extends Lab<BotsState> {
             FieldOptions(
                 mode: PredictMode.lerp, delay: v, snap: teleportSnapDist));
       }, divisions: 12, format: (v) => '${v.round()} ms'),
-      SliderSpec('damped damping', 2, 30, _damping, (v) {
-        _damping = v;
+      SliderSpec('damped smoothMs', 0, 200, _smoothMs, (v) {
+        _smoothMs = v;
         _retune(
             'damped',
             FieldOptions(
                 mode: PredictMode.damped,
-                damping: v,
+                smoothMs: v,
                 snap: teleportSnapDist));
-      }, divisions: 14, format: (v) => '${v.round()} /s'),
+      }, divisions: 20, format: (v) => '${v.round()} ms'),
       SliderSpec('extrapolate cap', 50, 500, _maxExtrapolate, (v) {
         _maxExtrapolate = v;
         _retune(

@@ -66,7 +66,7 @@ namespace Playground
             _predict.AttachAll("bots", new ReckonOptions<Lab.Bot>
             {
                 Fields = new[] { "x", "y" },
-                Smoothing = 25,
+                SmoothMs = 40,
                 Step = (b, dt, elapsedMs) =>
                 {
                     var s = new Sim.BotState
@@ -97,7 +97,7 @@ namespace Playground
             {
                 Input = _input,
                 Fields = new[] { "x", "y", "vx", "vy", "bumpTicks" },
-                Smoothing = 15,
+                SmoothMs = 65,
                 Step = Step,
             });
             _lastReconcileSeq = 0;

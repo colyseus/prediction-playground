@@ -95,7 +95,7 @@ namespace Playground
             {
                 Input = _input,
                 Fields = new[] { "x", "y", "vx", "vy", "scoreTicks" },
-                Smoothing = 15,
+                SmoothMs = 65,
                 Step = (ctx, p, cmd) =>
                 {
                     var e = new Sim.Entity { x = p.x, y = p.y, vx = p.vx, vy = p.vy };

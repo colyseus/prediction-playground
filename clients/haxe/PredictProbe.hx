@@ -166,7 +166,7 @@ class PredictProbe {
 		var recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy"],
-			smoothing: 15,
+			smoothMs: 65,
 			step: (ctx, s, inp) -> stepEntity(s, inp.moveX, inp.moveY, ctx.dt),
 		});
 		check("reconciler created (step 50ms adopted)", recon.stepMs == 50);
@@ -339,7 +339,7 @@ class PredictProbe {
 		var recon = predict.reconciler(me, {
 			input: input,
 			fields: ["x", "y", "vx", "vy", "scoreTicks"],
-			smoothing: 15,
+			smoothMs: 65,
 			step: function(ctx, s, inp) {
 				stepEntity(s, inp.moveX, inp.moveY, ctx.dt);
 				// shared/goal.ts stepScoreGate — reconciled tick state

@@ -19,7 +19,7 @@ function MoveLane.new()
     corrections = 0,
     max_correction_mag = 0,
     auto_snap = true,          -- Reset() on a teleport-class correction: a cut
-    smoothing = 15,
+    smooth_ms = 65,
     _last_reconcile_seq = 0,
   }, MoveLane)
 end
@@ -41,17 +41,17 @@ function MoveLane:attach(room)
   -- Remote squares: damped toward the latest snapshot. Their inputs are not
   -- ours to predict — lab 04 explores the modes.
   self.predict:attach_all("players", { x = "damped", y = "damped" })
-  self:build(self.smoothing)
+  self:build(self.smooth_ms)
   return true
 end
 
 --- Rebuild the reconciler — smoothing is taken at construction.
-function MoveLane:build(smoothing)
-  self.smoothing = smoothing
+function MoveLane:build(smooth_ms)
+  self.smooth_ms = smooth_ms
   self.recon = self.predict:reconciler(self.me, {
     input = self.input,
     fields = { "x", "y", "vx", "vy" },
-    smoothing = smoothing,
+    smooth_ms = smooth_ms,
     -- The SAME function the server runs — determinism is the contract.
     step = function(ctx, s, inp)
       sim.step_entity(s, inp.moveX, inp.moveY, ctx.dt)
@@ -94,7 +94,7 @@ function MoveLane:remote_y(p) return self.predict:value(p, "y") end
 function MoveLane:rebind()
   local me = self.room.state.players[self.sid]
   if me ~= nil then self.me = me end
-  self:build(self.smoothing)
+  self:build(self.smooth_ms)
 end
 
 function MoveLane:dispose()

@@ -29,8 +29,8 @@ export const lab: LabDescriptor = {
     const serverTrail = new Trail(150);
     const arrows: CorrectionArrow[] = [];
 
-    let smoothing = 15;
-    let recon = makeReconciler(predict, me, input, smoothing);
+    let smoothMs = 65;
+    let recon = makeReconciler(predict, me, input, smoothMs);
     let renderSmoothed = true;
     let showGhost = true;
     let autoSnap = true;
@@ -48,15 +48,15 @@ export const lab: LabDescriptor = {
     ], "Scenarios");
     ctx.controls.slider({
       label: "Correction smoothing",
-      min: 0, max: 40, value: smoothing, unit: "/s",
+      min: 0, max: 200, value: smoothMs, unit: " ms",
       onCommit: true,
       onChange: (v) => {
-        smoothing = v;
+        smoothMs = v;
         recon.dispose();
-        recon = makeReconciler(predict, me, input, smoothing);
+        recon = makeReconciler(predict, me, input, smoothMs);
         lastReconcileSeq = 0;
       },
-      note: "0 = corrections snap instantly. Higher = the error decays faster (τ ≈ 1/smoothing s).",
+      note: "0 = corrections snap instantly. Higher = the error lingers longer (fades ~63% per smoothMs).",
     });
     ctx.controls.radio<"value" | "state">({
       label: "Render the local square from",

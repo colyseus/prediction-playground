@@ -5,7 +5,7 @@
  * the PRESENT with the same step function the server runs. The reckon horizon
  * is exactly the snapshot age.
  *
- *   smoothing  glide applied to each snapshot REBASE (the small correction
+ *   smooth_ms  glide applied to each snapshot REBASE (the small correction
  *              when a patch lands mid-glide).
  *   snap       rebases beyond this distance POP instead of gliding: a teleport
  *              is a cut, and smoothing across it looks like flying.
@@ -30,7 +30,7 @@ static struct {
     bot_t* bot;
 
     pacer_t pacer;
-    double smoothing, snap;
+    double smooth_ms, snap;
     int pattern;
 
     struct { double x, y, t; } dots[L05_MAX_DOTS];
@@ -65,7 +65,7 @@ static bool l05_attach_reckon(void) {
     static const char* const FIELDS[] = { "x", "y" };
     l05.reckon = colyseus_predict_create(l05.callbacks, l05.clock);
     return colyseus_predict_attach_reckon(l05.reckon, (colyseus_schema_t*)l05.bot, &bot_vtable,
-        FIELDS, 2, l05_reckon_step, l05.smoothing, 0, l05.snap, NULL) == 0;
+        FIELDS, 2, l05_reckon_step, l05.smooth_ms, 0, l05.snap, NULL) == 0;
 }
 
 static void l05_send_pattern(void) {
@@ -88,7 +88,7 @@ static bool lab05_attach(app_t* app, colyseus_room_t* room) {
     l05.sid = sid;
     l05.bot = bot;
     l05.clock = colyseus_room_get_clock(room);
-    l05.smoothing = 25;
+    l05.smooth_ms = 40;
     l05.snap = 8;
     l05.last_raw_x = NAN;
     l05.last_raw_y = NAN;
@@ -136,11 +136,11 @@ static void lab05_frame(app_t* app, double now, double dt) {
         l05_send_pattern();
         l05.warps = 0;
     }
-    int smooth_step = app_key(KEY_EQUAL) ? 5 : app_key(KEY_MINUS) ? -5 : 0;
+    int smooth_step = app_key(KEY_EQUAL) ? 10 : app_key(KEY_MINUS) ? -10 : 0;
     if (smooth_step) {
-        l05.smoothing += smooth_step;
-        if (l05.smoothing < 0) { l05.smoothing = 0; }
-        if (l05.smoothing > 50) { l05.smoothing = 50; }
+        l05.smooth_ms += smooth_step;
+        if (l05.smooth_ms < 0) { l05.smooth_ms = 0; }
+        if (l05.smooth_ms > 200) { l05.smooth_ms = 200; }
         l05_rebuild();
     }
     int snap_step = app_key(KEY_PERIOD) ? 6 : app_key(KEY_COMMA) ? -6 : 0;
@@ -222,7 +222,7 @@ static void lab05_frame(app_t* app, double now, double dt) {
     hud_section(h, "CONTROLS");
     hud_key(h, "WASD", "drive your own square");
     hud_key(h, "B", TextFormat("bot pattern: %s", L05_PATTERNS[l05.pattern]));
-    hud_key(h, "- / =", TextFormat("rebase smoothing  %.0f /s", l05.smoothing));
+    hud_key(h, "- / =", TextFormat("rebase smoothing  %.0f ms", l05.smooth_ms));
     hud_key(h, ", / .", TextFormat("snap threshold  %.0f u", l05.snap));
     hud_note(h, "patrol = fully predictable - wander = server-secret turns, so reckon "
         "extrapolates straight through every one and gets corrected - teleport = a "

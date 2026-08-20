@@ -57,7 +57,7 @@ func mount(app: App) -> bool:
 	# collision test below reads at ctx.reckon_time.
 	_predict.attach_all_reckon("bots", ["x", "y"],
 		func(b, dt: float, elapsed_ms: float): Sim.step_bot(b, dt, elapsed_ms, _bot_kind),
-		{ "smoothing": 25.0 })
+		{ "smooth_ms": 40.0 })
 	_predict.attach_all("players", {
 		"x": Colyseus.Predict.DAMPED, "y": Colyseus.Predict.DAMPED,
 	}, _sid)
@@ -72,7 +72,7 @@ func _build() -> void:
 	_recon = _predict.reconciler(_me, {
 		"input": _input,
 		"fields": ["x", "y", "vx", "vy", "bumpTicks"],
-		"smoothing": 15.0,
+		"smooth_ms": 65.0,
 		"step": _step,
 	})
 	_last_reconcile_seq = 0

@@ -124,10 +124,10 @@ static bool lab04_attach(app_t* app, colyseus_room_t* room) {
     pacer_init(&l04.pacer, 1000.0 / TICK_HZ);
 
     struct { const char* name; Color color; colyseus_predict_mode_t mode;
-             double delay, damping, max_extrapolate; } spec[4] = {
+             double delay, smooth_ms, max_extrapolate; } spec[4] = {
         { "raw",         COL_TEXT, COLYSEUS_PREDICT_RAW,         0,   0,  0 },
         { "lerp",        COL_BLUE, COLYSEUS_PREDICT_LERP,        100, 0,  0 },
-        { "damped",      COL_GOOD, COLYSEUS_PREDICT_DAMPED,      0,   12, 0 },
+        { "damped",      COL_GOOD, COLYSEUS_PREDICT_DAMPED,      0,   83, 0 },
         { "extrapolate", COL_WARN, COLYSEUS_PREDICT_EXTRAPOLATE, 0,   0,  250 },
     };
     for (int i = 0; i < 4; i++) {
@@ -140,7 +140,7 @@ static bool lab04_attach(app_t* app, colyseus_room_t* room) {
         colyseus_predict_field_options_t opts = { 0 };
         opts.mode = spec[i].mode;
         opts.delay = spec[i].delay;
-        opts.damping = spec[i].damping;
+        opts.smooth_ms = spec[i].smooth_ms;
         opts.max_extrapolate = spec[i].max_extrapolate;
         const colyseus_attach_field_t cfg[] = { { "x", &opts }, { "y", &opts } };
         colyseus_predict_attach(m->predict, (colyseus_schema_t*)bot, cfg, 2);

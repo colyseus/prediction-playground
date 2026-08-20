@@ -115,7 +115,7 @@ static void l09_step(const colyseus_step_ctx_t* ctx, colyseus_schema_t* state,
 static bool l09_make_reconciler(void) {
     static const char* const FIELDS[] = { "x", "y", "vx", "vy" };
     colyseus_reconciler_options_t opts = { 0 };
-    opts.smoothing = 15;
+    opts.smooth_ms = 65;
     opts.fields = FIELDS;
     opts.field_count = 4;
     l09.recon = colyseus_predict_reconciler(l09.predict, (colyseus_schema_t*)l09.me,

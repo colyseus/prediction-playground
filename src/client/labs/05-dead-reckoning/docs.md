@@ -15,7 +15,7 @@ Three motion types, three outcomes:
   essentially exact; the only corrections are tiny rebases when a patch lands.
 - **wander** — the heading changes are a server-side secret. Reckon
   extrapolates straight through every turn and gets visibly corrected — the
-  rebase glide (tune it with `smoothing`).
+  rebase glide (tune it with `smoothMs`).
 - **teleport** — the warp schedule is synced state (`lastTeleport` +
   period), so reckon predicts even the discontinuity. The `snap` threshold
   handles whatever residual mismatch remains: below it, corrections glide;

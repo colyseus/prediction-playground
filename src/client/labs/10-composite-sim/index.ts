@@ -22,8 +22,8 @@ export const lab: LabDescriptor = {
     const me = await waitFor(() => room.state.players.get(room.sessionId));
     await waitFor(() => room.state.puck);
 
-    let smoothing = 15;
-    let sim = makeSim(predict, room as any, input, smoothing);
+    let smoothMs = 65;
+    let sim = makeSim(predict, room as any, input, smoothMs);
 
     const kb = new Keyboard();
     const puckTrail = new Trail(120);
@@ -36,12 +36,12 @@ export const lab: LabDescriptor = {
     });
     ctx.controls.slider({
       label: "Correction smoothing",
-      min: 0, max: 40, value: smoothing, unit: "/s",
+      min: 0, max: 200, value: smoothMs, unit: " ms",
       onCommit: true,
       onChange: (v) => {
-        smoothing = v;
+        smoothMs = v;
         sim.dispose();
-        sim = makeSim(predict, room as any, input, smoothing);
+        sim = makeSim(predict, room as any, input, smoothMs);
       },
     });
     ctx.controls.buttons([

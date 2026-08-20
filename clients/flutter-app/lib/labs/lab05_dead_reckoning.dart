@@ -56,7 +56,7 @@ class Lab05DeadReckoning extends Lab<BotsState> {
   final List<({double x, double y, double t})> _dots = [];
 
   String _pattern = 'patrol';
-  double _smoothing = 25;
+  double _smoothMs = 40;
   double _snap = 8;
 
   /// The decoded `kind`, handed to the step: the reckon scratch carries
@@ -112,7 +112,7 @@ class Lab05DeadReckoning extends Lab<BotsState> {
     _reckon?.dispose();
     _reckon = Predict.get(joined)
       ..attachAllReckon('bots', const ['x', 'y'], _step,
-          smoothing: _smoothing, snap: _snap);
+          smoothMs: _smoothMs, snap: _snap);
   }
 
   /// The forward pass, called by the SDK with a scratch copy of the snapshot.
@@ -280,17 +280,17 @@ class Lab05DeadReckoning extends Lab<BotsState> {
           _dots.clear();
         },
       ),
-      SliderSpec('rebase smoothing', 0, 50, _smoothing, (v) {
-        if (v == _smoothing) return;
-        _smoothing = v;
+      SliderSpec('rebase smoothing', 0, 200, _smoothMs, (v) {
+        if (v == _smoothMs) return;
+        _smoothMs = v;
         _attachReckon();
-      }, divisions: 10, format: (v) => '${v.round()} /s'),
+      }, divisions: 20, format: (v) => '${v.round()} ms'),
       SliderSpec('snap threshold', 2, 62, _snap, (v) {
         if (v == _snap) return;
         _snap = v;
         _attachReckon();
       }, divisions: 10, format: (v) => '${v.round()} u'),
-      const NoteSpec('Smoothing is how fast a snapshot rebase glides out. '
+      const NoteSpec('Smoothing is how long a snapshot rebase takes to glide out. '
           'Anything past the snap threshold cuts instead, because smoothing '
           'across a teleport draws the bot crossing ground it never covered.'),
     ];

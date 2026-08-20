@@ -97,7 +97,7 @@ function Lab:mount(context, room)
   self.modes = {
     { name = "raw", color_key = "text", visible = true, smooth = Smoothness.new() },
     attach("lerp", "blue", { mode = "lerp", delay = sim.REMOTE_INTERP_MS }),
-    attach("damped", "good", { mode = "damped", damping = 12 }),
+    attach("damped", "good", { mode = "damped", smooth_ms = 83 }),
     attach("extrapolate", "warn", { mode = "extrapolate", max_extrapolate = 250 }),
   }
   return true

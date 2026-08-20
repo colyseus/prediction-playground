@@ -19,7 +19,7 @@ var max_correction_mag := 0.0
 
 ## reset() on a teleport-class correction: a cut, not a glide.
 var auto_snap := true
-var smoothing := 15.0
+var smooth_ms := 65.0
 
 ## Cost of the last predict.tick() call in usec — the Callable-overhead
 ## readout the acceptance run records at 400 ms injected latency.
@@ -52,16 +52,16 @@ func join(app: App) -> bool:
 	predict.attach_all("players", {
 		"x": Colyseus.Predict.DAMPED, "y": Colyseus.Predict.DAMPED,
 	}, sid)
-	build(smoothing)
+	build(smooth_ms)
 	return true
 
 ## Rebuild the reconciler — smoothing is taken at construction.
 func build(s: float) -> void:
-	smoothing = s
+	smooth_ms = s
 	recon = predict.reconciler(me, {
 		"input": _input,
 		"fields": ["x", "y", "vx", "vy"],
-		"smoothing": s,
+		"smooth_ms": s,
 		# The SAME function the server runs — determinism is the contract.
 		"step": _step,
 	})
@@ -110,7 +110,7 @@ func rebind() -> void:
 	if st is Dictionary and st.get("players") is Dictionary \
 			and st.get("players").has(sid):
 		me = st.get("players").get(sid)
-	build(smoothing)
+	build(smooth_ms)
 
 func dispose() -> void:
 	recon = null

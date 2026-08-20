@@ -14,7 +14,7 @@ import lab.BotsState;
  * the PRESENT with the same step function the server runs. The reckon horizon is
  * exactly the snapshot age.
  *
- *   smoothing  glide applied to each snapshot REBASE (the small correction when
+ *   smoothMs   glide applied to each snapshot REBASE (the small correction when
  *              a patch lands mid-glide).
  *   snap       rebases beyond this distance POP instead of gliding: a teleport
  *              is a cut, and smoothing across it looks like flying.
@@ -41,7 +41,7 @@ class Lab05 implements Lab {
 	var input: Dynamic;
 	var cmd: Dynamic;
 	var pacer: Pacer;
-	var smoothing = 25.0;
+	var smoothMs = 40.0;
 	var snap = 8.0;
 	var pattern = 0;
 	var dots: Array<Array<Float>> = [];
@@ -96,7 +96,7 @@ class Lab05 implements Lab {
 		reckon.attach(bot, {
 			mode: "reckon",
 			fields: ["x", "y"],
-			smoothing: smoothing,
+			smoothMs: smoothMs,
 			snap: snap,
 			step: (b, dt, elapsedMs) -> {
 				// The scratch is a FULL copy, so `kind` and the patrol bounds are
@@ -131,8 +131,8 @@ class Lab05 implements Lab {
 
 	public function frame(app: App, now: Float, dtMs: Float): Void {
 		if (Kb.key("b")) setPattern(PATTERNS[(pattern + 1) % PATTERNS.length]);
-		var smoothStep = Kb.key("equals") ? 5 : Kb.key("minus") ? -5 : 0;
-		if (smoothStep != 0) { smoothing = Math.max(0, Math.min(50, smoothing + smoothStep)); rebuild(); }
+		var smoothStep = Kb.key("equals") ? 10 : Kb.key("minus") ? -10 : 0;
+		if (smoothStep != 0) { smoothMs = Math.max(0, Math.min(200, smoothMs + smoothStep)); rebuild(); }
 		var snapStep = Kb.key("period") ? 6 : Kb.key("comma") ? -6 : 0;
 		if (snapStep != 0) { snap = Math.max(1, Math.min(60, snap + snapStep)); rebuild(); }
 
@@ -206,7 +206,7 @@ class Lab05 implements Lab {
 		g.hudSection("CONTROLS");
 		g.hudKey("WASD", "drive your own square");
 		g.hudKey("B", 'bot pattern: ${PATTERNS[pattern]}');
-		g.hudKey("- / =", 'rebase smoothing  ${Math.round(smoothing)} /s');
+		g.hudKey("- / =", 'rebase smoothing  ${Math.round(smoothMs)} ms');
 		g.hudKey(", / .", 'snap threshold  ${Math.round(snap)} u');
 		g.hudNote("patrol = fully predictable — wander = server-secret turns, so "
 			+ "reckon extrapolates straight through every one and gets corrected — "

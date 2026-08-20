@@ -48,7 +48,7 @@ function run_acceptance() {
         var _predict = new ColyseusPredict(_room);
         var _recon = _predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy"],
-            smoothing: 15, snap: 8,
+            smooth_ms: 65, snap: 8,
             step: function(_ctx2, _s, _cmd) {
                 sim_step_mirror(_s, _cmd.get("moveX"), _cmd.get("moveY"), _ctx2.dt);
             },

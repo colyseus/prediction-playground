@@ -5,7 +5,7 @@
 -- the PRESENT with the same step function the server runs. The reckon horizon is
 -- exactly the snapshot age.
 --
---   smoothing  glide applied to each snapshot REBASE (the small correction when
+--   smooth_ms  glide applied to each snapshot REBASE (the small correction when
 --              a patch lands mid-glide).
 --   snap       rebases beyond this distance POP instead of gliding: a teleport
 --              is a cut, and smoothing across it looks like flying.
@@ -43,7 +43,7 @@ Lab.__index = Lab
 
 function Lab.new()
   return setmetatable({
-    smoothing = 25, snap = 8, pattern = 1,
+    smooth_ms = 40, snap = 8, pattern = 1,
     dots = {}, warps = 0, warp_flash_t = -1e9, peak_gap = 0,
   }, Lab)
 end
@@ -82,7 +82,7 @@ function Lab:attach_reckon()
   self.reckon:attach(self.bot, {
     mode = "reckon",
     fields = { "x", "y" },
-    smoothing = self.smoothing,
+    smooth_ms = self.smooth_ms,
     snap = self.snap,
     step = function(b, dt, elapsed_ms)
       local s = to_sim(b)
@@ -113,9 +113,9 @@ end
 
 function Lab:frame(context, now, dt_ms)
   if kb.key("b") then self:set_pattern(PATTERNS[self.pattern % #PATTERNS + 1]) end
-  local smooth_step = kb.key("equals") and 5 or kb.key("minus") and -5 or 0
+  local smooth_step = kb.key("equals") and 10 or kb.key("minus") and -10 or 0
   if smooth_step ~= 0 then
-    self.smoothing = math.max(0, math.min(50, self.smoothing + smooth_step))
+    self.smooth_ms = math.max(0, math.min(200, self.smooth_ms + smooth_step))
     self:rebuild()
   end
   local snap_step = kb.key("period") and 6 or kb.key("comma") and -6 or 0
@@ -194,7 +194,7 @@ function Lab:render(gfx)
   gfx.hud_section("CONTROLS")
   gfx.hud_key("WASD", "drive your own square")
   gfx.hud_key("B", "bot pattern: " .. PATTERNS[self.pattern])
-  gfx.hud_key("- / =", string.format("rebase smoothing  %.0f /s", self.smoothing))
+  gfx.hud_key("- / =", string.format("rebase smoothing  %.0f ms", self.smooth_ms))
   gfx.hud_key(", / .", string.format("snap threshold  %.0f u", self.snap))
   gfx.hud_note("patrol = fully predictable — wander = server-secret turns, so " ..
     "reckon extrapolates straight through every one and gets corrected — " ..

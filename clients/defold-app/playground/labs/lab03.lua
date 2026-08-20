@@ -47,9 +47,9 @@ function Lab:frame(context, now, dt_ms)
   if kb.key("v") then self.render_smoothed = not self.render_smoothed end
   if kb.key("g") then self.show_ghost = not self.show_ghost end
   if kb.key("n") then lane.auto_snap = not lane.auto_snap end
-  local step = kb.key("equals") and 5 or kb.key("minus") and -5 or 0
+  local step = kb.key("equals") and 10 or kb.key("minus") and -10 or 0
   if step ~= 0 then
-    lane:build(math.max(0, math.min(40, lane.smoothing + step)))
+    lane:build(math.max(0, math.min(200, lane.smooth_ms + step)))
   end
 
   lane:drive(now, kb.move_x(), kb.move_y())
@@ -93,7 +93,7 @@ function Lab:render(gfx)
   gfx.hud_key("WASD", "drive")
   gfx.hud_key("I", "force mispredict (impulse)")
   gfx.hud_key("T", "teleport")
-  gfx.hud_key("- / =", string.format("smoothing %.0f /s", lane.smoothing))
+  gfx.hud_key("- / =", string.format("smoothing %.0f ms", lane.smooth_ms))
   gfx.hud_key("V", self.render_smoothed and "render: value() smoothed" or "render: state (exact)")
   gfx.hud_key("G", self.show_ghost and "server ghost: on" or "server ghost: off")
   gfx.hud_key("N", lane.auto_snap and "snap on teleport: on" or "snap on teleport: off")

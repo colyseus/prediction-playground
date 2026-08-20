@@ -64,7 +64,7 @@ namespace Playground
         private Lab.Player _bot;
         private string _sid;
 
-        private double _smoothing = 15;
+        private double _smoothMs = 65;
         private bool _showGhosts = true;
         private readonly Trail _puckTrail = new Trail(120);
         private readonly Spark _driftSpark = new Spark();
@@ -136,7 +136,7 @@ namespace Playground
             _sim = _predict.Sim(new SimReconcilerOptions<HockeyWorld, Lab.MoveInput>
             {
                 Input = _input,
-                Smoothing = _smoothing,
+                SmoothMs = _smoothMs,
                 World = new HockeyWorld { paddle = _me, puck = _puck, bot = _bot },
                 Step = Step,
             });
@@ -217,10 +217,10 @@ namespace Playground
         public override void Frame(App app, double now, double dtMs)
         {
             if (Kb.Key(Key.G)) _showGhosts = !_showGhosts;
-            int smoothStep = Kb.Key(Key.Equal) ? 5 : Kb.Key(Key.Minus) ? -5 : 0;
+            int smoothStep = Kb.Key(Key.Equal) ? 10 : Kb.Key(Key.Minus) ? -10 : 0;
             if (smoothStep != 0)
             {
-                _smoothing = Mathf.Clamp((float)(_smoothing + smoothStep), 0, 40);
+                _smoothMs = Mathf.Clamp((float)(_smoothMs + smoothStep), 0, 200);
                 Build();
             }
 
@@ -300,7 +300,7 @@ namespace Playground
 
             h.Section("CONTROLS");
             h.Key("WASD", "drive your paddle into the puck");
-            h.Key("- / =", $"smoothing {_smoothing:F0} /s");
+            h.Key("- / =", $"smoothing {_smoothMs:F0} ms");
             h.Key("G", _showGhosts ? "server ghosts: on" : "server ghosts: off");
             h.Note("One rollback over THREE parts. Your paddle, the puck AND the " +
                    "AI paddle are predicted together, in the server's order, so a " +

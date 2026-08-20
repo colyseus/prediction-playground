@@ -121,7 +121,7 @@ static void l08_on_goal_message(colyseus_message_reader_t* reader, void* userdat
 static bool l08_make_reconciler(void) {
     static const char* const FIELDS[] = { "x", "y", "vx", "vy", "scoreTicks" };
     colyseus_reconciler_options_t opts = { 0 };
-    opts.smoothing = 15;
+    opts.smooth_ms = 65;
     opts.fields = FIELDS;
     opts.field_count = 5;
     l08.recon = colyseus_predict_reconciler(l08.predict, (colyseus_schema_t*)l08.me,

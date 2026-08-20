@@ -8,10 +8,10 @@ import { FixedStepPacer } from "../../framework/pacer.ts";
 import { drawSquare, drawCircle, hueColor, drawLabel } from "../../framework/draw.ts";
 import { TICK_HZ, PLAYER_HALF, BOT_RADIUS } from "../../../shared/constants.ts";
 
-const MODES: Array<{ mode: OverlayMode; color: string; opts: { delay?: number; damping?: number; maxExtrapolate?: number } }> = [
+const MODES: Array<{ mode: OverlayMode; color: string; opts: { delay?: number; smoothMs?: number; maxExtrapolate?: number } }> = [
   { mode: "raw", color: "#d8e2f0", opts: {} },
   { mode: "lerp", color: "#6db3ff", opts: { delay: 100 } },
-  { mode: "damped", color: "#7be08a", opts: { damping: 12 } },
+  { mode: "damped", color: "#7be08a", opts: { smoothMs: 83 } },
   { mode: "extrapolate", color: "#ffb454", opts: { maxExtrapolate: 250 } },
 ];
 
@@ -107,7 +107,7 @@ export const lab: LabDescriptor = {
         onChange: (v) => { o.visible = v; },
       });
     }
-    ctx.controls.note("Tune each mode in ITS OWN Predict card (top left): lerp's delay, damped's damping, extrapolate's cap — all live, per mode. This panel only picks what the server does and what's drawn.");
+    ctx.controls.note("Tune each mode in ITS OWN Predict card (top left): lerp's delay, damped's smoothMs, extrapolate's cap — all live, per mode. This panel only picks what the server does and what's drawn.");
     ctx.controls.note("WASD drives your own square (rendered raw). The strip below plots the bot's x: white dots = received samples, colored traces = what each mode rendered.");
 
     return {

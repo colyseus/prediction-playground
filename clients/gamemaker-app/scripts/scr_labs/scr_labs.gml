@@ -210,7 +210,7 @@ function Lab03() constructor {
         if (_me == 0) return false;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy"],
-            smoothing: smoothing,
+            smooth_ms: smooth_ms,
             step: function(_ctx, _s, _cmd) {
                 sim_step_mirror(_s, _cmd.get("moveX"), _cmd.get("moveY"), _ctx.dt);
             },
@@ -227,7 +227,7 @@ function Lab03() constructor {
         // remotes: damped toward the latest snapshot (their inputs aren't ours)
         predict.attach_all("players",
             { x: COLYSEUS_PREDICT_DAMPED, y: COLYSEUS_PREDICT_DAMPED }, _shell.sid);
-        smoothing = 15;
+        smooth_ms = 65;
         render_smoothed = true;
         show_ghost = true;
         auto_snap = true;
@@ -259,9 +259,9 @@ function Lab03() constructor {
         if (keyboard_check_pressed(ord("V"))) render_smoothed = !render_smoothed;
         if (keyboard_check_pressed(ord("G"))) show_ghost = !show_ghost;
         if (keyboard_check_pressed(ord("N"))) auto_snap = !auto_snap;
-        var _sm_step = keyboard_check_pressed(vk_add) ? 5 : (keyboard_check_pressed(vk_subtract) ? -5 : 0);
+        var _sm_step = keyboard_check_pressed(vk_add) ? 10 : (keyboard_check_pressed(vk_subtract) ? -10 : 0);
         if (_sm_step != 0) {
-            smoothing = clamp(smoothing + _sm_step, 0, 40);
+            smooth_ms = clamp(smooth_ms + _sm_step, 0, 200);
             // smoothing is a construction parameter — rebuild, like the web slider
             recon.free_native();
             __make_recon(_shell);
@@ -359,7 +359,7 @@ function Lab03() constructor {
         _hud.key_hint("WASD", "drive");
         _hud.key_hint("I", "force mispredict (impulse)");
         _hud.key_hint("T", "teleport");
-        _hud.key_hint("- / +", "smoothing  " + string(smoothing) + " /s");
+        _hud.key_hint("- / +", "smoothing  " + string(smooth_ms) + " ms");
         _hud.key_hint("V", render_smoothed ? "render: value() smoothed" : "render: state (exact)");
         _hud.key_hint("G", show_ghost ? "server ghost: on" : "server ghost: off");
         _hud.key_hint("N", auto_snap ? "snap on teleport: on" : "snap on teleport: off");

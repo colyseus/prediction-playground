@@ -72,7 +72,7 @@ class Lab04 implements Lab {
 		modes = [
 			new Mode("raw", Palette.TEXT, null),
 			new Mode("lerp", Palette.BLUE, attach({ mode: "lerp", delay: Sim.REMOTE_INTERP_MS })),
-			new Mode("damped", Palette.GOOD, attach({ mode: "damped", damping: 12 })),
+			new Mode("damped", Palette.GOOD, attach({ mode: "damped", smoothMs: 83 })),
 			new Mode("extrapolate", Palette.WARN, attach({ mode: "extrapolate", maxExtrapolate: 250 })),
 		];
 		return true;

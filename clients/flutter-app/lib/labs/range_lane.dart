@@ -118,7 +118,7 @@ class RangeLane {
       truth,
       input: input,
       fields: const ['x', 'y', 'vx', 'vy'],
-      smoothing: 15,
+      smoothMs: 65,
       step: (ctx, state, cmd) {
         stepEntity(_binding.body(state), _binding.input(cmd), ctx.dt);
       },

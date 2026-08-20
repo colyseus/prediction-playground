@@ -20,7 +20,7 @@ function Lab00() constructor {
         if (_me == 0) return false;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy"],
-            smoothing: 15,
+            smooth_ms: 65,
             step: function(_ctx, _s, _cmd) {
                 sim_step_mirror(_s, _cmd.get("moveX"), _cmd.get("moveY"), _ctx.dt);
             },
@@ -253,7 +253,7 @@ function Lab08() constructor {
         var _lab_self = self;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy", "scoreTicks"],
-            smoothing: 15,
+            smooth_ms: 65,
             step: method({ lab: _lab_self }, function(_ctx, _s, _cmd) {
                 sim_step_mirror(_s, _cmd.get("moveX"), _cmd.get("moveY"), _ctx.dt);
                 // the scoring gate (src/shared/goal.ts) — deterministic replay
@@ -377,7 +377,7 @@ function Lab09() constructor {
         if (_me == 0) return false;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy"],
-            smoothing: 15,
+            smooth_ms: 65,
             step: function(_ctx, _s, _cmd) {
                 sim_step_mirror(_s, _cmd.get("moveX"), _cmd.get("moveY"), _ctx.dt);
             },

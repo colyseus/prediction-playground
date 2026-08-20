@@ -45,9 +45,9 @@ namespace Playground
             if (Kb.Key(KeyCode.V)) _renderSmoothed = !_renderSmoothed;
             if (Kb.Key(KeyCode.G)) _showGhost = !_showGhost;
             if (Kb.Key(KeyCode.N)) _lane.AutoSnap = !_lane.AutoSnap;
-            int smoothStep = Kb.Key(KeyCode.Equals) ? 5 : Kb.Key(KeyCode.Minus) ? -5 : 0;
+            int smoothStep = Kb.Key(KeyCode.Equals) ? 10 : Kb.Key(KeyCode.Minus) ? -10 : 0;
             if (smoothStep != 0)
-                _lane.Build(Mathf.Clamp((float)(_lane.Smoothing + smoothStep), 0, 40));
+                _lane.Build(Mathf.Clamp((float)(_lane.SmoothMs + smoothStep), 0, 200));
 
             _lane.Drive(now, Kb.MoveX(), Kb.MoveY());
 
@@ -96,7 +96,7 @@ namespace Playground
             h.Key("WASD", "drive");
             h.Key("I", "force mispredict (impulse)");
             h.Key("T", "teleport");
-            h.Key("- / =", $"smoothing {_lane.Smoothing:F0} /s");
+            h.Key("- / =", $"smoothing {_lane.SmoothMs:F0} ms");
             h.Key("V", _renderSmoothed ? "render: Value() smoothed" : "render: State (exact)");
             h.Key("G", _showGhost ? "server ghost: on" : "server ghost: off");
             h.Key("N", _lane.AutoSnap ? "snap on teleport: on" : "snap on teleport: off");
