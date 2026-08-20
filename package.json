@@ -14,11 +14,11 @@
   },
   "dependencies": {
     "@colyseus/core": "^0.18.1",
-    "@colyseus/sdk": "^0.18.1",
-    "@colyseus/shared-types": "^0.18.1",
     "@colyseus/monitor": "next",
     "@colyseus/playground": "next",
     "@colyseus/schema": "^5.0.8",
+    "@colyseus/sdk": "^0.18.2",
+    "@colyseus/shared-types": "^0.18.1",
     "colyseus": "^0.18.1"
   },
   "devDependencies": {
