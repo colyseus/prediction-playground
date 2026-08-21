@@ -140,7 +140,9 @@ do -- lab 02: every clock readout responds to the injected link
 
   drive(lab, context, 4000, 1)
   local clock = room.clock
-  check("lab02 smoothed rtt sees the injected latency", clock:smoothed_rtt() > 350,
+  -- set_latency() is ROUND-TRIP: net_delay.one_way() halves it, so 200 here is
+  -- ~100 ms each way. The floor only has to prove the clock sees the injection.
+  check("lab02 smoothed rtt sees the injected latency", clock:smoothed_rtt() > 150,
     string.format("%.0f ms", clock:smoothed_rtt()))
   check("lab02 clock synced from the TIMED prefix", clock:last_server_time() > 0)
   check("lab02 patch cadence advertised", clock:patch_interval() > 0,

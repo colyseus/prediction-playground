@@ -4,9 +4,9 @@ The playground rebuilt against `colyseus-defold`, driven by the same server as
 the web build. One game object, one script: `update()` advances the netcode and
 then the draw pass, `on_input()` only fills the shared `kb` table.
 
-Status: **11 labs (00–09, 11)**, all verified against a live server by a headless
-acceptance run. Lab 10 (composite sim) is not here: the Lua SDK has no
-`SimReconciler`, so the lab has no API to bind to.
+Status: **12 labs (00–11)**, all verified against a live server by a headless
+acceptance run — 44 checks, all green. Lab 10 (composite sim) binds to the SDK's
+`predict:sim()`.
 
 ## Running it
 
@@ -46,7 +46,7 @@ port) while Defold's screen y points *up*.
 ## Verification
 
 ```sh
-# the netcode, against a live server — 35 checks across 12 labs
+# the netcode, against a live server — 44 checks across 12 labs
 cd clients/defold-app && luajit headless/acceptance.lua
 
 # the engine build (bob needs the Defold editor's bundled JDK 25 — the 21
@@ -59,16 +59,19 @@ $JDK -cp /Applications/Defold.app/Contents/Resources/packages/defold-*.jar \
 Last run:
 
 ```
-OK  lab01 input->motion 95 ms at 0 injected -> 495 ms at 200 ms each way
-OK  lab02 smoothed rtt 483 ms, patch 50 ms, 79 arrivals buffered
-OK  lab00 lanes separate by a peak of 21.65 u
-OK  lab05 reckon leads lerp by 9.02 u; circle y sweep 22.92 u
-OK  lab03 9 unacked, drift ema 0.000e+00, impulse 4.823 -> settled 0.0000
+OK  lab01 input->motion 95 ms at 0 injected -> 347 ms on a 200 ms round trip
+OK  lab02 smoothed rtt 288 ms, patch 50 ms, 79 arrivals buffered
+OK  lab00 lanes separate by a peak of 12.44 u
+OK  lab04 raw stutters 2.06 vs lerp 0.04
+OK  lab05 reckon leads lerp by 5.05 u; circle y sweep 22.43 u
+OK  lab03 5 unacked, drift ema 0.000e+00, impulse 7.541 -> settled 0.0000
 OK  lab08 2 confirmed / 0 rejected at 0 % deny; 6 predicted / 4 rejected at 100 %
-OK  lab09 a local exists the same frame it fires, lead 364 ms
-OK  lab06 6/6 hits, rewind error 0.68 u while the view lags 10.8 u
+OK  lab09 a local exists the same frame it fires, lead 200 ms
+OK  lab06 6/6 hits, rewind error 0.01 u while the view lags 7.5 u
 OK  lab07 predicted 2, authoritative 2, mispredict rate 0 %
-OK  lab11 divergence 3.623e-08 rad seeded, 2.436e-01 with an unshared RNG
+OK  lab11 divergence 2.915e-08 rad seeded, 2.203e-01 with an unshared RNG
+OK  lab10 median correction 0.0000 over 229 reconciles; puck leads by 13.83 u
+OK  drop + reconnect: drift re-converges to 5.126e-07, no stale replay
 ```
 
 **Drift of exactly zero** is the number to notice. Lua carries f64 from the
@@ -105,5 +108,11 @@ moves in y.
 `predict:dispose()` (there was no teardown at all, so anything outliving its
 screen kept firing callbacks into freed state), `render_delay` bound from the
 attached lerp delay inside `:reconciler()` (without it every rewound read lands
-one full render-delay early and shots miss by exactly that much),
-`Predict.get(room)`, and `attach_all_reckon`.
+one full render-delay early and shots miss by exactly that much), a room-taking
+`Predict` factory, and a reckon flavour of `attach_all`.
+
+The last two have been respelled since. The factory is `Predict.get(room,
+options)`, whose options are the defaults every attach then inherits. Reckon
+rides the ordinary `attach_all(collection, { mode = "reckon", fields = { ... },
+step = ... })` — the declarative config landed in `af169c1` and made a separate
+entry point redundant.
