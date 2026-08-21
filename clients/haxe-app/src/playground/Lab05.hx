@@ -3,6 +3,7 @@ package playground;
 import App.Kb;
 import App.Pacer;
 import Gfx.Palette;
+import io.colyseus.InputHandle;
 import io.colyseus.Room;
 import io.colyseus.predict.Predict;
 import lab.BotsState;
@@ -38,8 +39,8 @@ class Lab05 implements Lab {
 	var room: Room<BotsState>;
 	var sid: String;
 	var lerp: Predict;
-	var input: Dynamic;
-	var cmd: Dynamic;
+	var input: InputHandle<lab.MoveInput>;
+	var cmd: lab.MoveInput;
 	var pacer: Pacer;
 	var smoothMs = 40.0;
 	var snap = 8.0;

@@ -2,8 +2,10 @@ package playground;
 
 import App.Kb;
 import Gfx.Palette;
+import io.colyseus.InputHandle;
 import io.colyseus.Room;
 import io.colyseus.predict.Predict;
+import io.colyseus.predict.Reconciler;
 import lab.BumpState;
 
 /**
@@ -46,9 +48,9 @@ class Lab07 implements Lab {
 	var me: lab.BumpPlayer;
 	var bot: lab.Bot;
 	var predict: Predict;
-	var recon: Dynamic;
-	var input: Dynamic;
-	var cmd: Dynamic;
+	var recon: Reconciler;
+	var input: InputHandle<lab.MoveInput>;
+	var cmd: lab.MoveInput;
 	var lastBumpAt = -1e9;
 	var bumpFlashT = -1e9;
 	var lastReconcileSeq = 0;

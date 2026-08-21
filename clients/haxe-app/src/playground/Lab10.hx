@@ -2,6 +2,7 @@ package playground;
 
 import App.Kb;
 import Gfx.Palette;
+import io.colyseus.InputHandle;
 import io.colyseus.Room;
 import io.colyseus.predict.Predict;
 import io.colyseus.predict.SimReconciler;
@@ -96,8 +97,8 @@ class Lab10 implements Lab {
 	/** The DECODED AI paddle — a bound world part, predicted like the puck. */
 	var bot: lab.Player;
 	var predict: Predict;
-	var input: Dynamic;
-	var cmd: Dynamic;
+	var input: InputHandle<lab.MoveInput>;
+	var cmd: lab.MoveInput;
 	var smoothMs = 65.0;
 	var showGhosts = true;
 	var touchedLastStep = false;

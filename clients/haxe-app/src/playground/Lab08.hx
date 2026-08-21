@@ -2,9 +2,11 @@ package playground;
 
 import App.Kb;
 import Gfx.Palette;
+import io.colyseus.InputHandle;
 import io.colyseus.Room;
 import io.colyseus.predict.Predict;
 import io.colyseus.predict.PredictedEventChannel;
+import io.colyseus.predict.Reconciler;
 import lab.GoalState;
 
 /**
@@ -40,10 +42,10 @@ class Lab08 implements Lab {
 	var sid: String;
 	var me: lab.GoalPlayer;
 	var predict: Predict;
-	var goals: PredictedEventChannel;
-	var recon: Dynamic;
-	var input: Dynamic;
-	var cmd: Dynamic;
+	var goals: PredictedEventChannel<String>;
+	var recon: Reconciler;
+	var input: InputHandle<lab.MoveInput>;
+	var cmd: lab.MoveInput;
 	var banner: String = null;
 	var bannerColor = Palette.GOOD;
 	var bannerT = -1e9;
@@ -79,7 +81,7 @@ class Lab08 implements Lab {
 		});
 
 		room.onMessage("goal", function(message: Dynamic) {
-			if (message.sid == sid) goals.confirm(null);
+			if (message.sid == sid) goals.confirm();
 		});
 
 		input = room.input({ type: lab.MoveInput });

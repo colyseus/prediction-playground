@@ -1,4 +1,5 @@
 import App.Kb;
+import io.colyseus.InputHandle;
 import io.colyseus.Room;
 import io.colyseus.predict.Predict;
 import io.colyseus.predict.Reconciler;
@@ -27,8 +28,8 @@ class MoveLane {
 	public var autoSnap: Bool = true;
 	public var smoothMs: Float = 65;
 
-	var input: Dynamic;
-	var cmd: Dynamic;
+	var input: InputHandle<lab.MoveInput>;
+	var cmd: lab.MoveInput;
 	var lastReconcileSeq: Int = 0;
 
 	public function new() {}

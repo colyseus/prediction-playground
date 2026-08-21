@@ -5,6 +5,7 @@ import App.Pacer;
 import Gfx.GfxNull;
 import Gfx.Palette;
 
+import io.colyseus.InputHandle;
 import io.colyseus.Room;
 import lab.MoveState;
 
@@ -33,8 +34,8 @@ class Lab01 implements Lab {
 	// Every room reference here is cast to its concrete type for that reason.
 	var room: Room<MoveState>;
 	var sid: String;
-	var input: Dynamic;
-	var cmd: Dynamic;
+	var input: InputHandle<lab.MoveInput>;
+	var cmd: lab.MoveInput;
 	var pacer: Pacer;
 
 	var damped = false;
