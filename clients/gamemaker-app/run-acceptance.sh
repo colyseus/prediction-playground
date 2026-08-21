@@ -9,24 +9,16 @@ cd "$SCRIPT_DIR"
 log() { echo -e "\033[0;32m[ACCEPT]\033[0m $*"; }
 fail() { echo -e "\033[0;31m[FAIL]\033[0m $*"; }
 
-if ! curl -s -o /dev/null --max-time 2 http://127.0.0.1:5173; then
-  fail "playground server not reachable on :5173 (pnpm dev --host 0.0.0.0)"
+./link-sdk.sh --check >/dev/null || { echo "[ACCEPT] SDK not linked: run ./link-sdk.sh" >&2; exit 1; }
+
+EP="${COLYSEUS_PLAYGROUND_ENDPOINT:-http://127.0.0.1:5173}"
+export COLYSEUS_PLAYGROUND_ENDPOINT="$EP"
+if ! curl -s -o /dev/null --max-time 2 "$EP"; then
+  fail "playground server not reachable at $EP (pnpm dev --host 0.0.0.0)"
   exit 2
 fi
 
-# Find Igor + runtime + user dir (same discovery as the SDK's run-tests.sh)
-runtime_dir=$(ls -d /Users/Shared/GameMakerStudio2/Cache/runtimes/runtime-* 2>/dev/null | sort -V | tail -1)
-[[ -z "$runtime_dir" ]] && { fail "GameMaker runtime not found"; exit 1; }
-igor_bin=""
-for c in "$runtime_dir/bin/igor/osx/arm64/Igor" "$runtime_dir/bin/igor/osx/x86_64/Igor"; do
-  [[ -x "$c" ]] && { igor_bin="$c"; break; }
-done
-[[ -z "$igor_bin" ]] && { fail "Igor not found"; exit 1; }
-user_dir=""
-for d in "$HOME/Library/Application Support/GameMakerStudio2"/*_*/; do
-  [[ -f "${d}licence.plist" ]] && { user_dir="${d%/}"; break; }
-done
-[[ -z "$user_dir" ]] && { fail "GameMaker licence folder not found"; exit 1; }
+source tools/igor-env.sh
 
 CACHE_DIR="$SCRIPT_DIR/.accept-cache"
 TEMP_DIR="$SCRIPT_DIR/.accept-temp"

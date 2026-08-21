@@ -5,9 +5,18 @@
 canary_fail = sim_selfcheck();
 if (canary_fail != "") show_debug_message("SIM CANARY FAILED: " + canary_fail);
 
-#macro PLAYGROUND_ENDPOINT "http://127.0.0.1:5173"
+// COLYSEUS_PLAYGROUND_ENDPOINT overrides the default (Igor forwards no args);
+// a browser has no environment, so there `?--endpoint=...` on the URL does
+endpoint = environment_get_variable("COLYSEUS_PLAYGROUND_ENDPOINT");
+for (var _i = 0; _i <= parameter_count(); _i++) {
+    var _a = parameter_string(_i);
+    if (string_copy(_a, 1, 11) == "--endpoint=") endpoint = string_delete(_a, 1, 11);
+}
+if (endpoint == "") endpoint = "http://127.0.0.1:5173";
+show_debug_message("PLAYGROUND BOOT endpoint=" + endpoint);
 
-client = colyseus_client_create(PLAYGROUND_ENDPOINT);
+// created from Step: on HTML5 the WASM module is still instantiating here
+client = 0;
 labs = lab_registry();
 lab = undefined;          // active lab struct
 lab_index = -1;
@@ -72,10 +81,6 @@ apply_latency = function() {
     if (net_room > 0) colyseus_netdelay_set(net_room, _p[0], _p[1]);
 };
 
-// acceptance mode: headless self-check (COLYSEUS_ACCEPTANCE=1 env)
+// acceptance mode: headless self-check (COLYSEUS_ACCEPTANCE=1 env); runs
+// from the first Step with the extension ready, like the labs
 acceptance = environment_get_variable("COLYSEUS_ACCEPTANCE") == "1";
-if (acceptance) {
-    run_acceptance();   // busy-runs, prints ACCEPT lines, calls game_end()
-} else {
-    switch_lab(0);      // start at the beginning — the labs are a course
-}

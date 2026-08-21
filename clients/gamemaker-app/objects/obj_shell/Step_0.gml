@@ -1,6 +1,16 @@
 /// Per-frame contract: process (drains network on THIS thread) → attach when
 /// ready → lab.step (tick + paced sends + reconciler pump inside).
 
+if (client == 0) {
+    if (!colyseus_is_ready()) exit;     // HTML5: the WASM module is still instantiating
+    client = colyseus_client_create(endpoint);
+    if (acceptance) {
+        run_acceptance();   // busy-runs, prints ACCEPT lines, calls game_end()
+        exit;
+    }
+    switch_lab(0);          // start at the beginning — the labs are a course
+}
+
 colyseus_process();
 
 var _now = colyseus_predict_now();
@@ -16,6 +26,7 @@ if (phase == "joining" && joined && net_room > 0) {
         lab = labs[lab_index];
         if (lab.attach(self)) {
             phase = "ready";
+            show_debug_message("PLAYGROUND READY lab=" + string(lab.num));   // the lanes' join signal
             apply_latency();
         } else {
             lab = undefined;

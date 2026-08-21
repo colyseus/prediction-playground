@@ -24,19 +24,30 @@ pnpm dev --host 0.0.0.0
 
 # headless acceptance (same requirements):
 ./run-acceptance.sh
+
+# HTML5: Igor export, dead-function-stub gate, headless boot + join:
+./html5-check.sh
 ```
 
 The HTML5 target works out of the box: pick HTML5 in the IDE and Run, or
 `Igor ... -- HTML5 Run` serves it on a local port. The shared sim carries
 the runner's numeric quirks already worked around in `scr_sim` (see the
 comments there before touching the RNG), and `sim_selfcheck()` gates every
-lab on boot, on both runners.
+lab on boot, on both runners. `html5-check.sh` is the scripted version: it
+fails on the emitter's `function name{}` stubs (any function nothing
+references breaks the page), on a canary failure, on a page error, and on
+silence, since a page that never booted prints nothing.
 
-The extension binaries are NOT committed. Build them in
-`native-sdk/platforms/gamemaker` (`zig build`, `./build-wasm.sh`) and copy
-`libcolyseus.dylib` / `colyseus_wasm.js` into `extensions/Colyseus_SDK/`
-before the first run — and again after SDK changes. When re-copying `Colyseus_SDK.yy`, patch its `parent`
-block to `PredictionPlayground.yyp`.
+The SDK is not committed here. With `native-sdk` checked out as a sibling
+of this repo and built (`zig build`, `./build-wasm.sh` in
+`native-sdk/platforms/gamemaker`), run `./link-sdk.sh` once: it links the
+two GML wrappers and the extension binaries and generates
+`Colyseus_SDK.yy` for this project, so an SDK rebuild lands here with no
+copy step. `./link-sdk.sh --check` (which `run.sh` and `run-acceptance.sh`
+call first) fails when anything is missing or behind the checkout.
+`COLYSEUS_PLAYGROUND_ENDPOINT` points the client at a server other than
+`http://127.0.0.1:5173`; in a browser, where there is no environment, append
+`?--endpoint=http://host:port` to the page URL instead.
 
 ## Keys
 
