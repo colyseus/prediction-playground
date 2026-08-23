@@ -68,6 +68,7 @@ namespace Playground
 
             _goals = _predict.DefineEvent(new PredictedEventChannelOptions<string>
             {
+                Label = "goal",
                 OnPredict = _ =>
                 {
                     Push(RoomClock.GetNow());

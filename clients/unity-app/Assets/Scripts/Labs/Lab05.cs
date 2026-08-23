@@ -80,14 +80,15 @@ namespace Playground
         /// </summary>
         private void AttachReckon()
         {
-            _reckon = Predict.Get(Room);
-            _reckon.Attach(_bot, new ReckonOptions<Lab.Bot>
+            // The step and glide are room-wide defaults; the attach only names
+            // the fields and its own snap — same shape as the TS lab.
+            _reckon = Predict.Get(Room, new PredictGetOptions
             {
-                Fields = new[] { "x", "y" },
+                Mode = PredictMode.Reckon,
                 SmoothMs = _smoothMs,
-                Snap = _snap,
-                Step = (b, dt, elapsedMs) =>
+                Step = (scratch, dt, elapsedMs) =>
                 {
+                    var b = (Lab.Bot)scratch;
                     var s = new Sim.BotState
                     {
                         x = b.x, y = b.y, vx = b.vx, vy = b.vy, kind = b.kind,
@@ -100,6 +101,11 @@ namespace Playground
                     // exactly right: periods chain, nothing leaks into the snapshot.
                     b.lastTeleport = (float)s.lastTeleport;
                 },
+            });
+            _reckon.Attach(_bot, new ReckonOptions<Lab.Bot>
+            {
+                Fields = new[] { "x", "y" },
+                Snap = _snap,
             });
         }
 

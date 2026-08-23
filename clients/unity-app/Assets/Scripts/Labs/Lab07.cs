@@ -43,6 +43,8 @@ namespace Playground
         private InputHandle _input;
         private Lab.BumpPlayer _me;
         private Lab.Bot _bot;
+        private static readonly string[] XY = { "x", "y" };
+        private readonly double[] _xy = new double[2];
         private string _sid;
 
         private bool _useValueAt = true, _useMemo = true;
@@ -60,15 +62,16 @@ namespace Playground
             if (Room.State.players == null || !Room.State.players.TryGetValue(_sid, out _me)) return false;
             if (Room.State.bots == null || !Room.State.bots.TryGetValue("bot1", out _bot)) return false;
 
-            _predict = Predict.Get(Room);
             // Bots are DEAD-RECKONED through the shared step — the timeline the
-            // collision test below reads at ctx.ReckonTime.
-            _predict.AttachAll("bots", new ReckonOptions<Lab.Bot>
+            // collision test below reads at ctx.ReckonTime. The step is a
+            // room-wide default, so the attach is just the fields.
+            _predict = Predict.Get(Room, new PredictGetOptions
             {
-                Fields = new[] { "x", "y" },
+                Mode = PredictMode.Reckon,
                 SmoothMs = 40,
-                Step = (b, dt, elapsedMs) =>
+                Step = (scratch, dt, elapsedMs) =>
                 {
+                    var b = (Lab.Bot)scratch;
                     var s = new Sim.BotState
                     {
                         x = b.x, y = b.y, vx = b.vx, vy = b.vy, kind = b.kind,
@@ -80,6 +83,7 @@ namespace Playground
                     b.lastTeleport = (float)s.lastTeleport;
                 },
             });
+            _predict.AttachAll("bots", new ReckonOptions<Lab.Bot> { Fields = new[] { "x", "y" } });
             _predict.AttachAll("players", new AttachConfig {
                 ["x"] = PredictMode.Damped, ["y"] = PredictMode.Damped,
             });
@@ -138,8 +142,13 @@ namespace Playground
                 // The server rewinds THIS input to ReckonTime — test there. With
                 // the toggle off we read the raw snapshot instead: ~RTT/2 behind
                 // where the server tests, which is the whole point of the lab.
-                double bx = _useValueAt ? _predict.ValueAt(bot, "x", when) : bot.x;
-                double by = _useValueAt ? _predict.ValueAt(bot, "y", when) : bot.y;
+                // ReadAt integrates the bot ONCE for both fields.
+                double bx = bot.x, by = bot.y;
+                if (_useValueAt)
+                {
+                    _predict.ReadAt(bot, XY, when, _xy);
+                    bx = _xy[0]; by = _xy[1];
+                }
                 if (Sim.CollideBot(px, py, gate, bx, by, out double vx, out double vy))
                     result = new Knock { Hit = true, Vx = vx, Vy = vy };
             });
