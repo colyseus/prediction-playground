@@ -74,6 +74,19 @@ export class ProjectileRoom extends Room<{ state: ProjectileState; input: RangeI
   }
 
   private step(ctx: StepContext) {
+    const elapsed = this.clock.elapsedTime;
+
+    // Ahead of this tick's shots: a projectile stepped in its birth tick sits
+    // one dt past its own bornMs, and every client's handoff pops by exactly
+    // that much.
+    for (const [id, pr] of this.state.projectiles) {
+      stepProjectile(pr, ctx.dt);
+      if (elapsed - (this.bornAt.get(id) ?? 0) > PROJECTILE_TTL_MS) {
+        this.state.projectiles.delete(id);
+        this.bornAt.delete(id);
+      }
+    }
+
     for (const [sid, p] of this.state.players) {
       const channel = this.inputs.get(sid);
       if (!channel) continue;
@@ -82,8 +95,6 @@ export class ProjectileRoom extends Room<{ state: ProjectileState; input: RangeI
         if (inp.fire) this.fire(sid, p.x, p.y, inp.aimX, inp.aimY);
       }
     }
-
-    const elapsed = this.clock.elapsedTime;
 
     // The turret fires at the nearest player — FOREIGN projectiles.
     if (elapsed >= this.nextTurretAt && this.state.players.size > 0) {
@@ -95,14 +106,6 @@ export class ProjectileRoom extends Room<{ state: ProjectileState; input: RangeI
         if (d < bestD) { bestD = d; best = p; }
       }
       if (best) this.fire("turret", TURRET_X, TURRET_Y, best.x, best.y);
-    }
-
-    for (const [id, pr] of this.state.projectiles) {
-      stepProjectile(pr, ctx.dt);
-      if (elapsed - (this.bornAt.get(id) ?? 0) > PROJECTILE_TTL_MS) {
-        this.state.projectiles.delete(id);
-        this.bornAt.delete(id);
-      }
     }
   }
 }
