@@ -3,7 +3,8 @@
 > Full **interactive** ports of the playground exist for every SDK — all four
 > are **complete** with all twelve labs: [`native-app/`](./native-app)
 > (C + raylib), [`unity-app/`](./unity-app), [`defold-app/`](./defold-app),
-> [`haxe-app/`](./haxe-app). How to run each is in the root README's
+> [`haxe-app/`](./haxe-app), and [`swift-app/`](./swift-app) (SpriteKit, on the
+> native SDK's Swift package). How to run each is in the root README's
 > ["Run it on your engine"](../README.md#run-it-on-your-engine); the plan and
 > per-SDK verification invocations live in [APPS_PLAN.md](./APPS_PLAN.md).
 

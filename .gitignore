@@ -26,3 +26,6 @@ clients/gamemaker-app/scripts/Colyseus/Colyseus.gml
 clients/gamemaker-app/scripts/ColyseusPredict/ColyseusPredict.gml
 .vercel
 .env*
+
+# Swift client build output
+clients/swift-app/.build/
