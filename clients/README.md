@@ -1,6 +1,6 @@
 # Cross-SDK validation clients
 
-> Full **interactive** ports of the playground exist for every SDK — all four
+> Full **interactive** ports of the playground exist for every SDK — all five
 > are **complete** with all twelve labs: [`native-app/`](./native-app)
 > (C + raylib), [`unity-app/`](./unity-app), [`defold-app/`](./defold-app),
 > [`haxe-app/`](./haxe-app), and [`swift-app/`](./swift-app) (SpriteKit, on the

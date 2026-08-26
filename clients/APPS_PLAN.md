@@ -253,6 +253,7 @@ jitter), `D` = drop transport, `P` = private-room toggle (rejoin).
 | **defold-app** (Lua / Defold) | **DONE — all 12 labs**; headless suite 35 checks green vs a live server; `bob resolve build` clean |
 | **haxe-app** (Haxe / Heaps + hl) | **DONE — all 12 labs**; headless suite 38/38 green vs a live server; both `acceptance.hxml` (neko) and `build.hxml` (hl) compile; windowed client runs native via `build-hlc.sh` (HL/C) |
 | **godot-app** (C# / Godot 4.6 mono) | **DONE — all 12 labs**; headless acceptance 15/15 green vs a live server (the Unity suite ported); first non-Unity consumer of the nuget SDK — Sim/NetDelay/schemas/lab logic verbatim from unity-app |
+| **swift-app** (Swift 6 / SpriteKit) | **DONE — all 12 labs**; `swift test` green: sim canaries, a twelve-lab smoke that mounts and draws every one, and 9 acceptance checks vs a live server; rides the native-sdk Swift package (SPM over the C core), so the latency injector is the SDK's own seam (`room.setLatency`) and no per-app NetDelay port was needed; schemas from the new `schema-codegen --swift` |
 | **godot-gd-app** (GDScript / Godot 4.6) | **DONE — all 12 labs**; headless acceptance 14/14 green vs a live server (the C# twin's checks + a Callable-overhead measurement); rides the native-sdk GDExtension's GDScript predict surface — reflection state, no schema classes, `Colyseus.Predict` end to end; latency injector is the SDK's own C seam (`room.set_latency`), so no per-app NetDelay port; no D-drop key (the SDK exposes no transport-drop API) |
 
 Lab 10 is done in all four SDKs. The world-handle shape differs by language, deliberately: JS/Lua take a plain object or table, C#/Haxe take a caller-declared class (neither has anonymous objects that survive to runtime safely), C takes a descriptor array.
@@ -352,7 +353,14 @@ rather than rediscover them:
   without it, 6/6 and ~65 ms with.
 - A vector `memo` (a tuple under one key) — splitting one verdict across several
   scalar memos re-runs the derivation per component.
-- `value()` on a field that doesn't exist should be NAN, not 0.
+- `value()` on a field that doesn't exist should be NAN, not 0. (The Swift port
+  can confirm this earns its keep: a bot stepped from its own mirror — which has
+  no `moveX` — produced NAN that spread through the puck to the pose. A zero
+  would have looked like a bot that simply stood still.)
+- A fire key read OUTSIDE the fixed-step loop is thrown away on the four frames
+  in five where no step is due. Latch the intent and let a step take it; the
+  Swift port lost most of its shots to this before the acceptance check caught
+  it.
 
 - Upstreaming the Haxe main-thread decode pump into the SDK proper.
 - native SO_NOSIGPIPE inside the transport (workaround pinned in apps).
