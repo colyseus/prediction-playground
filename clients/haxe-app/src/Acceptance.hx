@@ -31,6 +31,16 @@ class Acceptance {
 	static var failed = 0;
 	static var gfx = new GfxNull();
 
+	/** The typical crossing — see the lab09 note on why it is not the worst. */
+	static function medianOf(values: Array<Float>): Float {
+		if (values.length == 0) return Math.NaN;
+		var sorted = values.copy();
+		sorted.sort((a, b) -> a < b ? -1 : (a > b ? 1 : 0));
+		var n = sorted.length;
+		return n % 2 == 1 ? sorted[Std.int(n / 2)]
+			: 0.5 * (sorted[Std.int(n / 2) - 1] + sorted[Std.int(n / 2)]);
+	}
+
 	static function check(name: String, ok: Bool, ?detail: String) {
 		Sys.println((ok ? "OK   " : "FAIL ") + name + (detail != null ? " — " + detail : ""));
 		if (!ok) failed++;
@@ -310,10 +320,17 @@ class Acceptance {
 			// decoded snapshot, (snapshot age + lead) x 34 u/s behind the
 			// prediction — ~8 u at this latency, which is what a player sees as
 			// the shot snapping backwards.
+			//
+			// The MEDIAN crossing, not the worst: about one shot in twenty
+			// discretises a whole 50 ms tick (1.7 u) and a max reads that as a
+			// regression. What this guards against is constant, so the median
+			// sees it — the server stepping a projectile in its birth tick used
+			// to add 1.7 u to EVERY shot, and 3.0 was wide enough to hide it.
 			for (_ in 0...5) { lab.aimAt(50, 55); lab.fire(); drive(lab, app, 700); }
+			var median = medianOf(lab.handoffJumps);
 			check("lab09 the handoff doesn't snap the projectile back",
-				lab.maxHandoffJump < 3.0,
-				'worst jump ${Math.round(lab.maxHandoffJump * 100) / 100} u');
+				median < 0.5,
+				'median jump ${Math.round(median * 100) / 100} u over ${lab.handoffJumps.length} crossings (worst ${Math.round(lab.maxHandoffJump * 100) / 100})');
 
 			leave(lab, room);
 		}

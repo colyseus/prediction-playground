@@ -144,7 +144,7 @@ OK   lab05-patrol           kind=patrol reckon x 33.51 vs lerp x 26.90 (gap 6.61
 OK   lab05-wander           kind=wander, reckon x 59.26 is 6.04 u past the newest snapshot — headings are a server secret, so it extrapolates straight through every turn and gets rebased
 OK   lab08-confirmed        2 predicted, 2 confirmed at deny rate 0 % (score 2)
 OK   lab08-denied           4 rejected at deny rate 100 % — the banner went up, then retracted
-OK   lab09-spawn            1 fired, authoritative entity correlated in place, measured input lead 564 ms
+OK   lab09-spawn            4 fired, authoritative entity correlated in place, measured input lead 146 ms, median handoff jump 0.01 u over 4 crossings (worst 0.07)
 OK   lab06-shot             6/6 hits (100 %) aiming dead-on at the lerp view, rtt 511 ms; the server rewound to within 1.79 u of what I saw while live had moved 13.52 u away [stamp render=1 reckon=0, 81 ms of bot travel]
 OK   lab07-bumps            7 bumps predicted through valueAt(reckonTime)+memo vs 7 authoritative (delta 0), 0 large post-bump corrections
 OK   lab11-fan              client and server fans agree to 8.27e-09 rad over 6 pellets — the uint32 RNG port reproduces the stream exactly, and nothing about it rode the wire

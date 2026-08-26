@@ -490,16 +490,20 @@ static void demo_checkpoint(const char* name) {
          * reckoned by it too, or it renders at the last decoded snapshot,
          * (age + lead) x 34 u/s behind the prediction, and the shot visibly
          * snaps backwards at the handoff.
-         * Measured here: 21.79 u un-reckoned, 4.04 u with the reckon. The bound
-         * is looser than the Defold/Haxe harnesses' 3.0 because those aim down
-         * the arena from a standing start while this autopilot keeps the
-         * default aim, which puts a wall bounce inside the lead window — the
-         * one place the reckon's 16 ms substep diverges from the local's
-         * per-frame dt. It still separates the two cases by 2.7x. */
+         *
+         * The MEDIAN crossing, not the worst: about one shot in twenty
+         * discretises a whole 50 ms tick (1.7 u) and a max reads that as a
+         * regression. What this guards against is constant, so the median sees
+         * it. The old 8.0 bound hid two of those constants — the server
+         * stepping a projectile in the tick it was born (1.7 u, fixed in
+         * ProjectileRoom.step()) and a frame of legitimate flight the metric
+         * counted as seam. Un-reckoned still measures 21.79 u. */
+        double l09_med = l09_median_jump();
         demo_check(name, l09.fired > 0 && !isnan(l09.last_lead_ms) && l09.last_lead_ms > 0
-            && l09.max_handoff_jump < 8.0,
+            && l09_med < 0.5,
             "%d fired, authoritative entity correlated in place, measured input lead "
-            "%.0f ms, worst handoff jump %.2f u", l09.fired, l09.last_lead_ms,
+            "%.0f ms, median handoff jump %.2f u over %d crossings (worst %.2f)",
+            l09.fired, l09.last_lead_ms, l09_med, l09.handoff_count,
             l09.max_handoff_jump);
 
     /* ---- M3 ---- */

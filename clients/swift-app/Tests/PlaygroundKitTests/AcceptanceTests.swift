@@ -211,9 +211,17 @@ final class AcceptanceTests: XCTestCase {
         drive(playground, "prediction to start", timeout: 8) { telemetry("fired") != nil }
 
         lab.setAim(x: Sim.arenaWidth - 6, y: Sim.arenaHeight / 2)
-        playground.keyboard.press("space")
-        drive(playground, seconds: 0.15)
-        playground.keyboard.release("space")
+
+        // A burst, not one shot: the lab turns the injected latency on as it
+        // mounts, and the clock re-converges on the new round trip over the
+        // next few hundred ms. The very first shot fired inside that window
+        // never correlates.
+        for _ in 0 ..< 4 {
+            playground.keyboard.press("space")
+            drive(playground, seconds: 0.1)
+            playground.keyboard.release("space")
+            drive(playground, seconds: 0.3)
+        }
 
         XCTAssertGreaterThan(try XCTUnwrap(telemetry("fired").flatMap(Int.init)), 0)
 
@@ -222,7 +230,9 @@ final class AcceptanceTests: XCTestCase {
         drive(playground, "the handoff", timeout: 6) {
             (telemetry("lead").flatMap { Double($0.dropLast(3)) } ?? 0) > 0
         }
-        XCTAssertEqual(telemetry("pending"), "0", "a prediction was never correlated")
+        drive(playground, "every prediction to correlate", timeout: 6) {
+            telemetry("pending") == "0"
+        }
 
         // And the projectile does not change course when the server
         // acknowledges it.
@@ -231,18 +241,23 @@ final class AcceptanceTests: XCTestCase {
         // server sent — behind where the prediction had already flown it — so
         // the projectile snaps BACKWARDS along its own path and appears to
         // re-aim. That reversal is the visible bug; measured at −1.7 units
-        // without the reckon step. With it the seam is a small step forward,
-        // which is timing, not a change of course.
-        playground.keyboard.press("space")
-        let seam = handoffSeam(of: lab, seconds: 2.5)
-        playground.keyboard.release("space")
-
-        let jump = try XCTUnwrap(seam, "no entry crossed from pending to confirmed while sampling")
+        // without the reckon step.
+        //
+        // The bound is 0.5 rather than the old 3.0 because 3.0 was wide enough
+        // to hide a second bug: the server used to step a projectile in the
+        // tick it was born, putting it one tick (1.7 u) ahead of its own
+        // bornMs, and every client popped forward by that. Measured here:
+        // 2.01 u with that, ~0.05 u without.
+        let seam = try XCTUnwrap(handoffSeam(of: lab, seconds: 4.0),
+                                 "no entry crossed from pending to confirmed while sampling")
+        print(String(format: "OK lab09: lead %@, median handoff jump %.2f u over %d crossings (worst %.2f)",
+                     telemetry("lead") ?? "—", seam.median, seam.samples, seam.worst))
         XCTAssertGreaterThan(
-            jump.alongVelocity, -0.1,
-            "the projectile snapped backwards by \(-jump.alongVelocity) units when confirmed"
+            seam.mostNegativeAlong, -0.1,
+            "the projectile snapped backwards by \(-seam.mostNegativeAlong) units when confirmed"
         )
-        XCTAssertLessThan(jump.distance, 3.0, "the projectile jumped \(jump.distance) units when confirmed")
+        XCTAssertLessThan(seam.median, 0.5,
+                          "the projectile jumped \(seam.median) units when confirmed")
     }
 
     /// How a spawn's drawn position moves across the one frame where it stops
@@ -251,16 +266,35 @@ final class AcceptanceTests: XCTestCase {
     ///
     /// The entry id is stable across the handoff by design, which is what
     /// makes a single projectile followable through it.
+    ///
+    /// Fires throughout, and reports the MEDIAN crossing: about one shot in
+    /// twenty discretises a whole 50 ms tick (1.7 u), and a worst-of would
+    /// read that as a regression. What the bound guards against is constant.
+    ///
+    /// The pending pose compared against is a frame old, so every raw gap
+    /// carries a frame of legitimate flight — subtracted here, or the number
+    /// measures the frame rate rather than the seam.
     private func handoffSeam(
         of lab: Lab09PredictedSpawns,
         seconds: TimeInterval
-    ) -> (distance: Double, alongVelocity: Double)? {
+    ) -> (median: Double, worst: Double, mostNegativeAlong: Double, samples: Int)? {
         var previous: [Int: (x: Double, y: Double, confirmed: Bool)] = [:]
-        var worst: (distance: Double, alongVelocity: Double)?
+        var jumps: [Double] = []
+        var alongs: [Double] = []
 
         let deadline = Date().addingTimeInterval(seconds)
+        var nextShot = Date()
+        var lastFrame = Date()
         while Date() < deadline {
+            if Date() >= nextShot {
+                playground.keyboard.press("space")
+                nextShot = Date().addingTimeInterval(0.35)
+            }
             playground.frame()
+            playground.keyboard.release("space")
+
+            let dt = Date().timeIntervalSince(lastFrame)
+            lastFrame = Date()
 
             for entry in lab.spawns?.entries ?? [] {
                 let x = lab.spawns?.value(entry, "x") ?? .nan
@@ -277,16 +311,20 @@ final class AcceptanceTests: XCTestCase {
                 let speed = (server["vx"] * server["vx"] + server["vy"] * server["vy"]).squareRoot()
                 guard speed > 1e-9 else { continue }
 
-                let along = (dx * server["vx"] + dy * server["vy"]) / speed
-                let distance = (dx * dx + dy * dy).squareRoot()
-                if distance > (worst?.distance ?? -1) {
-                    worst = (distance: distance, alongVelocity: along)
-                }
+                let travel = speed * dt
+                alongs.append((dx * server["vx"] + dy * server["vy"]) / speed - travel)
+                jumps.append(max(0, (dx * dx + dy * dy).squareRoot() - travel))
             }
 
             RunLoop.current.run(until: Date().addingTimeInterval(0.008))
         }
-        return worst
+
+        guard !jumps.isEmpty else { return nil }
+        let sorted = jumps.sorted()
+        let n = sorted.count
+        let median = n % 2 == 1 ? sorted[n / 2] : 0.5 * (sorted[n / 2 - 1] + sorted[n / 2])
+        return (median: median, worst: sorted[n - 1],
+                mostNegativeAlong: alongs.min() ?? 0, samples: n)
     }
 
     // MARK: - 10

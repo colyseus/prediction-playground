@@ -57,6 +57,9 @@ class Lab09 implements Lab {
 
 	/** Worst distance the sprite teleported across a handoff — see sweep(). */
 	public var maxHandoffJump(default, null) = 0.0;
+	// Every crossing, so a check can take the median: one shot in twenty still
+	// discretises a whole 50 ms tick, and a max would call that a regression.
+	public var handoffJumps(default, null): Array<Float> = [];
 
 	public function new() {}
 
@@ -135,7 +138,7 @@ class Lab09 implements Lab {
 	 * just crossed the handoff, and what lead the crossing measured. This lives in
 	 * frame(), not render() — a headless run has the same numbers.
 	 */
-	function sweep(now: Float): Void {
+	function sweep(now: Float, dtMs: Float): Void {
 		pending = 0;
 		confirmed = 0;
 		foreign = 0;
@@ -160,9 +163,16 @@ class Lab09 implements Lab {
 					// Un-reckoned, the confirmed entity renders at the last
 					// decoded snapshot — (age + lead) x speed behind the
 					// prediction, which is the visible snap-back.
+					//
+					// The pending pose compared against is a frame old, so the
+					// raw gap always carries a frame of legitimate flight.
+					// Subtract it or this measures the frame rate, not the seam.
 					if (!Math.isNaN(slot.x) && !Math.isNaN(x)) {
 						var dx = x - slot.x, dy = y - slot.y;
-						var d = Math.sqrt(dx * dx + dy * dy);
+						var d = Math.sqrt(dx * dx + dy * dy)
+							- Sim.PROJECTILE_SPEED * dtMs / 1000.0;
+						if (d < 0) d = 0;
+						handoffJumps.push(d);
 						if (d > maxHandoffJump) maxHandoffJump = d;
 					}
 				}
@@ -193,7 +203,7 @@ class Lab09 implements Lab {
 			}
 		}
 
-		sweep(now);
+		sweep(now, dtMs);
 	}
 
 	public function render(g: Gfx): Void {

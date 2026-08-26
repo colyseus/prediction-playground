@@ -37,6 +37,18 @@ app.now_ms = function() return net.gettime() * 1000 end
 
 local failed = 0
 
+--- The typical crossing — see the lab09 note on why it is not the worst.
+local function median_of(values)
+  local n = #values
+  if n == 0 then return 0 / 0 end
+  local sorted = {}
+  for i = 1, n do sorted[i] = values[i] end
+  table.sort(sorted)
+  local half = math.floor(n / 2)
+  if n % 2 == 1 then return sorted[half + 1] end
+  return 0.5 * (sorted[half] + sorted[half + 1])
+end
+
 local function check(name, ok, detail)
   print(string.format("%s %s%s", ok and "OK  " or "FAIL", name,
     detail and (" — " .. detail) or ""))
@@ -325,9 +337,16 @@ do -- lab 09: an optimistic spawn hands off to the authoritative entity
     lab:fire()
     drive(lab, context, 700)
   end
+  -- The MEDIAN crossing, not the worst: about one shot in twenty discretises a
+  -- whole 50 ms tick (1.7 u) and a max reads that as a regression. What this
+  -- guards against is constant, so the median sees it — the server stepping a
+  -- projectile in its birth tick used to add 1.7 u to EVERY shot, and 3.0 was
+  -- wide enough to hide it.
+  local median = median_of(lab.handoff_jumps)
   check("lab09 the handoff doesn't snap the projectile back",
-    lab.max_handoff_jump < 3.0,
-    string.format("worst jump %.2f u", lab.max_handoff_jump))
+    median < 0.5,
+    string.format("median jump %.2f u over %d crossings (worst %.2f)",
+      median, #lab.handoff_jumps, lab.max_handoff_jump))
 
   leave(lab, room)
 end

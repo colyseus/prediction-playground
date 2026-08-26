@@ -41,6 +41,9 @@ function Lab.new()
     slots = {},                       -- entry id -> { was_pending, flash_t, x, y }
     pending = 0, confirmed = 0, foreign = 0,
     max_handoff_jump = 0,
+    -- every crossing, so a check can take the median: one shot in twenty
+    -- still discretises a whole 50 ms tick, and a max calls that a regression
+    handoff_jumps = {},
   }, Lab)
 end
 
@@ -100,7 +103,7 @@ end
 --- Fold the store's entries into presentation state: which are pending, which
 --- just crossed the handoff, and what lead the crossing measured. This lives in
 --- frame(), not render() — a headless run has the same numbers.
-function Lab:sweep(now)
+function Lab:sweep(now, dt_ms)
   self.pending, self.confirmed, self.foreign = 0, 0, 0
   local live = {}
   for _, e in ipairs(self.spawns:entries()) do
@@ -124,8 +127,15 @@ function Lab:sweep(now)
         -- How far the sprite TELEPORTED across the handoff. Un-reckoned, the
         -- confirmed entity renders at the last decoded snapshot — (age + lead)
         -- x speed behind the prediction, which is the visible snap-back.
+        --
+        -- The pending pose compared against is a frame old, so the raw gap
+        -- always carries a frame of legitimate flight; subtract it or this
+        -- measures the frame rate rather than the seam.
         if slot.x ~= nil and x ~= nil then
           local d = math.sqrt((x - slot.x) ^ 2 + (y - slot.y) ^ 2)
+                    - sim.PROJECTILE_SPEED * (dt_ms or 0) / 1000
+          if d < 0 then d = 0 end
+          self.handoff_jumps[#self.handoff_jumps + 1] = d
           if d > self.max_handoff_jump then self.max_handoff_jump = d end
         end
       end
@@ -157,7 +167,7 @@ function Lab:frame(context, now, dt_ms)
     end
   end
 
-  self:sweep(now)
+  self:sweep(now, dt_ms)
 end
 
 function Lab:render(gfx)

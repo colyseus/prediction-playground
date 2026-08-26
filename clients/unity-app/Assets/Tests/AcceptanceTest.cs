@@ -38,6 +38,15 @@ public class AcceptanceTest
 
     private static Client MakeClient() => new Client(Endpoint);
 
+    private static double Median(System.Collections.Generic.List<double> values)
+    {
+        if (values.Count == 0) return double.NaN;
+        var sorted = new System.Collections.Generic.List<double>(values);
+        sorted.Sort();
+        int n = sorted.Count;
+        return n % 2 == 1 ? sorted[n / 2] : 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]);
+    }
+
     /// <summary>Pump the injector + a lab for `ms`, exactly like Update() does.</summary>
     /// <param name="onFrame">
     ///     Runs after each frame with the elapsed ms — for checks that need the
@@ -503,11 +512,21 @@ public class AcceptanceTest
             lab.Fire();
             yield return Drive(lab, app, 700);
         }
-        Assert.Less(lab.MaxHandoffJump, 3.0,
-            $"the projectile snapped {lab.MaxHandoffJump:F2} u at the handoff — " +
+        // The MEDIAN crossing, not the worst: about one shot in twenty
+        // discretises a whole 50 ms tick (1.7 u) and a max reads that as a
+        // regression. What this guards against is constant, so the median sees
+        // it — an un-reckoned confirmation measures (age + lead) x 34 u/s on
+        // every shot, and the server stepping a projectile in its birth tick
+        // used to add 1.7 u to every shot. With both correct the median reads
+        // ~0.05; the bound was 3.0 while those hid inside it.
+        double median = Median(lab.HandoffJumps);
+        Assert.Less(median, 0.5,
+            $"the projectile snapped {median:F2} u at the handoff " +
+            $"(median of {lab.HandoffJumps.Count} crossings) — " +
             "the confirmed entity is not being lead-reckoned");
         Debug.Log($"OK lab09: fired {lab.Fired}, lead {lab.LastLeadMs:F0} ms, " +
-                  $"{lab.ConfirmedSpawns} confirmed, worst jump {lab.MaxHandoffJump:F2} u");
+                  $"{lab.ConfirmedSpawns} confirmed, median jump {median:F2} u " +
+                  $"(worst {lab.MaxHandoffJump:F2})");
 
         yield return Teardown(lab);
     }

@@ -62,7 +62,7 @@ OK lab05: peak reckon-lerp gap 12.62 u
 OK lab06 comp ON: 6/6 hits, rewind error 0.97 u, view lag 8.7 u
 OK lab07: predicted 1, authoritative 2, mispredict rate 0 %
 OK lab08: 2 confirmed, 4 rejected of 6 predicted
-OK lab09: fired 1, lead 247 ms, 3 confirmed
+OK lab09: fired 6, lead 126 ms, 6 confirmed, median jump 0.00 u (worst 0.02)
 OK lab11 seeded: divergence 4.12E-008 rad over 3 fans
 OK lab11 cheating: divergence 2.06E-001 rad
 ```

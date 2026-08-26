@@ -50,8 +50,29 @@ static struct {
     double last_lead_ms;
     /* worst distance a sprite teleported across a handoff */
     double max_handoff_jump;
+    /* every crossing, so a check can take the median: one shot in twenty
+     * still discretises a whole 50 ms tick, and a max calls that a
+     * regression */
+    double handoff_jumps[L09_MAX_ENTRIES];
+    int handoff_count;
     int fired;
 } l09;
+
+/* The typical crossing. A max would trip on the one shot in twenty that
+ * discretises a whole tick; what this measures is constant when it is wrong. */
+static double l09_median_jump(void) {
+    if (l09.handoff_count == 0) { return NAN; }
+    double sorted[L09_MAX_ENTRIES];
+    memcpy(sorted, l09.handoff_jumps, sizeof(double) * (size_t)l09.handoff_count);
+    for (int i = 1; i < l09.handoff_count; i++) {
+        double v = sorted[i];
+        int j = i - 1;
+        while (j >= 0 && sorted[j] > v) { sorted[j + 1] = sorted[j]; j--; }
+        sorted[j + 1] = v;
+    }
+    int n = l09.handoff_count;
+    return (n % 2 == 1) ? sorted[n / 2] : 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]);
+}
 
 static void l09_track(int id) {
     if (id <= 0) { return; }
@@ -186,7 +207,6 @@ static void l09_draw_remote(const char* sid, void* value, void* userdata) {
 }
 
 static void lab09_frame(app_t* app, double now, double dt) {
-    (void)dt;
     if (l09.rebind) {
         player_t* me = (player_t*)colyseus_map_schema_get(l09.state->players, l09.sid);
         if (me) {
@@ -288,10 +308,18 @@ static void lab09_frame(app_t* app, double now, double dt) {
             if (e->lead_ms > 0) { l09.last_lead_ms = e->lead_ms; }
             /* How far the sprite TELEPORTED across the handoff. Un-reckoned,
              * the confirmed entity renders at the last decoded snapshot —
-             * (age + lead) x speed behind the prediction. */
+             * (age + lead) x speed behind the prediction.
+             *
+             * The pending pose compared against is a frame old, so the raw gap
+             * always carries a frame of legitimate flight; subtract it or this
+             * measures the frame rate rather than the seam. */
             if (!isnan(was_x)) {
                 double dx = x - was_x, dy = y - was_y;
-                double d = sqrt(dx * dx + dy * dy);
+                double d = sqrt(dx * dx + dy * dy) - PROJECTILE_SPEED * dt / 1000.0;
+                if (d < 0) { d = 0; }
+                if (l09.handoff_count < L09_MAX_ENTRIES) {
+                    l09.handoff_jumps[l09.handoff_count++] = d;
+                }
                 if (d > l09.max_handoff_jump) { l09.max_handoff_jump = d; }
             }
         }

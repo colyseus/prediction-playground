@@ -65,16 +65,22 @@ class cache picks up new `class_name`s.
 | lab06 lag comp | 6/6 hits, rewind error 0.96 u, view lag 6.4 u |
 | lab07 verdicts | predicted 2 = authoritative 2, 0 % mispredict |
 | lab08 events | 2 confirmed / 4 rejected of 6, deny-rate driven |
-| lab09 handoff | lead 274 ms measured, worst jump 2.04 u (bound 4.0 — see below) |
+| lab09 handoff | lead 114 ms measured, median jump 0.01 u over 6 crossings (bound 0.5 — see below) |
 | lab10 composite | peak puck lead 23.4 u, median correction 0.0009 over 218 reconciles |
 | lab11 RNG | 4.7e-9 rad seeded vs 2.3e-1 rad cheating |
 | Callable overhead @400 ms+60 j | predict.tick median 0.01 ms, p99 0.06 ms, worst 0.28 ms (19 pending) |
 
-The lab09 bound is 4.0 u where the C# twin uses 3.0: patch age and the
-measured lead each quantize at one 50 ms tick (1.7 u of flight), so a
-legitimate handoff occasionally reads ~3.5 u here (observed 2.0-3.7 across
-runs); the un-reckoned failure mode this check exists to catch measures
-8-11 u. The Callable-overhead row is the P2 plan's owed measurement: a
+The lab09 check reads the MEDIAN crossing against a 0.5 u bound. It used to
+read the worst against 4.0, blamed on patch age and the measured lead each
+quantizing at a 50 ms tick. Two of those three claims were wrong: the
+constant 1.7 u was the server stepping a projectile in the tick it was born
+(fixed in `ProjectileRoom.step()`), and the rest was a frame of legitimate
+flight the metric counted as seam. What is real is that about one shot in
+twenty still discretises a whole tick, which is why the statistic is the
+median and not the max. The un-reckoned failure mode this check exists to
+catch measures 8-11 u on every shot.
+
+The Callable-overhead row is the P2 plan's owed measurement: a
 reconcile burst at a 400 ms backlog (~10 pending inputs replayed through a
 GDScript step Callable per reconcile) costs well under a millisecond —
 StringName `_get`/`_set` dispatch does NOT dominate, so no field-index

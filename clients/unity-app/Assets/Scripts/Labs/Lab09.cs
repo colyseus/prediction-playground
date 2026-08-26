@@ -48,6 +48,10 @@ namespace Playground
 
         /// <summary>Worst distance the sprite teleported across a handoff — see Sweep.</summary>
         public double MaxHandoffJump { get; private set; }
+        /// Every crossing, so a check can take the median: one shot in twenty
+        /// still discretises a whole 50 ms tick, and a max would call that a
+        /// regression.
+        public readonly System.Collections.Generic.List<double> HandoffJumps = new List<double>();
 
         private double _aimX = 50, _aimY = 20;
         private bool _pendingFire;
@@ -141,7 +145,7 @@ namespace Playground
                 _pendingFire = false;
             }
 
-            Sweep(now);
+            Sweep(now, dtMs);
         }
 
         /// <summary>
@@ -149,7 +153,7 @@ namespace Playground
         /// which just crossed the handoff, and what lead the crossing measured.
         /// This lives in Frame, not Render — a headless run has the same numbers.
         /// </summary>
-        private void Sweep(double now)
+        private void Sweep(double now, double dtMs)
         {
             _pending = _confirmed = _foreign = 0;
             _live.Clear();
@@ -177,10 +181,17 @@ namespace Playground
                     // Un-reckoned, the confirmed entity renders at the last
                     // decoded snapshot — (age + lead) x speed behind the
                     // prediction, which is the visible snap-back.
+                    //
+                    // The pending pose compared against is a frame old, so the
+                    // raw gap always carries a frame of legitimate flight.
+                    // Subtract it or this measures the frame rate, not the seam.
                     if (known && !double.IsNaN(slot.x) && !double.IsNaN(x))
                     {
                         double dx = x - slot.x, dy = y - slot.y;
-                        double d = System.Math.Sqrt(dx * dx + dy * dy);
+                        double d = System.Math.Sqrt(dx * dx + dy * dy)
+                            - Sim.ProjectileSpeed * dtMs / 1000.0;
+                        if (d < 0) d = 0;
+                        HandoffJumps.Add(d);
                         if (d > MaxHandoffJump) MaxHandoffJump = d;
                     }
                 }

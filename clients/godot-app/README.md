@@ -55,7 +55,7 @@ godot --headless --path clients/godot-app res://Acceptance.tscn
 | lab06 lag comp | 6/6 hits, rewind error 0.89 u (renderDelay bound) |
 | lab07 verdicts | predicted 2 = authoritative 2, 0 % mispredict |
 | lab08 events | 2 confirmed / 4 rejected of 6, deny-rate driven |
-| lab09 handoff | lead 269 ms measured, worst jump 2.28 u |
+| lab09 handoff | lead 152 ms measured, median jump 0.01 u over 6 crossings |
 | lab10 composite | median correction 0.0000 over 224 reconciles, peak puck lead 20.5 u |
 | lab11 RNG | 3.6e-8 rad seeded vs 3.1e-1 rad cheating |
 

@@ -26,6 +26,9 @@ var _slots := {}
 
 ## Worst distance the sprite teleported across a handoff — see _sweep.
 var max_handoff_jump := 0.0
+## Every crossing, so a check can take the median: one shot in twenty still
+## discretises a whole 50 ms tick, and a max would call that a regression.
+var handoff_jumps: Array[float] = []
 
 var _aim_x := 50.0
 var _aim_y := 20.0
@@ -85,7 +88,7 @@ func _build() -> void:
 		"step": func(ctx, s, cmd): Sim.step_entity(s, float(cmd.moveX), float(cmd.moveY), ctx.dt),
 	})
 
-func frame(app: App, now: float, _dt_ms: float) -> void:
+func frame(app: App, now: float, dt_ms: float) -> void:
 	var v := app.view
 	var mouse := Kb.mouse_pos
 	var over_stage := mouse.x < app.stage.end.x
@@ -110,12 +113,12 @@ func frame(app: App, now: float, _dt_ms: float) -> void:
 		if _optimistic: _fire_optimistic()
 		_pending_fire = false
 
-	_sweep(now)
+	_sweep(now, dt_ms)
 
 ## Fold the store's entries into presentation state: which are pending, which
 ## just crossed the handoff, and what lead the crossing measured. Lives in
 ## frame, not render — a headless run has the same numbers.
-func _sweep(now: float) -> void:
+func _sweep(now: float, dt_ms: float) -> void:
 	pending_spawns = 0
 	confirmed_spawns = 0
 	_foreign = 0
@@ -145,7 +148,14 @@ func _sweep(now: float) -> void:
 			if known and not is_nan(slot[2]) and not is_nan(x):
 				var dx: float = x - slot[2]
 				var dy: float = y - slot[3]
-				var d := sqrt(dx * dx + dy * dy)
+				# The pending pose being compared against is a frame old, so
+				# the raw gap always carries a frame of legitimate flight.
+				# Subtract it or this measures the frame rate, not the seam:
+				# headless Godot swings between 7 ms and 58 ms a frame, which
+				# on its own reads as 0.24 u to 1.99 u.
+				var d := sqrt(dx * dx + dy * dy) - Sim.PROJECTILE_SPEED * dt_ms / 1000.0
+				d = maxf(d, 0.0)
+				handoff_jumps.append(d)
 				max_handoff_jump = maxf(max_handoff_jump, d)
 			slot = [false, now, slot[2], slot[3]]
 		_slots[eid] = [slot[0], slot[1], x, y]

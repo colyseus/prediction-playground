@@ -311,16 +311,26 @@ func _t_lab09() -> void:
 			lab.aim_at(50, 55)
 			lab.fire()
 			await drive(lab, app, 700)
-		# 4.0 rather than the C# twin's 3.0: patch age and the measured lead
-		# EACH quantize at one 50 ms tick (1.7 u of flight), so a legitimate
-		# handoff can read ~3.5 u at this frame timing (observed 2.0-3.7 over
-		# runs). The failure mode this guards — an UN-reckoned confirmation —
-		# measures (age + lead) x 34 u/s ≈ 8-11 u, still 2x past the bound.
-		check(lab.max_handoff_jump < 4.0,
-			"the projectile snapped %.2f u at the handoff — the confirmed entity is not being lead-reckoned" % lab.max_handoff_jump)
-		print("OK lab09: fired %d, lead %.0f ms, %d confirmed, worst jump %.2f u" % [
-			lab.fired, lab.last_lead_ms, lab.confirmed_spawns, lab.max_handoff_jump])
+		# The MEDIAN crossing, not the worst: about one shot in twenty
+		# discretises a whole 50 ms tick (1.7 u) and a max reads that as a
+		# regression. What this guards against is constant, so the median
+		# sees it — an UN-reckoned confirmation measures (age + lead) x
+		# 34 u/s on every shot, and the server stepping a projectile in its
+		# birth tick used to add 1.7 u to every shot. With both correct the
+		# median reads ~0.05; the bound was 4.0 while those hid inside it.
+		var median := _median(lab.handoff_jumps)
+		check(median < 0.5,
+			"the projectile snapped %.2f u at the handoff (median of %d crossings) — the confirmed entity is not being lead-reckoned" % [median, lab.handoff_jumps.size()])
+		print("OK lab09: fired %d, lead %.0f ms, %d confirmed, median jump %.2f u (worst %.2f)" % [
+			lab.fired, lab.last_lead_ms, lab.confirmed_spawns, median, lab.max_handoff_jump])
 	await teardown(lab)
+
+static func _median(values: Array[float]) -> float:
+	if values.is_empty(): return NAN
+	var sorted := values.duplicate()
+	sorted.sort()
+	var n := sorted.size()
+	return sorted[n / 2] if n % 2 == 1 else 0.5 * (sorted[n / 2 - 1] + sorted[n / 2])
 
 ## Fire n shots, spaced so each gets its own input tick and answer.
 func _fire_volley(lab, app: App, n: int) -> void:
