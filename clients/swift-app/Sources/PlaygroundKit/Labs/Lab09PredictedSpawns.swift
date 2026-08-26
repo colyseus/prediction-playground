@@ -19,11 +19,17 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
     private var predict: Colyseus.Predict?
     private var input: Colyseus.InputHandle?
     private var reconciler: Colyseus.Reconciler?
-    private var spawns: Colyseus.Spawns?
+    /// Internal rather than private so the acceptance tests can follow one
+    /// entry across the handoff by its id.
+    private(set) var spawns: Colyseus.Spawns?
     private var keyboard: Keyboard?
 
     private var optimistic = true
     private var fire = FireLatch()
+    /// The entries we spawned, newest last. The turret's projectiles arrive as
+    /// server-only entries with no lead to report, so the readout has to know
+    /// which ones were ours.
+    private var mine: [Int] = []
     private var aim = (x: Sim.arenaWidth - 10, y: Sim.arenaHeight / 2)
     private let fired = Tally()
 
@@ -51,7 +57,20 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
             // surface as server-only entries.
             owned: { $0.string("owner") == sessionId },
             // Supplying this turns on the measured input lead.
-            spawnTime: { $0["bornMs"] }
+            spawnTime: { $0["bornMs"] },
+            // The same flight the server integrates, so a CONFIRMED
+            // projectile keeps moving between snapshots instead of reading
+            // the last one the server sent — which is a round trip behind
+            // where the prediction had already flown it, and shows up as the
+            // trajectory changing the moment the server acknowledges the shot.
+            //
+            // No smoothing: a constant-velocity projectile rebases exactly, so
+            // easing the rebase in would only add lag.
+            reckon: .init(fields: ["x", "y"]) { projectile, dt, _ in
+                var body = Sim.Entity(view: projectile)
+                Sim.stepProjectile(&body, dt: dt)
+                body.write(to: projectile)
+            }
         )
     }
 
@@ -88,19 +107,26 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
     }
 
     private func spawnLocal() {
-        guard let spawns, let reconciler else { return }
+        // The RAW predicted pose, not the rendered one: the server fires from
+        // the position its own stepEntity just produced, and value() adds the
+        // decaying correction and the interpolation between steps. Firing from
+        // the smoothed pose aims the shot slightly differently from the one
+        // the server will create.
+        guard let spawns, let state = reconciler?.state else { return }
 
-        let originX = reconciler.value("x")
-        let originY = reconciler.value("y")
+        let originX = state["x"]
+        let originY = state["y"]
         let dx = aim.x - originX
         let dy = aim.y - originY
         let length = max((dx * dx + dy * dy).squareRoot(), 1e-6)
 
-        spawns.spawn(LocalProjectile(
+        let id = spawns.spawn(LocalProjectile(
             x: originX, y: originY,
             vx: dx / length * Sim.projectileSpeed,
             vy: dy / length * Sim.projectileSpeed
         ))
+        mine.append(id)
+        if mine.count > 32 { mine.removeFirst(mine.count - 32) }
     }
 
     private func spawnReconcilerIfNeeded() {
@@ -142,7 +168,8 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
             }
         }
 
-        // The aim line, from where you are to where you are pointing.
+        // The aim line starts at the sprite, which is the rendered pose —
+        // shots leave from the raw predicted one, a fraction of a unit away.
         if let reconciler {
             list.line(from: (x: reconciler.value("x"), y: reconciler.value("y")), to: aim,
                       color: Palette.accent, alpha: 0.35, width: 0.12)
@@ -150,6 +177,7 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
     }
 
     public func unmount() {
+        mine.removeAll()
         spawns?.dispose()
         reconciler?.dispose()
         spawns = nil
@@ -169,8 +197,11 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
         guard let room else { return [] }
         let entries = spawns?.entries ?? []
         let pending = entries.filter { !$0.isConfirmed }.count
-        // The lead the server measured on the most recent confirmed shot.
-        let lead = entries.last(where: { $0.isConfirmed })?.leadMs ?? 0
+        // The lead measured on the most recent confirmed shot of OUR own —
+        // a turret projectile is a server-only entry and has none.
+        let lead = mine.reversed()
+            .compactMap { id in entries.first { $0.id == id && $0.isConfirmed } }
+            .first?.leadMs ?? 0
 
         return [
             TelemetryRow("rtt", String(format: "%.0f ms", room.clock.smoothedRtt)),

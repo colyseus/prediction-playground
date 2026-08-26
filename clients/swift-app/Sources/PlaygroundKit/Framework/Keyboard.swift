@@ -48,7 +48,12 @@ public final class Keyboard: @unchecked Sendable {
         (isHeld("d") || isHeld("right") ? 1 : 0) - (isHeld("a") || isHeld("left") ? 1 : 0)
     }
 
+    /// Positive is DOWN.
+    ///
+    /// The arena's y grows downward, the way a canvas does — the web client
+    /// sends +1 for S and ArrowDown, and the server steps against that. Only
+    /// the renderer flips it, because SpriteKit's y grows the other way.
     public var moveY: Double {
-        (isHeld("w") || isHeld("up") ? 1 : 0) - (isHeld("s") || isHeld("down") ? 1 : 0)
+        (isHeld("s") || isHeld("down") ? 1 : 0) - (isHeld("w") || isHeld("up") ? 1 : 0)
     }
 }

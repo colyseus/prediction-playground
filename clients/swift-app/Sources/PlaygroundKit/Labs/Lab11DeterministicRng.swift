@@ -90,9 +90,10 @@ public final class Lab11DeterministicRng: Lab, @unchecked Sendable {
             // the roll travels; both sides derive it from (seq, salt).
             let seq = input.send()
 
-            if wantsFire, let reconciler {
-                let originX = reconciler.value("x")
-                let originY = reconciler.value("y")
+            // The raw predicted pose, matching what the server fires from.
+            if wantsFire, let state = reconciler?.state {
+                let originX = state["x"]
+                let originY = state["y"]
                 let base = atan2(aim.y - originY, aim.x - originX)
                 let salt = UInt32(truncatingIfNeeded: Int(room.state?.salt ?? 0))
 

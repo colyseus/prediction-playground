@@ -74,6 +74,30 @@ final class AcceptanceTests: XCTestCase {
         XCTAssertGreaterThan(try XCTUnwrap(telemetry("patch").flatMap { Double($0.dropLast(3)) }), 0)
     }
 
+    // MARK: - Movement
+
+    /// W has to move you UP the screen.
+    ///
+    /// The arena's y grows downward and only the renderer flips it, so a
+    /// keyboard that reports +1 for W sends you the other way — which is what
+    /// it did.
+    func testMovingUpDecreasesY() throws {
+        let lab = try mount(Lab03Reconcile.self)
+        drive(playground, "prediction to start", timeout: 8) { telemetry("drift") != nil }
+
+        let lane = try XCTUnwrap(lab.lane)
+        let start = lane.predictedPosition.y
+
+        hold(["w"], seconds: 1.2)
+        XCTAssertLessThan(lane.predictedPosition.y, start - 2,
+                          "W moved from y \(start) to \(lane.predictedPosition.y)")
+
+        let afterUp = lane.predictedPosition.y
+        hold(["s"], seconds: 1.2)
+        XCTAssertGreaterThan(lane.predictedPosition.y, afterUp + 2,
+                             "S moved from y \(afterUp) to \(lane.predictedPosition.y)")
+    }
+
     // MARK: - 03
 
     func testReconcileLeadsTheServerAndCorrectsToNothing() throws {
@@ -199,6 +223,70 @@ final class AcceptanceTests: XCTestCase {
             (telemetry("lead").flatMap { Double($0.dropLast(3)) } ?? 0) > 0
         }
         XCTAssertEqual(telemetry("pending"), "0", "a prediction was never correlated")
+
+        // And the projectile does not change course when the server
+        // acknowledges it.
+        //
+        // A confirmed entry that is not reckoned reads the last position the
+        // server sent — behind where the prediction had already flown it — so
+        // the projectile snaps BACKWARDS along its own path and appears to
+        // re-aim. That reversal is the visible bug; measured at −1.7 units
+        // without the reckon step. With it the seam is a small step forward,
+        // which is timing, not a change of course.
+        playground.keyboard.press("space")
+        let seam = handoffSeam(of: lab, seconds: 2.5)
+        playground.keyboard.release("space")
+
+        let jump = try XCTUnwrap(seam, "no entry crossed from pending to confirmed while sampling")
+        XCTAssertGreaterThan(
+            jump.alongVelocity, -0.1,
+            "the projectile snapped backwards by \(-jump.alongVelocity) units when confirmed"
+        )
+        XCTAssertLessThan(jump.distance, 3.0, "the projectile jumped \(jump.distance) units when confirmed")
+    }
+
+    /// How a spawn's drawn position moves across the one frame where it stops
+    /// being a prediction and becomes the server's, and how much of that is
+    /// along its own direction of travel.
+    ///
+    /// The entry id is stable across the handoff by design, which is what
+    /// makes a single projectile followable through it.
+    private func handoffSeam(
+        of lab: Lab09PredictedSpawns,
+        seconds: TimeInterval
+    ) -> (distance: Double, alongVelocity: Double)? {
+        var previous: [Int: (x: Double, y: Double, confirmed: Bool)] = [:]
+        var worst: (distance: Double, alongVelocity: Double)?
+
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline {
+            playground.frame()
+
+            for entry in lab.spawns?.entries ?? [] {
+                let x = lab.spawns?.value(entry, "x") ?? .nan
+                let y = lab.spawns?.value(entry, "y") ?? .nan
+                guard !x.isNaN, !y.isNaN else { continue }
+                defer { previous[entry.id] = (x: x, y: y, confirmed: entry.isConfirmed) }
+
+                // Only the crossing frame, not every frame.
+                guard let last = previous[entry.id], !last.confirmed, entry.isConfirmed,
+                      let server = entry.server
+                else { continue }
+
+                let dx = x - last.x, dy = y - last.y
+                let speed = (server["vx"] * server["vx"] + server["vy"] * server["vy"]).squareRoot()
+                guard speed > 1e-9 else { continue }
+
+                let along = (dx * server["vx"] + dy * server["vy"]) / speed
+                let distance = (dx * dx + dy * dy).squareRoot()
+                if distance > (worst?.distance ?? -1) {
+                    worst = (distance: distance, alongVelocity: along)
+                }
+            }
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.008))
+        }
+        return worst
     }
 
     // MARK: - 10
