@@ -160,6 +160,9 @@ void main() {
     expect(mine, greaterThan(0),
         reason: 'the fire input never produced an authoritative projectile');
     await close(lab);
+    // The lab raises injected latency on mount; leave it as the next one
+    // found it.
+    NetDelay.select(0);
   }, timeout: budget);
 
   /// The Fire button a lab exposes, so a scripted run shoots without a cursor.

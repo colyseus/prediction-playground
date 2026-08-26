@@ -74,6 +74,7 @@ func mount(app: App) -> bool:
 	_input = room.input()
 	if _input == null: return false
 	_build()
+	app.set_latency_preset(2)   # a predicted shot says nothing on a 1 ms link
 	return true
 
 func _build() -> void:

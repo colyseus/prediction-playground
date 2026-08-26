@@ -92,6 +92,7 @@ class Lab09 implements Lab {
 		input = room.input({ type: lab.RangeInput });
 		cmd = input.data;
 		build();
+		app.setLatencyPreset(2);     // a predicted shot says nothing on a 1 ms link
 		return true;
 	}
 

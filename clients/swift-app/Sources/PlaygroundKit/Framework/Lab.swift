@@ -78,11 +78,16 @@ public protocol Lab: AnyObject, Sendable {
     var controls: [Control] { get }
     /// The room, for the shell's connection banner and for tests.
     var roomHandle: AnyObject? { get }
+
+    /// Index into ``Playground/latencyPresets`` to open at. Some labs say
+    /// nothing on a 1 ms link, so they pick their own floor.
+    static var preferredLatencyIndex: Int? { get }
 }
 
 public extension Lab {
     func onReconnect() {}
     var controls: [Control] { [] }
+    static var preferredLatencyIndex: Int? { nil }
 }
 
 /// Join a lab's room.

@@ -170,7 +170,9 @@ static bool lab09_attach(app_t* app, colyseus_room_t* room) {
     if (!l09.input) { return false; }
     l09.cmd = (range_input_t*)colyseus_input_handle_data(l09.input);
     (void)app;
-    return l09_make_reconciler();
+    if (!l09_make_reconciler()) { return false; }
+    app_set_latency_preset(2);   /* a predicted shot says nothing on a 1 ms link */
+    return true;
 }
 
 static void l09_draw_remote(const char* sid, void* value, void* userdata) {

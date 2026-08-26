@@ -14,6 +14,9 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
     public static let id = "09"
     public static let title = "Predicted Spawns"
     public static let summary = "Fire immediately, then hand off to the server's projectile."
+    /// A predicted shot says nothing on a 1 ms link: the prediction is
+    /// confirmed before it has cleared the muzzle.
+    public static let preferredLatencyIndex: Int? = 2
 
     private var room: Colyseus.Room<LabProjectile.ProjectileState>?
     private var predict: Colyseus.Predict?
@@ -32,6 +35,12 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
     private var mine: [Int] = []
     private var aim = (x: Sim.arenaWidth - 10, y: Sim.arenaHeight / 2)
     private let fired = Tally()
+    /// Ids seen while still predicted, and when each one flipped. The flash is
+    /// the only thing that marks the handoff — without it the takeover reads
+    /// as the projectile glitching.
+    private var wasPending = Set<Int>()
+    private var flash: [Int: Double] = [:]
+    private var renderNow: Double = 0
 
     public init() {}
 
@@ -99,6 +108,22 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
                 fired.increment()
             }
         }
+
+        renderNow = now
+        sweepHandoffs()
+    }
+
+    /// draw() has no clock of its own, so the flip is detected here.
+    private func sweepHandoffs() {
+        guard let spawns else { return }
+        var live = Set<Int>()
+        for entry in spawns.entries {
+            live.insert(entry.id)
+            if !entry.isConfirmed { wasPending.insert(entry.id); continue }
+            if wasPending.remove(entry.id) != nil { flash[entry.id] = renderNow }
+        }
+        wasPending.formIntersection(live)
+        flash = flash.filter { live.contains($0.key) }
     }
 
     /// Where the pointer is aiming, in world units.
@@ -162,9 +187,15 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
                 let x = spawns.value(entry, "x")
                 let y = spawns.value(entry, "y")
                 guard !x.isNaN, !y.isNaN else { continue }
-                list.circle(x, y, radius: Sim.projectileRadius,
-                            color: entry.isConfirmed ? Palette.good : Palette.warn,
-                            alpha: entry.isConfirmed ? 1 : 0.8)
+                guard entry.isConfirmed else {
+                    list.circle(x, y, radius: Sim.projectileRadius,
+                                color: Palette.warn, alpha: 0.8)
+                    continue
+                }
+                let isMine = entry.server?.string("owner") == room.sessionId
+                let flashing = renderNow - (flash[entry.id] ?? -.infinity) < 350
+                list.circle(x, y, radius: Sim.projectileRadius * (flashing ? 1.8 : 1),
+                            color: isMine ? Palette.text : Palette.bad, alpha: 1)
             }
         }
 
@@ -178,6 +209,8 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
 
     public func unmount() {
         mine.removeAll()
+        wasPending.removeAll()
+        flash.removeAll()
         spawns?.dispose()
         reconciler?.dispose()
         spawns = nil
@@ -191,6 +224,8 @@ public final class Lab09PredictedSpawns: Lab, @unchecked Sendable {
         reconciler?.reset()
         input?.reset()
         spawns?.clear()
+        wasPending.removeAll()
+        flash.removeAll()
     }
 
     public var telemetry: [TelemetryRow] {

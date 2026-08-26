@@ -7,6 +7,7 @@ import '../controls.dart';
 import '../hud.dart';
 import '../kb.dart';
 import '../lab.dart';
+import '../net/net_delay.dart';
 import '../net/schema_bridge.dart';
 import '../palette.dart';
 import '../sim/sim.dart';
@@ -116,6 +117,9 @@ class Lab09PredictedSpawns extends Lab {
       if (_optimistic) _spawn();
     };
 
+    // A predicted shot says nothing on a 1 ms link: it is confirmed before it
+    // has cleared the muzzle.
+    NetDelay.select(2);
     return true;
   }
 

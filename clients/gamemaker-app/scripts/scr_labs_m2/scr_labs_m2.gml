@@ -405,6 +405,13 @@ function Lab09() constructor {
         rebind = false;
         aim_x = SIM_ARENA_W / 2;
         aim_y = SIM_ARENA_H / 2;
+        was_pending = {};
+        flash_at = {};
+        render_now = 0;
+        // a predicted shot says nothing on a 1 ms link — it is confirmed
+        // before it has cleared the muzzle. obj_shell applies this right after
+        // attach() returns.
+        _shell.latency_index = 2;
         return __make_recon(_shell);
     };
 
@@ -444,11 +451,29 @@ function Lab09() constructor {
                     vy: (_wy - _py) / _d * SIM_PROJECTILE_SPEED });
             }
         }
-        // surface the newest confirmed lead for the HUD
+        // surface the newest confirmed lead for the HUD, and catch the flip
+        // from pending to confirmed — draw() has no clock to spot it with.
+        // Rebuilding both maps drops the ids that died this frame.
         var _entries = shots.entries();
+        var _next_pending = {};
+        var _next_flash = {};
         for (var _i = 0; _i < array_length(_entries); _i++) {
-            if (_entries[_i].confirmed && _entries[_i].lead_ms > 0) last_lead = _entries[_i].lead_ms;
+            var _e = _entries[_i];
+            var _k = string(_e.id);
+            if (!_e.confirmed) {
+                variable_struct_set(_next_pending, _k, true);
+                continue;
+            }
+            if (_e.lead_ms > 0) last_lead = _e.lead_ms;
+            if (variable_struct_exists(was_pending, _k)) {
+                variable_struct_set(_next_flash, _k, _now);
+            } else if (variable_struct_exists(flash_at, _k)) {
+                variable_struct_set(_next_flash, _k, variable_struct_get(flash_at, _k));
+            }
         }
+        was_pending = _next_pending;
+        flash_at = _next_flash;
+        render_now = _now;
     };
 
     static draw = function(_shell, _v, _hud) {
@@ -481,7 +506,11 @@ function Lab09() constructor {
             } else {
                 _pending += 1;
             }
-            draw_circle_w(_v, _ex, _ey, SIM_PROJECTILE_RADIUS + 0.3, _col, false);
+            var _k = string(_e.id);
+            var _flash = variable_struct_exists(flash_at, _k)
+                && (render_now - variable_struct_get(flash_at, _k) < 350);
+            draw_circle_w(_v, _ex, _ey,
+                (SIM_PROJECTILE_RADIUS + 0.3) * (_flash ? 1.8 : 1), _col, false);
         }
 
         _hud.section("TELEMETRY");
@@ -494,7 +523,7 @@ function Lab09() constructor {
         _hud.key_hint("click", "fire at the crosshair");
         _hud.key_hint("space", "fire, too");
         _hud.key_hint("WASD", "drive");
-        _hud.note("Amber = your optimistic shot flying before the server knows. It hands off to the authoritative entity (same id) with the measured lead. Red = the turret's foreign shots - never yours to predict.");
+        _hud.note("Amber = your optimistic shot flying before the server knows. It flashes as it hands off to the authoritative entity (same id) with the measured lead. Red = the turret's foreign shots - never yours to predict.");
     };
 
     static detach = function(_shell) {

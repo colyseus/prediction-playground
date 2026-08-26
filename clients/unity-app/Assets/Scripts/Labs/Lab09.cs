@@ -91,6 +91,7 @@ namespace Playground
             _cmd = new Lab.RangeInput();
             _input = Room.Input(_cmd);
             Build();
+            app.SetLatencyPreset(2);   // a predicted shot says nothing on a 1 ms link
             return true;
         }
 

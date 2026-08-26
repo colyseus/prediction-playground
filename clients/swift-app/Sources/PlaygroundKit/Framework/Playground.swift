@@ -94,6 +94,11 @@ public final class Playground: @unchecked Sendable {
                 mounting = false
                 status = ""
                 wireConnection(of: lab)
+                // Every lab joins a fresh room, and the injection lives on the
+                // room — without this the preset survives only until the next
+                // lab switch, while the HUD keeps reporting it.
+                if let preferred = type.preferredLatencyIndex { latencyIndex = preferred }
+                applyLatency()
             } catch {
                 mounting = false
                 status = "could not join: \(error.localizedDescription)"

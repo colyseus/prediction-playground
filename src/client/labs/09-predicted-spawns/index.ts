@@ -20,6 +20,11 @@ export const lab: LabDescriptor = {
   async mount(ctx: LabContext): Promise<LabInstance> {
     const { room, predict, projectiles, input } = await connect(ctx.client);
     const me = await waitFor(() => room.state.players.get(room.sessionId));
+
+    // A predicted shot says nothing on a 1 ms link: it is confirmed before it
+    // has cleared the muzzle, so the whole amber phase is invisible.
+    (globalThis as any).__net?.(200, 20);
+
     const recon = makeReconciler(predict, me, input);
 
     const kb = new Keyboard();
@@ -41,6 +46,17 @@ export const lab: LabDescriptor = {
     ctx.canvas.addEventListener("mousemove", onMouseMove);
     ctx.canvas.addEventListener("mousedown", onMouseDown);
 
+    ctx.controls.radio<"0" | "200" | "400">({
+      label: "Injected latency",
+      value: "200",
+      options: [
+        { value: "0", label: "0 ms" },
+        { value: "200", label: "200 ms" },
+        { value: "400", label: "400 ms" },
+      ],
+      onChange: (v) => (globalThis as any).__net?.(Number(v), Number(v) ? 20 : 0),
+      note: "How long the amber prediction stays yours. At 0 ms the server confirms before the shot clears the muzzle and there is nothing to see.",
+    });
     ctx.controls.toggle({
       label: "Optimistic spawn",
       value: true,

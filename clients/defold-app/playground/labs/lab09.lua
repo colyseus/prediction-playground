@@ -18,6 +18,7 @@
 local sim = require 'playground.sim'
 local app = require 'playground.app'
 local Predict = require 'colyseus.predict.predict'
+local net_delay = require 'playground.net_delay'
 
 local kb = app.kb
 
@@ -66,6 +67,7 @@ function Lab:mount(context, room)
   self.input = room:input()
   self.cmd = self.input.data
   self:build()
+  net_delay.use_preset(3)     -- a predicted shot says nothing on a 1 ms link
   return true
 end
 
