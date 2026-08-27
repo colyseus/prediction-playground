@@ -29,3 +29,5 @@ clients/gamemaker-app/scripts/ColyseusPredict/ColyseusPredict.gml
 
 # Swift client build output
 clients/swift-app/.build/
+# `swift package edit` symlinks the SDK checkout in here.
+clients/swift-app/Packages/

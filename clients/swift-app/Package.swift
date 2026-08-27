@@ -9,20 +9,20 @@ let package = Package(
         .executable(name: "playground", targets: ["Playground"]),
     ],
     dependencies: [
-        // The SDK lives in the sibling native-sdk checkout. Build its
-        // xcframework first: cd native-sdk/platforms/swift && ./build.sh
+        // The published package, so this app builds from a bare checkout with
+        // no native-sdk beside it and no xcframework to build first.
         //
-        // This directory is `swift-app`, not `swift`, because SwiftPM takes a
-        // local package's identity from its directory name — and a package in
-        // a folder called `swift` cannot depend on one in `platforms/swift`.
-        .package(path: "../../../../native-sdk/platforms/swift"),
+        // To try a local SDK change against it:
+        //   swift package edit colyseus-swift --path ../../../../native-sdk/platforms/swift
+        //   swift package unedit colyseus-swift
+        .package(url: "https://github.com/colyseus/colyseus-swift", from: "0.18.1"),
     ],
     targets: [
         // The simulation, the schemas and the labs, with no rendering in them:
         // what lets the acceptance tests drive the real labs headlessly.
         .target(
             name: "PlaygroundKit",
-            dependencies: [.product(name: "Colyseus", package: "swift")],
+            dependencies: [.product(name: "Colyseus", package: "colyseus-swift")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .executableTarget(

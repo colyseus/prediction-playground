@@ -1,13 +1,13 @@
 # Prediction Playground — Swift
 
-The playground on the [Colyseus Swift SDK](../../../../native-sdk/platforms/swift),
+The playground on the [Colyseus Swift SDK](https://github.com/colyseus/colyseus-swift),
 which is Swift over the native C SDK. Renders with SpriteKit on macOS.
 
 ![lab 03](media/lab03.png)
 
 ## Run it
 
-Three things, in order.
+Two things, in order.
 
 **1. The playground server** — it serves the web client and the Colyseus rooms
 from one port:
@@ -21,14 +21,7 @@ pnpm dev --host 0.0.0.0
 `--host` is not optional. Without it Vite binds IPv6 loopback only, and a
 native client connecting to `127.0.0.1` gets nothing.
 
-**2. The native library** (needs [Zig](https://ziglang.org) 0.15.2):
-
-```sh
-cd native-sdk/platforms/swift
-./build.sh
-```
-
-**3. The app:**
+**2. The app:**
 
 ```sh
 cd demos/prediction-tools/clients/swift-app
@@ -36,6 +29,15 @@ swift run playground
 ```
 
 Point it elsewhere with `--endpoint ws://host:port`, or `PLAYGROUND_ENDPOINT`.
+
+SwiftPM resolves the SDK and its pre-built xcframework, so nothing else has to
+be built first — a bare checkout of this repo is enough. To try a change to the
+SDK itself against the labs, point the dependency at a local checkout:
+
+```sh
+swift package edit colyseus-swift --path ../../../../native-sdk/platforms/swift
+swift package unedit colyseus-swift
+```
 
 ## Controls
 
