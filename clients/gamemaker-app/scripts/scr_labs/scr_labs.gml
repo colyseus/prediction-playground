@@ -5,15 +5,20 @@
 //     attach(shell) -> bool, step(shell, now, dt), draw(shell, v, hud),
 //     detach(shell), on_reconnect(shell) }
 // step() runs in the shell's Step event (logic + sends + pump); draw() in
-// Draw GUI. Instance handles are re-resolved from a fresh state root every
-// frame — raw handles dangle when the decoder replaces instances.
+// Draw GUI. Entities are looked up from the state root every frame: the
+// lookup is what re-reads a struct after a patch, and it sees removals.
 // =============================================================================
 
-/// fresh root → players[sid] handle (0 when absent)
+/// state[field][key] as a struct, undefined when absent
+function lab_entity(_shell, _field, _key) {
+    var _state = colyseus_room_get_state(_shell.net_room);
+    if (_state == undefined) return undefined;
+    return colyseus_map_get(_state, _field, _key);
+}
+
+/// players[sid] as a struct, undefined when absent
 function lab_me(_shell) {
-    var _state = __colyseus_room_get_state(_shell.net_room);
-    if (_state == 0) return 0;
-    return __colyseus_map_get(_state, "players", _shell.sid);
+    return lab_entity(_shell, "players", _shell.sid);
 }
 
 // ── Lab 01 — Feel the Lag ──────────────────────────────────────────────
@@ -25,7 +30,7 @@ function Lab01() constructor {
     room_name = "lab-move";
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         pacer = new Pacer(1000 / SIM_TICK_HZ);
@@ -53,11 +58,10 @@ function Lab01() constructor {
 
         // input → motion meter on the DECODED pose
         var _me = lab_me(_shell);
-        if (_me != 0) {
-            var _mx = __colyseus_schema_get_number(_me, "x");
-            var _my = __colyseus_schema_get_number(_me, "y");
-            var _speed = abs(__colyseus_schema_get_number(_me, "vx"))
-                       + abs(__colyseus_schema_get_number(_me, "vy"));
+        if (_me != undefined) {
+            var _mx = _me.x;
+            var _my = _me.y;
+            var _speed = abs(_me.vx) + abs(_me.vy);
             if (phase != 1 && kb_any_move() && _speed < 0.01) {
                 phase = 1; arm_t = _now; arm_x = _mx; arm_y = _my;
             } else if (phase == 1) {
@@ -74,12 +78,11 @@ function Lab01() constructor {
         var _sids = _shell.player_sids();
         for (var _i = 0; _i < array_length(_sids); _i++) {
             var _sid = _sids[_i];
-            var _state = __colyseus_room_get_state(_shell.net_room);
-            var _p = __colyseus_map_get(_state, "players", _sid);
-            if (_p == 0) continue;
-            var _px = __colyseus_schema_get_number(_p, "x");
-            var _py = __colyseus_schema_get_number(_p, "y");
-            var _hue = __colyseus_schema_get_number(_p, "hue");
+            var _p = lab_entity(_shell, "players", _sid);
+            if (_p == undefined) continue;
+            var _px = _p.x;
+            var _py = _p.y;
+            var _hue = _p.hue;
             var _is_me = _sid == _shell.sid;
 
             // per-player damped shadow (render-side smoothing, still laggy)
@@ -131,7 +134,7 @@ function Lab02() constructor {
     room_name = "lab-bots";
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         clock = new ColyseusClock(_shell.net_room);
@@ -161,19 +164,14 @@ function Lab02() constructor {
 
     static draw = function(_shell, _v, _hud) {
         // me (raw) + the patrol bot at its decoded snapshot
-        var _state = __colyseus_room_get_state(_shell.net_room);
-        var _me = __colyseus_map_get(_state, "players", _shell.sid);
-        if (_me != 0) {
-            draw_square_w(_v, __colyseus_schema_get_number(_me, "x"),
-                __colyseus_schema_get_number(_me, "y"), SIM_PLAYER_HALF,
-                hue_color(__colyseus_schema_get_number(_me, "hue")));
+        var _me = lab_me(_shell);
+        if (_me != undefined) {
+            draw_square_w(_v, _me.x, _me.y, SIM_PLAYER_HALF, hue_color(_me.hue));
         }
-        var _bot = __colyseus_map_get(_state, "bots", "bot1");
-        if (_bot != 0) {
-            var _bx = __colyseus_schema_get_number(_bot, "x");
-            var _by = __colyseus_schema_get_number(_bot, "y");
-            draw_circle_w(_v, _bx, _by, SIM_BOT_RADIUS, COL_BLUE, false);
-            draw_label_w(_v, _bx, _by, "bot (raw snapshots)", COL_FAINT, -_v.vs(SIM_BOT_RADIUS) - 18);
+        var _bot = lab_entity(_shell, "bots", "bot1");
+        if (_bot != undefined) {
+            draw_circle_w(_v, _bot.x, _bot.y, SIM_BOT_RADIUS, COL_BLUE, false);
+            draw_label_w(_v, _bot.x, _bot.y, "bot (raw snapshots)", COL_FAINT, -_v.vs(SIM_BOT_RADIUS) - 18);
         }
 
         _hud.section("THE THREE TIMELINES");
@@ -207,7 +205,7 @@ function Lab03() constructor {
 
     static __make_recon = function(_shell) {
         var _me = lab_me(_shell);
-        if (_me == 0) return false;
+        if (_me == undefined) return false;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy"],
             smooth_ms: smooth_ms,
@@ -220,7 +218,7 @@ function Lab03() constructor {
     };
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         predict = new ColyseusPredict(_shell.net_room);
@@ -244,7 +242,7 @@ function Lab03() constructor {
 
     static step = function(_shell, _now, _dt) {
         if (rebind) {
-            if (lab_me(_shell) == 0) return;
+            if (lab_me(_shell) == undefined) return;
             recon.free_native();
             if (__make_recon(_shell)) {
                 rebind = false;
@@ -304,26 +302,25 @@ function Lab03() constructor {
 
     static draw = function(_shell, _v, _hud) {
         var _now = colyseus_predict_now();
-        var _state = __colyseus_room_get_state(_shell.net_room);
 
         // remotes through predict.value (damped)
         var _sids = _shell.player_sids();
         for (var _i = 0; _i < array_length(_sids); _i++) {
             if (_sids[_i] == _shell.sid) continue;
-            var _p = __colyseus_map_get(_state, "players", _sids[_i]);
-            if (_p == 0) continue;
+            var _p = lab_entity(_shell, "players", _sids[_i]);
+            if (_p == undefined) continue;
             draw_square_w(_v, predict.value(_p, "x"), predict.value(_p, "y"),
-                SIM_PLAYER_HALF, merge_color(hue_color(__colyseus_schema_get_number(_p, "hue")), COL_BG, 0.4));
+                SIM_PLAYER_HALF, merge_color(hue_color(_p.hue), COL_BG, 0.4));
         }
 
-        var _me = __colyseus_map_get(_state, "players", _shell.sid);
-        if (_me == 0 || rebind) return;
-        var _hue = __colyseus_schema_get_number(_me, "hue");
+        var _me = lab_me(_shell);
+        if (_me == undefined || rebind) return;
+        var _hue = _me.hue;
 
         // server ghost: the raw authoritative pose — trails by ~RTT
         if (show_ghost) {
-            var _gx = __colyseus_schema_get_number(_me, "x");
-            var _gy = __colyseus_schema_get_number(_me, "y");
+            var _gx = _me.x;
+            var _gy = _me.y;
             server_trail.push(_gx, _gy);
             server_trail.draw(_v, COL_TEXT, 0.3);
             draw_ghost_square_w(_v, _gx, _gy, SIM_PLAYER_HALF, COL_TEXT, 0.75);

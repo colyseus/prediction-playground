@@ -17,7 +17,7 @@ function Lab00() constructor {
 
     static __make_recon = function(_shell) {
         var _me = lab_me(_shell);
-        if (_me == 0) return false;
+        if (_me == undefined) return false;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy"],
             smooth_ms: 65,
@@ -29,7 +29,7 @@ function Lab00() constructor {
     };
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         predict = new ColyseusPredict(_shell.net_room);
@@ -41,7 +41,7 @@ function Lab00() constructor {
 
     static step = function(_shell, _now, _dt) {
         if (rebind) {
-            if (lab_me(_shell) == 0) return;
+            if (lab_me(_shell) == undefined) return;
             recon.free_native();
             if (__make_recon(_shell)) rebind = false; else return;
         }
@@ -66,12 +66,11 @@ function Lab00() constructor {
         view_r.draw_arena();
 
         var _me = lab_me(_shell);
-        if (_me == 0 || rebind) return;
-        var _hue = __colyseus_schema_get_number(_me, "hue");
+        if (_me == undefined || rebind) return;
+        var _hue = _me.hue;
 
         // left lane: the ECHO — decoded state verbatim, a round trip late
-        draw_square_w(view_l, __colyseus_schema_get_number(_me, "x"),
-            __colyseus_schema_get_number(_me, "y"), SIM_PLAYER_HALF, hue_color(_hue));
+        draw_square_w(view_l, _me.x, _me.y, SIM_PLAYER_HALF, hue_color(_hue));
         draw_label_w(view_l, 50, 2, "ECHO - waits the round trip", COL_FAINT, 0);
 
         // right lane: the PREDICTION — moves the same frame the key lands
@@ -103,7 +102,7 @@ function Lab04() constructor {
     room_name = "lab-bots";
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         pacer = new Pacer(1000 / SIM_TICK_HZ);
@@ -135,10 +134,9 @@ function Lab04() constructor {
     };
 
     static draw = function(_shell, _v, _hud) {
-        var _state = __colyseus_room_get_state(_shell.net_room);
-        var _bot = __colyseus_map_get(_state, "bots", "bot1");
+        var _bot = lab_entity(_shell, "bots", "bot1");
         _hud.section("MODES (one bot, four readers)");
-        if (_bot != 0) {
+        if (_bot != undefined) {
             // draw the same bot once per mode, offset in Y so all four show
             for (var _i = 0; _i < 4; _i++) {
                 var _bx = modes[_i].p.value(_bot, "x");
@@ -149,10 +147,8 @@ function Lab04() constructor {
             }
         }
         var _me = lab_me(_shell);
-        if (_me != 0) {
-            draw_square_w(_v, __colyseus_schema_get_number(_me, "x"),
-                __colyseus_schema_get_number(_me, "y"), SIM_PLAYER_HALF,
-                hue_color(__colyseus_schema_get_number(_me, "hue")));
+        if (_me != undefined) {
+            draw_square_w(_v, _me.x, _me.y, SIM_PLAYER_HALF, hue_color(_me.hue));
         }
         _hud.section("CONTROLS");
         _hud.key_hint("L", "latency preset (watch raw stutter)");
@@ -174,7 +170,7 @@ function Lab05() constructor {
     room_name = "lab-bots";
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         pacer = new Pacer(1000 / SIM_TICK_HZ);
@@ -204,28 +200,25 @@ function Lab05() constructor {
     };
 
     static draw = function(_shell, _v, _hud) {
-        var _state = __colyseus_room_get_state(_shell.net_room);
         var _keys = ["bot1", "bot2", "bot3"];
         _hud.section("RECKONED BOTS");
         for (var _i = 0; _i < array_length(_keys); _i++) {
-            var _bot = __colyseus_map_get(_state, "bots", _keys[_i]);
-            if (_bot == 0) continue;
+            var _bot = lab_entity(_shell, "bots", _keys[_i]);
+            if (_bot == undefined) continue;
             // lerp ghost (dashed ~ the past) vs reckoned body (the present)
             draw_ghost_square_w(_v, lerp_ghost.value(_bot, "x"), lerp_ghost.value(_bot, "y"),
                 SIM_BOT_RADIUS, COL_FAINT, 0.6);
             draw_circle_w(_v, reckon.value(_bot, "x"), reckon.value(_bot, "y"),
                 SIM_BOT_RADIUS, COL_BLUE, false);
-            var _kind = __colyseus_schema_get_string(_bot, "kind");
+            var _kind = _bot.kind;
             draw_label_w(_v, reckon.value(_bot, "x"), reckon.value(_bot, "y"),
                 _kind, COL_DIM, -_v.vs(SIM_BOT_RADIUS) - 16);
             _hud.row(_keys[_i] + " (" + _kind + ")", COL_TEXT,
                 string_format(reckon.value(_bot, "x") - lerp_ghost.value(_bot, "x"), 1, 1) + "u lead");
         }
         var _me = lab_me(_shell);
-        if (_me != 0) {
-            draw_square_w(_v, __colyseus_schema_get_number(_me, "x"),
-                __colyseus_schema_get_number(_me, "y"), SIM_PLAYER_HALF,
-                hue_color(__colyseus_schema_get_number(_me, "hue")));
+        if (_me != undefined) {
+            draw_square_w(_v, _me.x, _me.y, SIM_PLAYER_HALF, hue_color(_me.hue));
         }
         _hud.section("CONTROLS");
         _hud.key_hint("L", "latency preset (the lead grows)");
@@ -249,7 +242,7 @@ function Lab08() constructor {
 
     static __make_recon = function(_shell) {
         var _me = lab_me(_shell);
-        if (_me == 0) return false;
+        if (_me == undefined) return false;
         var _lab_self = self;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy", "scoreTicks"],
@@ -273,7 +266,7 @@ function Lab08() constructor {
     };
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         predict = new ColyseusPredict(_shell.net_room);
@@ -301,7 +294,7 @@ function Lab08() constructor {
 
     static step = function(_shell, _now, _dt) {
         if (rebind) {
-            if (lab_me(_shell) == 0) return;
+            if (lab_me(_shell) == undefined) return;
             recon.free_native();
             if (__make_recon(_shell)) rebind = false; else return;
         }
@@ -331,9 +324,9 @@ function Lab08() constructor {
         draw_label_w(_v, SIM_ARENA_W - 4, SIM_ARENA_H / 2, "GOAL", COL_GOOD, 0);
 
         var _me = lab_me(_shell);
-        if (_me == 0 || rebind) return;
+        if (_me == undefined || rebind) return;
         draw_square_w(_v, recon.value("x"), recon.value("y"), SIM_PLAYER_HALF,
-            hue_color(__colyseus_schema_get_number(_me, "hue")));
+            hue_color(_me.hue));
 
         // the optimistic banner: shows the same frame the gate fires
         if (banner != "" && _now - banner_t < 1600) {
@@ -366,6 +359,13 @@ function Lab08() constructor {
 
 // ── Lab 09 — Predicted Spawns: fire before the server knows ────────────
 
+/// owner sid of a spawns entry's server entity, "" before the handoff.
+/// HTML5: a script function called only from a static method in another
+/// script is emitted as a broken stub, so the call goes through here.
+function spawn_owner(_entry) {
+    return _entry.server != 0 ? colyseus_schema_get(_entry.server, "owner") : "";
+}
+
 function Lab09() constructor {
     num = 9;
     title = "Predicted Spawns";
@@ -374,7 +374,7 @@ function Lab09() constructor {
 
     static __make_recon = function(_shell) {
         var _me = lab_me(_shell);
-        if (_me == 0) return false;
+        if (_me == undefined) return false;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy"],
             smooth_ms: 65,
@@ -386,7 +386,7 @@ function Lab09() constructor {
     };
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         predict = new ColyseusPredict(_shell.net_room);
@@ -417,7 +417,7 @@ function Lab09() constructor {
 
     static step = function(_shell, _now, _dt) {
         if (rebind) {
-            if (lab_me(_shell) == 0) return;
+            if (lab_me(_shell) == undefined) return;
             recon.free_native();
             if (__make_recon(_shell)) rebind = false; else return;
         }
@@ -482,9 +482,9 @@ function Lab09() constructor {
         aim_y = _v.wy(device_mouse_y_to_gui(0));
 
         var _me = lab_me(_shell);
-        if (_me != 0 && !rebind) {
+        if (_me != undefined && !rebind) {
             draw_square_w(_v, recon.value("x"), recon.value("y"), SIM_PLAYER_HALF,
-                hue_color(__colyseus_schema_get_number(_me, "hue")));
+                hue_color(_me.hue));
             // crosshair
             draw_set_color(COL_TEXT);
             draw_circle(_v.sx(clamp(aim_x, 0, SIM_ARENA_W)), _v.sy(clamp(aim_y, 0, SIM_ARENA_H)), 6, true);
@@ -501,8 +501,7 @@ function Lab09() constructor {
             if (is_nan(_ex)) continue;
             var _col = COL_ACCENT;
             if (_e.confirmed) {
-                var _owner = _e.server != 0 ? __colyseus_schema_get_string(_e.server, "owner") : "";
-                _col = _owner == _shell.sid ? COL_TEXT : COL_BAD;
+                _col = spawn_owner(_e) == _shell.sid ? COL_TEXT : COL_BAD;
             } else {
                 _pending += 1;
             }
