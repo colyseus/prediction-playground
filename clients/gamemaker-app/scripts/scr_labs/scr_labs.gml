@@ -137,7 +137,7 @@ function Lab02() constructor {
         if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
-        clock = new ColyseusClock(_shell.net_room);
+        clock = colyseus_room_get_clock(_shell.net_room);
         pacer = new Pacer(1000 / SIM_TICK_HZ);
         rtt_spark = new Spark();
         age_spark = new Spark();

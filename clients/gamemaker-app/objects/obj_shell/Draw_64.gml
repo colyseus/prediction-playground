@@ -37,7 +37,7 @@ if (net_room > 0) {
     hud.row("room", COL_TEXT, labs[lab_index].room_name);
     hud.row("connected", colyseus_room_is_connected(net_room) ? COL_GOOD : COL_BAD,
         colyseus_room_is_connected(net_room) ? "yes" : "no");
-    hud.row("rtt", COL_ACCENT, string(round(clock.rtt())) + " ms");
+    hud.row("rtt", COL_ACCENT, string(round(colyseus_room_get_clock(net_room).rtt())) + " ms");
 }
 var _preset = latency_presets[latency_index];
 hud.row("injected latency", _preset[0] > 0 ? COL_WARN : COL_DIM,

@@ -21,7 +21,6 @@ labs = lab_registry();
 lab = undefined;          // active lab struct
 lab_index = -1;
 net_room = -1;
-clock = undefined;
 sid = "";
 phase = "idle";           // idle | joining | ready
 joined = false;
@@ -69,7 +68,6 @@ switch_lab = function(_idx) {
     lab_index = _idx;
     net_room = colyseus_client_join_or_create(client, labs[_idx].room_name, "{}");
     if (net_room <= 0) { phase = "idle"; return; }
-    clock = new ColyseusClock(net_room);
     colyseus_on_join(net_room, method(self, function(_r) { joined = true; }));
     colyseus_on_reconnect(net_room, method(self, function() {
         if (lab != undefined) lab.on_reconnect(self);
