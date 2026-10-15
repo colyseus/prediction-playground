@@ -18,7 +18,7 @@ var _dt = min(delta_time / 1000, 100);
 
 if (phase == "joining" && joined && net_room > 0) {
     // state + our player entry may trail the join by a few patches
-    if (lab_me(self) != 0) {
+    if (lab_me(self) != undefined) {
         sid = colyseus_room_get_session_id(net_room);
         callbacks = colyseus_callbacks_create(net_room);
         colyseus_on_add(callbacks, "players", __on_player_add);

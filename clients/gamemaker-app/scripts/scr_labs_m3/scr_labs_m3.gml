@@ -15,7 +15,7 @@ function Lab06() constructor {
 
     static __make_recon = function(_shell) {
         var _me = lab_me(_shell);
-        if (_me == 0) return false;
+        if (_me == undefined) return false;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy"],
             smooth_ms: 65,
@@ -27,7 +27,7 @@ function Lab06() constructor {
     };
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         // rewind stamping only on firing inputs — the allowRewind gate
@@ -71,7 +71,7 @@ function Lab06() constructor {
 
     static step = function(_shell, _now, _dt) {
         if (rebind) {
-            if (lab_me(_shell) == 0) return;
+            if (lab_me(_shell) == undefined) return;
             recon.free_native();
             if (__make_recon(_shell)) rebind = false; else return;
         }
@@ -97,8 +97,7 @@ function Lab06() constructor {
                 fire_pending = false;
                 // record the shot AS THIS SCREEN SHOWED IT: origin at the
                 // PREDICTED pose, blue marker = the (lerped) bot we aimed at
-                var _state = __colyseus_room_get_state(_shell.net_room);
-                var _bot = __colyseus_map_get(_state, "bots", "bot1");
+                var _bot = lab_entity(_shell, "bots", "bot1");
                 {
                     var _px = recon.value("x");
                     var _py = recon.value("y");
@@ -106,8 +105,8 @@ function Lab06() constructor {
                     var _ay = clamp(aim_y, 0, SIM_ARENA_H);
                     var _len = max(point_distance(_px, _py, _ax, _ay), 0.000000001);
                     var _dx = (_ax - _px) / _len, _dy = (_ay - _py) / _len;
-                    var _bx = _bot != 0 ? predict.value(_bot, "x") : _ax;
-                    var _by = _bot != 0 ? predict.value(_bot, "y") : _ay;
+                    var _bx = _bot != undefined ? predict.value(_bot, "x") : _ax;
+                    var _by = _bot != undefined ? predict.value(_bot, "y") : _ay;
                     // the server's own hit test, run against the pose THIS
                     // screen was showing — available immediately, and it agrees
                     // with the server whenever the rewind lands where it should
@@ -130,23 +129,21 @@ function Lab06() constructor {
         aim_x = _v.wx(device_mouse_x_to_gui(0));
         aim_y = _v.wy(device_mouse_y_to_gui(0));
         var _now = colyseus_predict_now();
-        var _state = __colyseus_room_get_state(_shell.net_room);
 
         // the strafing target, rendered where YOU see it (lerp = the past)
-        var _bot = __colyseus_map_get(_state, "bots", "bot1");
-        if (_bot != 0) {
+        var _bot = lab_entity(_shell, "bots", "bot1");
+        if (_bot != undefined) {
             draw_circle_w(_v, predict.value(_bot, "x"), predict.value(_bot, "y"),
                 SIM_BOT_RADIUS, COL_BLUE, false);
             // and the LIVE decoded pose as a faint outline — where it "really" is
-            draw_circle_w(_v, __colyseus_schema_get_number(_bot, "x"),
-                __colyseus_schema_get_number(_bot, "y"), SIM_BOT_RADIUS, COL_FAINT, true);
+            draw_circle_w(_v, _bot.x, _bot.y, SIM_BOT_RADIUS, COL_FAINT, true);
         }
         var _me = lab_me(_shell);
-        if (_me == 0 || rebind) return;
+        if (_me == undefined || rebind) return;
         var _px2 = recon.value("x");
         var _py2 = recon.value("y");
         draw_square_w(_v, _px2, _py2, SIM_PLAYER_HALF,
-            hue_color(__colyseus_schema_get_number(_me, "hue")));
+            hue_color(_me.hue));
         draw_square_outline_w(_v, _px2, _py2, SIM_PLAYER_HALF, COL_TEXT);
         draw_set_color(COL_TEXT);
         draw_circle(_v.sx(clamp(aim_x, 0, SIM_ARENA_W)), _v.sy(clamp(aim_y, 0, SIM_ARENA_H)), 6, true);
@@ -208,7 +205,7 @@ function Lab07() constructor {
 
     static __make_recon = function(_shell) {
         var _me = lab_me(_shell);
-        if (_me == 0) return false;
+        if (_me == undefined) return false;
         var _lab_self = self;
         recon = predict.reconciler(_me, {
             fields: ["x", "y", "vx", "vy", "bumpTicks"],
@@ -224,9 +221,8 @@ function Lab07() constructor {
                 var _bx = _ctx.memo_peek("bx");
                 var _by = _ctx.memo_peek("by");
                 if (!_ctx.is_replay) {
-                    var _state = __colyseus_room_get_state(shell.net_room);
-                    var _bot = __colyseus_map_get(_state, "bots", "bot1");
-                    if (_bot != 0) {
+                    var _bot = lab_entity(shell, "bots", "bot1");
+                    if (_bot != undefined) {
                         _bx = _ctx.memo_store("bx", lab.predict.value_at(_bot, "x", _ctx.reckon_time));
                         _by = _ctx.memo_store("by", lab.predict.value_at(_bot, "y", _ctx.reckon_time));
                     }
@@ -251,7 +247,7 @@ function Lab07() constructor {
     };
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         // the input carries the render-time stamp every step (lag-comp basis)
@@ -267,7 +263,7 @@ function Lab07() constructor {
 
     static step = function(_shell, _now, _dt) {
         if (rebind) {
-            if (lab_me(_shell) == 0) return;
+            if (lab_me(_shell) == undefined) return;
             recon.free_native();
             if (__make_recon(_shell)) rebind = false; else return;
         }
@@ -282,18 +278,17 @@ function Lab07() constructor {
     };
 
     static draw = function(_shell, _v, _hud) {
-        var _state = __colyseus_room_get_state(_shell.net_room);
-        var _bot = __colyseus_map_get(_state, "bots", "bot1");
-        if (_bot != 0) {
+        var _bot = lab_entity(_shell, "bots", "bot1");
+        if (_bot != undefined) {
             draw_circle_w(_v, predict.value(_bot, "x"), predict.value(_bot, "y"),
                 SIM_BOT_RADIUS, COL_BLUE, false);
         }
         var _me = lab_me(_shell);
-        if (_me == 0 || rebind) return;
+        if (_me == undefined || rebind) return;
         draw_square_w(_v, recon.value("x"), recon.value("y"), SIM_PLAYER_HALF,
-            hue_color(__colyseus_schema_get_number(_me, "hue")));
+            hue_color(_me.hue));
 
-        var _server_bumps = __colyseus_schema_get_number(_me, "bumps");
+        var _server_bumps = _me.bumps;
         _hud.section("TELEMETRY");
         _hud.row("bumps predicted", COL_WARN, string(bumps_predicted));
         _hud.row("bumps (server)", COL_GOOD, string(_server_bumps));
@@ -320,10 +315,9 @@ function Lab10() constructor {
     room_name = "lab-hockey";
 
     static __make_sim = function(_shell) {
-        var _state = __colyseus_room_get_state(_shell.net_room);
-        var _me = __colyseus_map_get(_state, "players", _shell.sid);
-        var _puck = __colyseus_schema_get_number(_state, "puck");
-        if (_me == 0 || _puck == 0) return false;
+        var _me = lab_me(_shell);
+        var _puck = colyseus_room_get_state(_shell.net_room).puck;
+        if (_me == undefined || _puck == undefined) return false;
         sim = predict.sim({
             world: { me: _me, puck: _puck },
             smooth_ms: 0,
@@ -335,7 +329,7 @@ function Lab10() constructor {
     };
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         predict = new ColyseusPredict(_shell.net_room);
@@ -346,7 +340,7 @@ function Lab10() constructor {
 
     static step = function(_shell, _now, _dt) {
         if (rebind) {
-            if (lab_me(_shell) == 0) return;
+            if (lab_me(_shell) == undefined) return;
             sim.free_native();
             if (__make_sim(_shell)) rebind = false; else return;
         }
@@ -367,23 +361,19 @@ function Lab10() constructor {
 
     static draw = function(_shell, _v, _hud) {
         if (rebind) return;   // mid-resync: the native sim is gone until step rebuilds it
-        var _state = __colyseus_room_get_state(_shell.net_room);
-
         // predicted world: my paddle + the puck
         draw_circle_w(_v, sim.value("me.x"), sim.value("me.y"), SIM_PADDLE_RADIUS, COL_ACCENT, false);
         draw_circle_w(_v, sim.value("puck.x"), sim.value("puck.y"), SIM_PUCK_RADIUS, COL_TEXT, false);
 
         // server ghost puck — the authoritative one trails by ~RTT
-        var _puck = __colyseus_schema_get_number(_state, "puck");
-        if (_puck != 0) {
-            draw_ghost_square_w(_v, __colyseus_schema_get_number(_puck, "x"),
-                __colyseus_schema_get_number(_puck, "y"), SIM_PUCK_RADIUS, COL_FAINT, 0.7);
+        var _puck = colyseus_room_get_state(_shell.net_room).puck;
+        if (_puck != undefined) {
+            draw_ghost_square_w(_v, _puck.x, _puck.y, SIM_PUCK_RADIUS, COL_FAINT, 0.7);
         }
         // the server-driven bot paddle (not predicted — its policy is server state)
-        var _bot = __colyseus_map_get(_state, "players", "bot");
-        if (_bot != 0) {
-            draw_circle_w(_v, __colyseus_schema_get_number(_bot, "x"),
-                __colyseus_schema_get_number(_bot, "y"), SIM_PADDLE_RADIUS, COL_BAD, true);
+        var _bot = lab_entity(_shell, "players", "bot");
+        if (_bot != undefined) {
+            draw_circle_w(_v, _bot.x, _bot.y, SIM_PADDLE_RADIUS, COL_BAD, true);
         }
 
         _hud.section("TELEMETRY");
@@ -466,7 +456,7 @@ function Lab11() constructor {
     room_name = "lab-range";
 
     static attach = function(_shell) {
-        if (lab_me(_shell) == 0) return false;
+        if (lab_me(_shell) == undefined) return false;
         input = new ColyseusInput(_shell.net_room);
         if (!input.ok) return false;
         input.set_rewind_field("fire");
@@ -508,11 +498,10 @@ function Lab11() constructor {
                 fire_pending = false;
                 rolls += 1;
                 // derive the fan CLIENT-SIDE from (seq, salt) — nothing on the wire
-                var _state = __colyseus_room_get_state(_shell.net_room);
-                var _salt = __colyseus_schema_get_number(_state, "salt");
-                var _me = __colyseus_map_get(_state, "players", _shell.sid);
-                var _ox = _me != 0 ? __colyseus_schema_get_number(_me, "x") : SIM_ARENA_W / 2;
-                var _oy = _me != 0 ? __colyseus_schema_get_number(_me, "y") : SIM_ARENA_H / 2;
+                var _salt = colyseus_room_get_state(_shell.net_room).salt;
+                var _me = lab_me(_shell);
+                var _ox = _me != undefined ? _me.x : SIM_ARENA_W / 2;
+                var _oy = _me != undefined ? _me.y : SIM_ARENA_H / 2;
                 var _base = arctan2(clamp(aim_y, 0, SIM_ARENA_H) - _oy,
                                     clamp(aim_x, 0, SIM_ARENA_W) - _ox);
                 var _angles;
@@ -535,18 +524,14 @@ function Lab11() constructor {
         aim_x = _v.wx(device_mouse_x_to_gui(0));
         aim_y = _v.wy(device_mouse_y_to_gui(0));
         var _now = colyseus_predict_now();
-        var _state = __colyseus_room_get_state(_shell.net_room);
 
         var _me = lab_me(_shell);
-        if (_me != 0) {
-            draw_square_w(_v, __colyseus_schema_get_number(_me, "x"),
-                __colyseus_schema_get_number(_me, "y"), SIM_PLAYER_HALF,
-                hue_color(__colyseus_schema_get_number(_me, "hue")));
+        if (_me != undefined) {
+            draw_square_w(_v, _me.x, _me.y, SIM_PLAYER_HALF, hue_color(_me.hue));
         }
-        var _bot = __colyseus_map_get(_state, "bots", "bot1");
-        if (_bot != 0) {
-            draw_circle_w(_v, __colyseus_schema_get_number(_bot, "x"),
-                __colyseus_schema_get_number(_bot, "y"), SIM_BOT_RADIUS, COL_BLUE, false);
+        var _bot = lab_entity(_shell, "bots", "bot1");
+        if (_bot != undefined) {
+            draw_circle_w(_v, _bot.x, _bot.y, SIM_BOT_RADIUS, COL_BLUE, false);
         }
         draw_set_color(COL_TEXT);
         draw_circle(_v.sx(clamp(aim_x, 0, SIM_ARENA_W)), _v.sy(clamp(aim_y, 0, SIM_ARENA_H)), 6, true);

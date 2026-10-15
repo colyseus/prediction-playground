@@ -30,19 +30,19 @@ function run_acceptance() {
     }
     colyseus_on_join(_room, method(_ctx, function(_r) { done = true; }));
     var _t0 = current_time;
-    var _me = 0;
+    var _me = undefined;
     var _sid = "";
     while (current_time - _t0 < 8000) {
         colyseus_process();
         if (!_ctx.done) continue;
         _sid = colyseus_room_get_session_id(_room);
-        var _state = __colyseus_room_get_state(_room);
-        if (_state != 0) _me = __colyseus_map_get(_state, "players", _sid);
-        if (_me != 0) break;
+        var _state = colyseus_room_get_state(_room);
+        if (_state != undefined) _me = colyseus_map_get(_state, "players", _sid);
+        if (_me != undefined) break;
     }
-    _pass += __accept("join", _me != 0, "me=" + string(_me));
+    _pass += __accept("join", _me != undefined, "sid=" + _sid);
 
-    if (_me != 0) {
+    if (_me != undefined) {
         // 3. reconciler: drive right 3s, drift must hold wire precision
         var _input = new ColyseusInput(_room);
         var _predict = new ColyseusPredict(_room);
